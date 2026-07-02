@@ -13,8 +13,11 @@ and the OCI manifests.
 Quick start
 -----------
 
-Vendor ``Findocx.cmake`` and ``ocx.cmake`` (from the GitHub release assets)
-into your repository, e.g. under ``cmake/``::
+Vendor ``Findocx.cmake`` and ``ocx.cmake`` (from the `GitHub release assets
+<https://github.com/ocx-sh/find_ocx/releases>`_) into your repository, e.g.
+under ``cmake/``:
+
+.. code-block:: cmake
 
   # CMakeLists.txt
   list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -78,4 +81,5 @@ one-shot bypass).
 .. toctree::
    :maxdepth: 2
 
+   examples
    reference

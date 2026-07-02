@@ -3,6 +3,7 @@ name = "find-ocx-docs"
 version = "0.0.0"
 requires-python = ">=3.10"
 dependencies = [
+    "furo>=2024.8.6",
     "sphinx>=7.4",
     "sphinxcontrib-moderncmakedomain>=3.27",
 ]
