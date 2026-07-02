@@ -1,0 +1,59 @@
+# https://taskfile.dev — dev toolchain provisioned via ocx (see ocx.toml)
+version: "3"
+
+vars:
+  CMAKE: ocx run -- cmake
+  CTEST: ocx run -- ctest
+  BUILD: build
+
+tasks:
+  default:
+    deps: [verify]
+
+  verify:
+    desc: Full gate — lint, module tests, examples, docs
+    cmds:
+      - task: lint
+      - task: test
+      - task: test:examples
+      - task: docs
+
+  lint:
+    desc: actionlint + license headers + links
+    cmds:
+      - ocx run -- actionlint
+      - ocx run -- hawkeye check
+      - ocx run -- lychee --no-progress README.md CONTRIBUTING.md SECURITY.md
+
+  test:
+    desc: Harness — dogfooded CMake-version matrix via CTest
+    cmds:
+      - "{{.CMAKE}} -Werror=dev -S . -B {{.BUILD}}"
+      - "{{.CTEST}} --test-dir {{.BUILD}} --output-on-failure"
+
+  test:examples:
+    desc: Example projects — configure, build, test
+    cmds:
+      - for: { var: EXAMPLES }
+        cmd: >-
+          {{.CMAKE}} -Werror=dev -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
+          {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} &&
+          {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} --output-on-failure
+    vars:
+      EXAMPLES: project package
+
+  docs:
+    desc: Sphinx (CMake domain) — warnings are errors
+    cmds:
+      - ocx run -- uv run --project docs sphinx-build -W -b html docs docs/_build/html
+
+  dist:update:
+    desc: Refresh the dist.json snapshot embedded in ocx.cmake
+    cmds:
+      - python3 scripts/update_dist.py
+      - task: dist:check
+
+  dist:check:
+    desc: Snapshot sanity — pinned version present for all 8 targets
+    cmds:
+      - python3 scripts/update_dist.py --check

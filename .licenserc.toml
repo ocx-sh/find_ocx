@@ -1,0 +1,14 @@
+inlineHeader = """
+SPDX-License-Identifier: Apache-2.0
+Copyright 2026 The OCX Authors"""
+
+includes = [
+    "*.cmake",
+    "CMakeLists.txt",
+    "tests/**/*.cmake",
+    "tests/**/CMakeLists.txt",
+    "examples/**/CMakeLists.txt",
+    "scripts/**/*.py",
+    "docs/conf.py",
+]
+excludes = ["build/**", "docs/_build/**"]

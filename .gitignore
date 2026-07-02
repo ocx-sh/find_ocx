@@ -1,0 +1,7 @@
+build/
+docs/_build/
+docs/.venv/
+.ocx_home/
+.lycheecache
+.task/
+__pycache__/

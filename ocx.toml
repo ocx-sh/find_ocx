@@ -1,0 +1,8 @@
+[tools]
+actionlint = "ocx.sh/actionlint:latest"
+cmake = "ocx.sh/cmake:3.31"
+git-cliff = "ocx.sh/git-cliff:latest"
+go-task = "ocx.sh/go-task:latest"
+hawkeye = "ocx.sh/hawkeye:latest"
+lychee = "ocx.sh/lychee:latest"
+uv = "ocx.sh/uv:latest"

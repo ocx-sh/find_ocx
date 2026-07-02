@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Setup OCX
+        uses: ocx-sh/setup-ocx@v1
+        with:
+          version: "0.3.11"
+      - name: Verify tag matches the module version stamp
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          module="$(sed -n 's/^set(__OCX_MODULE_VERSION "\([^"]*\)").*/\1/p' ocx.cmake)"
+          if [ "$tag" != "$module" ]; then
+            echo "tag v$tag does not match __OCX_MODULE_VERSION $module in ocx.cmake" >&2
+            exit 1
+          fi
+      - name: Checksums over the published files
+        run: sha256sum Findocx.cmake ocx.cmake > SHA256SUMS
+      - name: Generate release notes
+        run: ocx run -- git-cliff --latest --strip header -o notes.md
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            $prerelease \
+            Findocx.cmake ocx.cmake SHA256SUMS

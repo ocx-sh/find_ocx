@@ -1,0 +1,3 @@
+[tools]
+jq = "ocx.sh/jq:latest"
+shellcheck = "ocx.sh/shellcheck:latest"

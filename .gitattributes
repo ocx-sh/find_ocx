@@ -1,0 +1,4 @@
+# Windows runners check out with autocrlf; CRLF breaks sh scripts.
+*.sh text eol=lf
+
+ocx.lock merge=union

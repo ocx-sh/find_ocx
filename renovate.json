@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "schedule:weekly"
+  ],
+  "semanticCommits": "enabled",
+  "packageRules": [
+    {
+      "description": "GitHub Actions — group, SHA-pin, ci(deps) prefix",
+      "matchManagers": ["github-actions"],
+      "groupName": "actions",
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps",
+      "pinDigests": true
+    },
+    {
+      "description": "Docs tooling (uv/pep621) — group, chore(deps) prefix",
+      "matchManagers": ["pep621"],
+      "groupName": "docs-deps",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    }
+  ]
+}

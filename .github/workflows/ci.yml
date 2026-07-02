@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup OCX
+        uses: ocx-sh/setup-ocx@v1
+        with:
+          version: "0.3.11"
+      - name: Lint (actionlint, license headers, links)
+        run: ocx run -- task lint
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup OCX
+        uses: ocx-sh/setup-ocx@v1
+        with:
+          version: "0.3.11"
+      - name: Sphinx build (warnings are errors)
+        run: ocx run -- task docs
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup OCX
+        uses: ocx-sh/setup-ocx@v1
+        with:
+          version: "0.3.11"
+      - name: Dogfooded CMake-version matrix (live ocx.sh registry)
+        run: ocx run -- task test
+
+  examples:
+    name: Example ${{ matrix.example }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        example: [project, package]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup OCX
+        uses: ocx-sh/setup-ocx@v1
+        with:
+          version: "0.3.11"
+      - name: Configure, build, test
+        shell: bash
+        run: |
+          ocx run -- cmake -Werror=dev -DOCX_PULL=ON \
+            -S "examples/${{ matrix.example }}" -B build/example
+          ocx run -- cmake --build build/example
+          ocx run -- ctest --test-dir build/example --output-on-failure
+
+  offline:
+    name: Offline determinism
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup OCX
+        uses: ocx-sh/setup-ocx@v1
+        with:
+          version: "0.3.11"
+      - name: Warm configure (pulls everything)
+        run: ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/warm
+      - name: Offline configure in a fresh build dir (must succeed)
+        run: |
+          OCX_OFFLINE=1 ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/offline
+      - name: Offline configure against an empty store (must fail)
+        run: |
+          if OCX_HOME="$RUNNER_TEMP/empty-ocx-home" OCX_OFFLINE=1 \
+             ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/empty; then
+            echo "expected the offline configure against an empty store to fail" >&2
+            exit 1
+          fi
+          echo "offline failure mode OK"
