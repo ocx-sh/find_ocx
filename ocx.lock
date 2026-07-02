@@ -1,9 +1,9 @@
 [metadata]
 lock_version = 2
 declaration_hash_version = 1
-declaration_hash = "sha256:072fecce1c2c2bcfcb0890060565438df6ada446ca054aa683cbd4547de0655c"
+declaration_hash = "sha256:05e433b00b2b68970a41a5c85325d62b86f7f2fb2ce9e8e9cfa8c83d77eebd44"
 generated_by = "ocx 0.3.11"
-generated_at = "2026-07-02T22:19:53Z"
+generated_at = "2026-07-02T22:28:37Z"
 
 [[tool]]
 name = "actionlint"
@@ -80,6 +80,19 @@ repository = "ocx.sh/lychee"
 "linux/amd64" = "sha256:a4da72f61e03653d067ea731d8ffcb1651cb88199003518062d6b80223433051"
 "linux/arm64" = "sha256:80bb89d13669add2363656ecaeb07161b1593caf4d2a19d520df5c9d797fee88"
 "windows/amd64" = "sha256:2f806153cd281572a5e2c44d419e8f8d45a5c9b8c58dfea24f2e0de2643e7ad6"
+
+[[tool]]
+name = "ninja"
+group = "default"
+repository = "ocx.sh/ninja"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:d5cb1b8a18ecf202d36683fb487e5eb9e03f1b2159f7f63efdc0dc2bbdce4fa2"
+"darwin/arm64" = "sha256:d5cb1b8a18ecf202d36683fb487e5eb9e03f1b2159f7f63efdc0dc2bbdce4fa2"
+"linux/amd64" = "sha256:da7b420fd5365839c05805b0ad386324654a8a4d7fd649f0fe1ebafb492c06b9"
+"linux/arm64" = "sha256:ecd5480caa465aa5ba6d80e642718cf9b324761ea4a8bfe6e2b8103a8a738871"
+"windows/amd64" = "sha256:4a27243f5da6e3d9dd4d344ca789a883899ce5771b9219caa501d44e676de6d3"
+"windows/arm64" = "sha256:2c447ed630231081d343c48dd79edc5b119a64e067cb69c735251c0a1bb2ff40"
 
 [[tool]]
 name = "uv"

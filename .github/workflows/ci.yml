@@ -13,8 +13,8 @@ concurrency:
 permissions:
   contents: read
 
-# The mirror-cmake bundle has no generator baked in; the runner images all
-# ship Ninja, and NMake would need a VS dev shell on Windows.
+# The mirror-cmake bundle picks NMake on Windows (needs a VS dev shell);
+# ninja is provisioned through ocx.toml — dogfooding all the way down.
 env:
   CMAKE_GENERATOR: Ninja
 
