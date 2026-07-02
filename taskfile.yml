@@ -63,3 +63,9 @@ tasks:
     desc: Snapshot sanity — pinned version present for all 8 targets
     cmds:
       - python3 scripts/update_dist.py --check
+
+  index:update:
+    desc: Refresh the committed index snapshots (review the diff, commit)
+    cmds:
+      - "{{.CMAKE}} -Werror=dev -S . -B {{.BUILD}}"
+      - "{{.CMAKE}} --build {{.BUILD}} --target ocx-index-update"

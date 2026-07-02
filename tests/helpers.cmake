@@ -79,6 +79,21 @@ function(ocx_add_script_mode_test)
   endforeach()
 endfunction()
 
+# Self-update check: a doctored fake release behind a file:// base URL must
+# replace the vendored ocx.cmake/Findocx.cmake in place (fully offline).
+function(ocx_add_self_update_test)
+  cmake_parse_arguments(arg "" "" "VERSIONS" ${ARGN})
+  foreach(v IN LISTS arg_VERSIONS)
+    add_test(
+      NAME self_update.cmake${v}
+      COMMAND ${OCX_CMAKE_${v}_RUN} cmake
+        "-DMODULE_DIR=${CMAKE_SOURCE_DIR}"
+        "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/self_update-cmake${v}"
+        -P "${CMAKE_SOURCE_DIR}/tests/self_update_check.cmake"
+    )
+  endforeach()
+endfunction()
+
 # Memoization test: configure the package fixture twice; the second
 # configure must report the fingerprint hit instead of re-running ocx.
 function(ocx_add_memoize_test)

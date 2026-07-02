@@ -50,6 +50,9 @@ Highlights:
   the digest to copy into ``PINS`` for reproducibility.
 * ``PINS`` + lazy: fully reproducible, and nothing is downloaded until the
   first build-time execution.
+* ``INDEX`` + a committed snapshot: frozen tag resolution (rules_ocx-style)
+  — the third pinning mechanism next to ``PINS`` and ``@sha256:`` digests,
+  refreshed deliberately via :command:`ocx_index_update`.
 * Reconfigures are memoized — with unchanged inputs no ``ocx`` process is
   spawned at all.
 

@@ -40,6 +40,13 @@ environment variable is set at the *first* configure, the value is
 snapshotted into the cache and stays sticky for the build directory
 (override with ``-DVAR=...``, clear with ``-DVAR=``).
 
+.. variable:: OCX_EXECUTABLE
+
+  Path to the ocx CLI to run everything through. Snapshotted from the
+  environment like every other knob (CI: ``export OCX_EXECUTABLE=$(which
+  ocx)`` needs no ``-D``); when unset, the first provisioning call
+  bootstraps the pin.
+
 .. variable:: OCX_INSTALL_DIST_URL
 
   Fetch the ocx release manifest (dist.json) from a mirror instead of the
@@ -93,10 +100,33 @@ snapshotted into the cache and stays sticky for the build directory
 
   One-shot: bypass the reconfigure memoization and re-execute ocx.
 
+.. variable:: OCX_SELF_UPDATE_VERSION
+
+  find_ocx release tag to self-update the vendored ``ocx.cmake`` and
+  ``Findocx.cmake`` to (``vX.Y.Z``; the ``v`` is optional). Default: the
+  latest release, discovered via the GitHub releases API. Script mode
+  only::
+
+    cmake [-DOCX_SELF_UPDATE_VERSION=v0.3.0] -P cmake/ocx.cmake
+
+  replaces this file (and a sibling ``Findocx.cmake`` when present) in
+  place, verified against the release ``SHA256SUMS``.
+
+.. variable:: OCX_SELF_UPDATE_URL
+
+  Fetch the find_ocx release files from ``<url>/<tag>/<filename>`` instead
+  of GitHub — same rewrite shape as ``OCX_INSTALL_MIRROR_URL``. Requires an
+  explicit ``OCX_SELF_UPDATE_VERSION`` (mirrors do not serve the releases
+  API); the mirrored ``SHA256SUMS`` stays the trust root.
+
 Passthrough variables forwarded to every ocx invocation when set (same set
 as rules_ocx): ``OCX_HOME``, ``OCX_MIRRORS``, ``OCX_INSECURE_REGISTRIES``,
 ``OCX_OFFLINE``, ``OCX_FROZEN``, ``OCX_REMOTE``, ``OCX_JOBS``,
-``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``.
+``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``. ``OCX_FROZEN`` and ``OCX_INDEX``
+are honored as CMake variables only, never snapshotted from the
+environment: ocx launchers export them into child processes as transport,
+and an outer launcher must not hijack a nested configure's resolution
+mode.
 
 ``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are deliberately
 **never** snapshotted into the cache — export them in the environment and
@@ -118,7 +148,7 @@ include_guard(GLOBAL)
 cmake_policy(PUSH)
 cmake_policy(VERSION 3.19)
 
-set(__OCX_MODULE_VERSION "0.1.0")
+set(__OCX_MODULE_VERSION "0.2.0")
 
 # The ocx CLI declares no stability for its command-line surface across
 # versions; find_ocx therefore pins an exact version and is tested against
@@ -284,7 +314,15 @@ set(__OCX_PASSTHROUGH_VARS
 )
 set_property(GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS "${__OCX_PASSTHROUGH_VARS}")
 
+# OCX_FROZEN / OCX_INDEX are never snapshotted from the environment: ocx
+# launchers (ocx run, package exec with --frozen/--index) export them into
+# children as transport, indistinguishable from user intent - a nested
+# find_ocx configure must not inherit an outer launcher's resolution mode.
+# Set them as CMake variables (-D) instead.
+set(__ocx_snapshot_vars ${__OCX_PASSTHROUGH_VARS})
+list(REMOVE_ITEM __ocx_snapshot_vars OCX_FROZEN OCX_INDEX)
 foreach(__ocx_var IN ITEMS
+    OCX_EXECUTABLE
     OCX_INSTALL_DIST_URL
     OCX_INSTALL_MIRROR_URL
     OCX_INSTALL_VERSION
@@ -292,10 +330,11 @@ foreach(__ocx_var IN ITEMS
     OCX_BOOTSTRAP
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
-    ${__OCX_PASSTHROUGH_VARS})
+    ${__ocx_snapshot_vars})
   __ocx_snapshot_env(${__ocx_var})
 endforeach()
 unset(__ocx_var)
+unset(__ocx_snapshot_vars)
 unset(__OCX_PASSTHROUGH_VARS)
 
 # ---------------------------------------------------------------------------
@@ -303,11 +342,17 @@ unset(__OCX_PASSTHROUGH_VARS)
 # ---------------------------------------------------------------------------
 
 # Command prefix applied to every ocx invocation (configure-time and inside
-# the exported *_RUN command lists): neutralize OCX_PROJECT (ocx run exports
-# it into children; an outer `ocx run` must not hijack this build) and pin
-# the snapshotted passthrough variables.
+# the exported *_RUN command lists): neutralize OCX_PROJECT, OCX_FROZEN and
+# OCX_INDEX (ocx launchers export them into children; an outer `ocx run` /
+# frozen `package exec` must not hijack this build) and pin the snapshotted
+# passthrough variables - later arguments win in `cmake -E env`, so a
+# CMake-level OCX_FROZEN/OCX_INDEX is re-pinned by the loop below.
+# OCX_FROZEN/OCX_INDEX must be --unset, not set empty: the CLI reads an
+# empty OCX_INDEX as "index at the current directory" and would write
+# resolved tags there.
 function(__ocx_env_prefix out_var)
-  set(prefix "${CMAKE_COMMAND}" -E env "OCX_PROJECT=")
+  set(prefix "${CMAKE_COMMAND}" -E env "OCX_PROJECT="
+    --unset=OCX_FROZEN --unset=OCX_INDEX)
   get_property(vars GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS)
   foreach(var IN LISTS vars)
     if(DEFINED ${var} AND NOT "${${var}}" STREQUAL "")
@@ -741,7 +786,9 @@ endfunction()
       add_custom_command(... COMMAND ${OCX_PROJECT_RUN} jq . in > out)
 
   ``OCX_<NAME>_RUN_<BIN>``
-    Per-tool convenience command for every name in ``BINS``.
+    Per-tool convenience command for every name in ``BINS``. Entries are
+    executable names on the composed environment (a package may ship
+    several tools), not package references.
 
   ``TOML`` defaults to ``OCX_PROJECT_FILE`` or the nearest ``ocx.toml``
   between the calling directory and the last ``project()`` source dir;
@@ -894,7 +941,10 @@ endfunction()
   digests (as reported by ``ocx package install -p <platform>``); the
   matching platform installs ``registry/repo@<digest>``. ``INDEX`` freezes
   tag resolution to a committed index snapshot
-  (``ocx --index <dir> index update <package>``).
+  (``ocx --index <dir> index update <package>``; see
+  :command:`ocx_index_update` for the refresh target). ``BINS`` entries are
+  executable names on the composed environment (a package may ship several
+  tools), not package references.
 
   With ``PULL`` (or the global ``OCX_PULL``) the package is installed at
   configure time and ``<name>_ROOT`` (original case, CMP0074) is set to the
@@ -948,9 +998,25 @@ function(ocx_package)
   endforeach()
 
   set(index_args "")
+  set(index_leaf_sha "")
   if(arg_INDEX)
     get_filename_component(index_dir "${arg_INDEX}" ABSOLUTE)
     set(index_args --index "${index_dir}" --frozen)
+    # repo without :tag/@digest - the argument `ocx index update` expects.
+    # Registered before the memo gate: GLOBAL properties do not survive
+    # reconfigures, so ocx_index_update() must see memoized packages too.
+    string(REGEX REPLACE "@.*$" "" index_repo "${arg_PACKAGE}")
+    string(REGEX REPLACE ":[^:/]*$" "" index_repo "${index_repo}")
+    set_property(GLOBAL APPEND PROPERTY __OCX_INDEX_REFRESH "${index_dir}|${index_repo}")
+    # The flag string alone would memoize across snapshot refreshes: hash
+    # the <repo>.json leaf into the fingerprint and retrigger on edits.
+    set(index_leaf "${index_dir}/${index_repo}.json")
+    if(EXISTS "${index_leaf}")
+      file(SHA256 "${index_leaf}" index_leaf_sha)
+      if(NOT CMAKE_SCRIPT_MODE_FILE)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${index_leaf}")
+      endif()
+    endif()
   endif()
   set(platform_args "")
   if(platform)
@@ -965,15 +1031,20 @@ function(ocx_package)
   __ocx_cli_version(cli_version)
   __ocx_env_prefix(prefix)
   string(SHA256 fingerprint
-    "package|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${pull}|${arg_NO_ROOT}|${prefix}")
+    "package|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}")
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
   if(hit)
     message(STATUS "find_ocx: ${name} up to date (memoized)")
     return()
   endif()
 
-  set(index_hint
-    "81=package not in the committed index snapshot - refresh it with 'ocx --index ${arg_INDEX} index update ${arg_PACKAGE}'")
+  if(arg_INDEX)
+    set(index_hint
+      "81=package not in the committed index snapshot - refresh it with 'ocx --index ${index_dir} index update ${index_repo}'")
+  else()
+    set(index_hint
+      "81=frozen resolution refused the floating tag - is OCX_FROZEN set without a usable index?")
+  endif()
 
   set(guard_paths "")
   if(pull)
@@ -1035,4 +1106,196 @@ function(ocx_package)
   __ocx_memo_store("${name}" "${fingerprint}" ${guard_paths})
 endfunction()
 
+# ---------------------------------------------------------------------------
+# ocx_index_update
+# ---------------------------------------------------------------------------
+
+#[=[.rst:
+.. command:: ocx_index_update
+
+  Adds a build target that refreshes the committed index snapshots::
+
+    ocx_index_update([TARGET <name>])
+
+  Collects every preceding :command:`ocx_package` call that used ``INDEX``
+  and creates one custom target (default ``ocx-index-update``) running
+  ``ocx --index <dir> index update <repo>...`` once per distinct index
+  directory. Call it after the last ``ocx_package(... INDEX ...)``; project
+  mode only (script mode has no build system).
+
+  Deliberately never part of ``ALL``, and deliberately no ctest variant: a
+  "test" that rewrites a committed file would let CI paper over drift
+  instead of failing. The freshness gate is the frozen configure itself —
+  a tag missing from the snapshot fails with the exit-81 refresh hint.
+  Run the target, review the diff, commit.
+#]=]
+function(ocx_index_update)
+  cmake_parse_arguments(arg "" "TARGET" "" ${ARGN})
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "find_ocx: ocx_index_update: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
+  if(NOT arg_TARGET)
+    set(arg_TARGET "ocx-index-update")
+  endif()
+  if(CMAKE_SCRIPT_MODE_FILE)
+    message(FATAL_ERROR
+      "find_ocx: ocx_index_update: targets need project mode - run "
+      "'ocx --index <dir> index update <package>' directly instead")
+  endif()
+  get_property(entries GLOBAL PROPERTY __OCX_INDEX_REFRESH)
+  if(NOT entries)
+    message(FATAL_ERROR
+      "find_ocx: ocx_index_update: no preceding ocx_package(... INDEX ...) "
+      "call registered an index snapshot to refresh")
+  endif()
+
+  set(dirs "")
+  foreach(entry IN LISTS entries)
+    string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\1" dir "${entry}")
+    string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\2" repo "${entry}")
+    string(MAKE_C_IDENTIFIER "${dir}" dir_id)
+    list(APPEND dirs "${dir}")
+    list(APPEND repos_${dir_id} "${repo}")
+  endforeach()
+  list(REMOVE_DUPLICATES dirs)
+
+  __ocx_env_prefix(prefix)
+  set(commands "")
+  foreach(dir IN LISTS dirs)
+    string(MAKE_C_IDENTIFIER "${dir}" dir_id)
+    list(REMOVE_DUPLICATES repos_${dir_id})
+    list(APPEND commands
+      COMMAND ${prefix} "${OCX_EXECUTABLE}" --index "${dir}" index update ${repos_${dir_id}})
+  endforeach()
+  add_custom_target(${arg_TARGET}
+    ${commands}
+    COMMAND ${CMAKE_COMMAND} -E echo
+      "find_ocx: index snapshots refreshed - review the diff and commit the result"
+    VERBATIM
+  )
+endfunction()
+
 cmake_policy(POP)
+
+# ---------------------------------------------------------------------------
+# Self-update (script mode)
+# ---------------------------------------------------------------------------
+
+# Replaces this file (and a sibling Findocx.cmake when present) with a
+# released version, verified against the release SHA256SUMS. Only reachable
+# via `cmake -P ocx.cmake` (guard below) - never during a configure. Knobs:
+# OCX_SELF_UPDATE_VERSION (tag; default: latest via the GitHub API) and
+# OCX_SELF_UPDATE_URL (mirror base; requires an explicit version).
+function(__ocx_self_update)
+  set(tag "")
+  if(DEFINED OCX_SELF_UPDATE_VERSION AND NOT "${OCX_SELF_UPDATE_VERSION}" STREQUAL "")
+    set(tag "${OCX_SELF_UPDATE_VERSION}")
+    if(NOT tag MATCHES "^v")
+      set(tag "v${tag}")
+    endif()
+  elseif(DEFINED OCX_SELF_UPDATE_URL AND NOT "${OCX_SELF_UPDATE_URL}" STREQUAL "")
+    message(FATAL_ERROR
+      "find_ocx: OCX_SELF_UPDATE_URL is set but OCX_SELF_UPDATE_VERSION is "
+      "not - a mirror cannot serve the GitHub releases API, pass the tag "
+      "explicitly (-DOCX_SELF_UPDATE_VERSION=vX.Y.Z)")
+  endif()
+
+  # Sibling temp dir: same filesystem, so the final file(RENAME) is atomic.
+  set(tmp "${CMAKE_CURRENT_LIST_DIR}/.ocx-self-update-tmp")
+  file(REMOVE_RECURSE "${tmp}")
+
+  if(tag STREQUAL "")
+    file(DOWNLOAD "https://api.github.com/repos/ocx-sh/find_ocx/releases/latest"
+      "${tmp}/latest.json" STATUS status)
+    list(GET status 0 status_code)
+    if(NOT status_code EQUAL 0)
+      list(GET status 1 status_msg)
+      file(REMOVE_RECURSE "${tmp}")
+      message(FATAL_ERROR
+        "find_ocx: failed to discover the latest release from the GitHub "
+        "API: ${status_msg}\n"
+        "hint: pass -DOCX_SELF_UPDATE_VERSION=vX.Y.Z (plus "
+        "-DOCX_SELF_UPDATE_URL=<mirror> on restricted networks)")
+    endif()
+    file(READ "${tmp}/latest.json" api_json)
+    string(JSON tag GET "${api_json}" tag_name)
+  endif()
+
+  set(base "https://github.com/ocx-sh/find_ocx/releases/download")
+  if(DEFINED OCX_SELF_UPDATE_URL AND NOT "${OCX_SELF_UPDATE_URL}" STREQUAL "")
+    string(REGEX REPLACE "/+$" "" base "${OCX_SELF_UPDATE_URL}")
+  endif()
+
+  file(DOWNLOAD "${base}/${tag}/SHA256SUMS" "${tmp}/SHA256SUMS" STATUS status)
+  list(GET status 0 status_code)
+  if(NOT status_code EQUAL 0)
+    list(GET status 1 status_msg)
+    file(REMOVE_RECURSE "${tmp}")
+    message(FATAL_ERROR
+      "find_ocx: failed to fetch ${base}/${tag}/SHA256SUMS: ${status_msg}")
+  endif()
+
+  file(READ "${tmp}/SHA256SUMS" sums)
+  set(module_sha "")
+  set(find_sha "")
+  string(REGEX REPLACE "\r?\n" ";" sum_lines "${sums}")
+  foreach(line IN LISTS sum_lines)
+    if(line MATCHES "^([0-9a-f]+)[ \t*]+(.+)$")
+      if(CMAKE_MATCH_2 STREQUAL "ocx.cmake")
+        set(module_sha "${CMAKE_MATCH_1}")
+      elseif(CMAKE_MATCH_2 STREQUAL "Findocx.cmake")
+        set(find_sha "${CMAKE_MATCH_1}")
+      endif()
+    endif()
+  endforeach()
+  if(module_sha STREQUAL "" OR find_sha STREQUAL "")
+    file(REMOVE_RECURSE "${tmp}")
+    message(FATAL_ERROR
+      "find_ocx: ${base}/${tag}/SHA256SUMS lacks hashes for ocx.cmake and "
+      "Findocx.cmake - not a find_ocx release?")
+  endif()
+
+  # Both-or-neither: nothing is renamed until both verified downloads exist.
+  set(names ocx.cmake Findocx.cmake)
+  set(shas "${module_sha}" "${find_sha}")
+  foreach(name sha IN ZIP_LISTS names shas)
+    file(DOWNLOAD "${base}/${tag}/${name}" "${tmp}/${name}"
+      EXPECTED_HASH SHA256=${sha} STATUS status)
+    list(GET status 0 status_code)
+    if(NOT status_code EQUAL 0)
+      list(GET status 1 status_msg)
+      file(REMOVE_RECURSE "${tmp}")
+      message(FATAL_ERROR
+        "find_ocx: download of ${base}/${tag}/${name} failed: ${status_msg}")
+    endif()
+  endforeach()
+
+  file(READ "${tmp}/ocx.cmake" new_content)
+  set(new_version "unknown")
+  if(new_content MATCHES "__OCX_MODULE_VERSION \"([^\"]+)\"")
+    set(new_version "${CMAKE_MATCH_1}")
+  endif()
+  # No downgrade refusal: an explicit version is the operator's choice
+  # (rollbacks are legitimate); the direction is visible in this line.
+  message(STATUS "find_ocx: ${__OCX_MODULE_VERSION} -> ${new_version} (${tag})")
+
+  # Replacing the running script is safe: CMake parses the whole listfile
+  # before executing it.
+  file(RENAME "${tmp}/ocx.cmake" "${CMAKE_CURRENT_LIST_FILE}")
+  set(findocx "${CMAKE_CURRENT_LIST_DIR}/Findocx.cmake")
+  if(EXISTS "${findocx}")
+    file(RENAME "${tmp}/Findocx.cmake" "${findocx}")
+  else()
+    message(STATUS
+      "find_ocx: no Findocx.cmake next to this file - skipped "
+      "(ocx.cmake-only vendoring is supported)")
+  endif()
+  file(REMOVE_RECURSE "${tmp}")
+endfunction()
+
+# `cmake -P ocx.cmake` runs the self-update; `include(ocx)` from another
+# script keeps CMAKE_SCRIPT_MODE_FILE pointing at the outer script, so a
+# plain include never triggers it.
+if(CMAKE_SCRIPT_MODE_FILE AND CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
+  __ocx_self_update()
+endif()

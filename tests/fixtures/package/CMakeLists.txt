@@ -20,3 +20,20 @@ add_custom_target(jq_lazy_assert ALL
   COMMAND ${OCX_JQ_LAZY_RUN_JQ} -n -e [[1 == 1]]
   VERBATIM
 )
+
+# Frozen + lazy: the tag resolves from the committed index snapshot
+# (index/ocx.sh/jq.json); the exported launcher carries --index --frozen
+# into every execution, and -Werror=dev proves the floating warning is
+# suppressed when INDEX is given.
+ocx_package(NAME JQ_FROZEN PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT
+  INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index")
+
+add_custom_target(jq_frozen_assert ALL
+  COMMAND ${OCX_JQ_FROZEN_RUN_JQ} -n -e [[1 == 1]]
+  VERBATIM
+)
+
+ocx_index_update()
+if(NOT TARGET ocx-index-update)
+  message(FATAL_ERROR "package fixture: ocx_index_update did not create the target")
+endif()

@@ -13,12 +13,20 @@ enable_testing()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 include(ocx)
 
-ocx_package(NAME CMAKE_3 PACKAGE ocx.sh/cmake:3.31 PULL NO_ROOT)
-ocx_package(NAME CMAKE_4 PACKAGE ocx.sh/cmake:4 PULL NO_ROOT)
+# INDEX: the :3.31/:4 tags resolve frozen from the committed snapshot
+# (tests/index/ocx.sh/cmake.json) - CI tag resolution is hermetic.
+ocx_package(NAME CMAKE_3 PACKAGE ocx.sh/cmake:3.31 PULL NO_ROOT
+  INDEX "${CMAKE_CURRENT_SOURCE_DIR}/tests/index")
+ocx_package(NAME CMAKE_4 PACKAGE ocx.sh/cmake:4 PULL NO_ROOT
+  INDEX "${CMAKE_CURRENT_SOURCE_DIR}/tests/index")
 # TODO(mirror backfill): mirror-cmake versions.min is 3.31.0; enable once
 # 3.19.x is published, see the plan's external prerequisite.
 # ocx_package(NAME CMAKE_3_19 PACKAGE ocx.sh/cmake:3.19 PULL NO_ROOT)
 set(OCX_TEST_CMAKE_VERSIONS 3 4)
+
+# Refresh flow: `cmake --build build --target ocx-index-update` (or
+# `task index:update`), review the diff, commit.
+ocx_index_update()
 
 include(tests/helpers.cmake)
 
@@ -32,3 +40,4 @@ ocx_add_stale_lock_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_bootstrap_off_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_memoize_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_script_mode_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+ocx_add_self_update_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})

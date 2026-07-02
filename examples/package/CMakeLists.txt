@@ -42,3 +42,14 @@ add_custom_target(pretty ALL
 add_test(NAME jq_pinned_filter
   COMMAND ${OCX_JQ_PINNED_RUN_JQ} -e ".target == \"cmake\""
           "${CMAKE_CURRENT_SOURCE_DIR}/data.json")
+
+# Frozen-index + lazy: the tag resolves from the committed snapshot
+# (index/ocx.sh/jq.json) - reproducible without digests in this file.
+# Refresh deliberately (`ocx --index index index update ocx.sh/jq` or an
+# ocx_index_update() target), review the diff, commit.
+ocx_package(NAME jq_frozen PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT
+  INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index")
+
+add_test(NAME jq_frozen_filter
+  COMMAND ${OCX_JQ_FROZEN_RUN_JQ} -e ".target == \"cmake\""
+          "${CMAKE_CURRENT_SOURCE_DIR}/data.json")

@@ -36,6 +36,20 @@ configure into a per-machine cache.
 Requires CMake 3.19 (``Findocx.cmake`` alone works on 3.15). Script mode
 (``cmake -P``) is fully supported.
 
+Updating the vendored files
+---------------------------
+
+The vendored pair self-updates in script mode, verified against the
+release ``SHA256SUMS``:
+
+.. code-block:: console
+
+   cmake -P cmake/ocx.cmake                                # latest release
+   cmake -DOCX_SELF_UPDATE_VERSION=v0.3.0 -P cmake/ocx.cmake
+   cmake -DOCX_SELF_UPDATE_VERSION=v0.3.0 \
+         -DOCX_SELF_UPDATE_URL=https://mirror.corp/find_ocx \
+         -P cmake/ocx.cmake                                # corporate mirror
+
 Two entry points
 ----------------
 
@@ -62,6 +76,11 @@ Which binary runs — first match wins:
 ``-DOCX_BOOTSTRAP=OFF`` forbids the implicit download for policy-strict
 environments: the configure then fails with an actionable error unless
 ``OCX_EXECUTABLE`` is provided.
+
+Vendoring only ``ocx.cmake`` is fully supported — ``-DOCX_EXECUTABLE`` plus
+``-DOCX_BOOTSTRAP=OFF`` is the fully explicit mode. ``Findocx.cmake`` is
+the optional classic front door for projects that want ``find_package``
+semantics and a system ocx to win.
 
 Corporate mirrors
 -----------------
@@ -91,6 +110,9 @@ Variable                     Effect
 
 Also passed through when set: ``OCX_HOME``, ``OCX_OFFLINE``, ``OCX_FROZEN``,
 ``OCX_REMOTE``, ``OCX_JOBS``, ``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``.
+``OCX_FROZEN`` and ``OCX_INDEX`` are honored as ``-D`` CMake variables
+only — ocx launchers export them into child processes, so environment
+values would let an outer launcher hijack a nested configure.
 
 Lazy vs eager
 -------------
