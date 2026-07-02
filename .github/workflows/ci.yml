@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+# The mirror-cmake bundle has no generator baked in; the runner images all
+# ship Ninja, and NMake would need a VS dev shell on Windows.
+env:
+  CMAKE_GENERATOR: Ninja
+
 jobs:
   lint:
     name: Lint
