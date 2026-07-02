@@ -122,11 +122,14 @@ snapshotted into the cache and stays sticky for the build directory
 Passthrough variables forwarded to every ocx invocation when set (same set
 as rules_ocx): ``OCX_HOME``, ``OCX_MIRRORS``, ``OCX_INSECURE_REGISTRIES``,
 ``OCX_OFFLINE``, ``OCX_FROZEN``, ``OCX_REMOTE``, ``OCX_JOBS``,
-``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``. ``OCX_FROZEN`` and ``OCX_INDEX``
-are honored as CMake variables only, never snapshotted from the
-environment: ocx launchers export them into child processes as transport,
-and an outer launcher must not hijack a nested configure's resolution
-mode.
+``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``. Clearing a knob with ``-DVAR=``
+actively removes it from the environment of every ocx invocation. That is
+the opt-out for launcher inheritance: ocx launchers (``ocx run``, frozen
+``package exec`` — including the ``OCX_<NAME>_RUN`` command lists this
+module exports) export ``OCX_FROZEN`` and ``OCX_INDEX`` into child
+processes, so a find_ocx configure nested inside one (ExternalProject,
+test harnesses) inherits the outer resolution mode unless it is given
+``-DOCX_FROZEN=`` ``-DOCX_INDEX=``.
 
 ``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are deliberately
 **never** snapshotted into the cache — export them in the environment and
@@ -314,13 +317,6 @@ set(__OCX_PASSTHROUGH_VARS
 )
 set_property(GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS "${__OCX_PASSTHROUGH_VARS}")
 
-# OCX_FROZEN / OCX_INDEX are never snapshotted from the environment: ocx
-# launchers (ocx run, package exec with --frozen/--index) export them into
-# children as transport, indistinguishable from user intent - a nested
-# find_ocx configure must not inherit an outer launcher's resolution mode.
-# Set them as CMake variables (-D) instead.
-set(__ocx_snapshot_vars ${__OCX_PASSTHROUGH_VARS})
-list(REMOVE_ITEM __ocx_snapshot_vars OCX_FROZEN OCX_INDEX)
 foreach(__ocx_var IN ITEMS
     OCX_EXECUTABLE
     OCX_INSTALL_DIST_URL
@@ -330,11 +326,10 @@ foreach(__ocx_var IN ITEMS
     OCX_BOOTSTRAP
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
-    ${__ocx_snapshot_vars})
+    ${__OCX_PASSTHROUGH_VARS})
   __ocx_snapshot_env(${__ocx_var})
 endforeach()
 unset(__ocx_var)
-unset(__ocx_snapshot_vars)
 unset(__OCX_PASSTHROUGH_VARS)
 
 # ---------------------------------------------------------------------------
@@ -342,20 +337,22 @@ unset(__OCX_PASSTHROUGH_VARS)
 # ---------------------------------------------------------------------------
 
 # Command prefix applied to every ocx invocation (configure-time and inside
-# the exported *_RUN command lists): neutralize OCX_PROJECT, OCX_FROZEN and
-# OCX_INDEX (ocx launchers export them into children; an outer `ocx run` /
-# frozen `package exec` must not hijack this build) and pin the snapshotted
-# passthrough variables - later arguments win in `cmake -E env`, so a
-# CMake-level OCX_FROZEN/OCX_INDEX is re-pinned by the loop below.
-# OCX_FROZEN/OCX_INDEX must be --unset, not set empty: the CLI reads an
-# empty OCX_INDEX as "index at the current directory" and would write
-# resolved tags there.
+# the exported *_RUN command lists). OCX_PROJECT is always neutralized
+# (pure launcher transport: an outer `ocx run` must not hijack this
+# build). Passthrough knobs pin the snapshotted value; a knob cleared with
+# -DVAR= is actively removed - `cmake -E env VAR=` would not do, the CLI
+# reads an empty OCX_INDEX as "index at the current directory" and writes
+# resolved tags there. Undefined knobs inherit the execution environment.
 function(__ocx_env_prefix out_var)
-  set(prefix "${CMAKE_COMMAND}" -E env "OCX_PROJECT="
-    --unset=OCX_FROZEN --unset=OCX_INDEX)
+  set(prefix "${CMAKE_COMMAND}" -E env "OCX_PROJECT=")
   get_property(vars GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS)
   foreach(var IN LISTS vars)
-    if(DEFINED ${var} AND NOT "${${var}}" STREQUAL "")
+    if(NOT DEFINED ${var})
+      continue()
+    endif()
+    if("${${var}}" STREQUAL "")
+      list(APPEND prefix "--unset=${var}")
+    else()
       list(APPEND prefix "${var}=${${var}}")
     endif()
   endforeach()
@@ -945,6 +942,11 @@ endfunction()
   :command:`ocx_index_update` for the refresh target). ``BINS`` entries are
   executable names on the composed environment (a package may ship several
   tools), not package references.
+
+  With ``INDEX`` the exported launchers run ``ocx --index <dir> --frozen``
+  and export both knobs into child processes: a find_ocx configure nested
+  under such a launcher inherits the outer resolution mode unless it is
+  given ``-DOCX_FROZEN=`` ``-DOCX_INDEX=``.
 
   With ``PULL`` (or the global ``OCX_PULL``) the package is installed at
   configure time and ``<name>_ROOT`` (original case, CMP0074) is set to the

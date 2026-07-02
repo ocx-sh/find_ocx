@@ -110,9 +110,21 @@ Variable                     Effect
 
 Also passed through when set: ``OCX_HOME``, ``OCX_OFFLINE``, ``OCX_FROZEN``,
 ``OCX_REMOTE``, ``OCX_JOBS``, ``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``.
-``OCX_FROZEN`` and ``OCX_INDEX`` are honored as ``-D`` CMake variables
-only — ocx launchers export them into child processes, so environment
-values would let an outer launcher hijack a nested configure.
+Clearing a knob with ``-DVAR=`` actively removes it from the environment
+of every ocx invocation.
+
+.. warning::
+
+   **Nested builds inherit the outer resolution mode.** ocx launchers —
+   ``ocx run``, frozen ``package exec``, and therefore every
+   ``OCX_<NAME>_RUN`` command list this module exports — export
+   ``OCX_FROZEN`` and ``OCX_INDEX`` into child processes. A find_ocx
+   configure running inside one (ExternalProject, ``ctest
+   --build-and-test``, any superbuild) snapshots those values at its
+   first configure as if you had set them, and typically fails with the
+   exit-81 refresh hint because the outer index does not contain the
+   inner project's packages. Pass ``-DOCX_FROZEN= -DOCX_INDEX=`` to such
+   nested configures to opt out of the inheritance.
 
 Lazy vs eager
 -------------

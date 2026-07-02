@@ -8,7 +8,11 @@
 # --build-and-test). Fixtures self-assert at configure/build time.
 function(ocx_add_cmake_version_test fixture)
   cmake_parse_arguments(arg "NO_EXECUTABLE" "" "VERSIONS;OPTIONS" ${ARGN})
-  set(common_options "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}")
+  # Fixtures run under the harness's frozen launcher (OCX_CMAKE_<v>_RUN
+  # exports OCX_FROZEN/OCX_INDEX into children): clear both so fixtures
+  # resolve independently of the outer index.
+  set(common_options "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}"
+    "-DOCX_FROZEN=" "-DOCX_INDEX=")
   if(DEFINED OCX_BOOTSTRAP_CACHE AND NOT "${OCX_BOOTSTRAP_CACHE}" STREQUAL "")
     list(APPEND common_options "-DOCX_BOOTSTRAP_CACHE=${OCX_BOOTSTRAP_CACHE}")
   endif()
@@ -41,6 +45,7 @@ function(ocx_add_stale_lock_test)
         -B "${bin_dir}"
         "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}"
         "-DOCX_EXECUTABLE=${OCX_EXECUTABLE}"
+        -DOCX_FROZEN= -DOCX_INDEX=
     )
     set_tests_properties(stale_lock.cmake${v} PROPERTIES
       PASS_REGULAR_EXPRESSION "run 'ocx lock'")
@@ -74,6 +79,7 @@ function(ocx_add_script_mode_test)
       COMMAND ${OCX_CMAKE_${v}_RUN} cmake
         "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}"
         "-DOCX_EXECUTABLE=${OCX_EXECUTABLE}"
+        -DOCX_FROZEN= -DOCX_INDEX=
         -P "${CMAKE_SOURCE_DIR}/tests/fixtures/script_mode.cmake"
     )
   endforeach()
