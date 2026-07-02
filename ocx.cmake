@@ -52,8 +52,11 @@ snapshotted into the cache and stays sticky for the build directory
 
 .. variable:: OCX_BOOTSTRAP_CACHE
 
-  Per-machine cache directory for bootstrapped ocx binaries
-  (default ``~/.cache/find_ocx``, Windows ``%LOCALAPPDATA%/find_ocx``).
+  Cache directory for bootstrapped ocx binaries. Default: per-machine —
+  ``%LOCALAPPDATA%/find_ocx`` (Windows), ``$XDG_CACHE_HOME/find_ocx``,
+  ``~/.cache/find_ocx``, falling back to ``<build>/_ocx/cache`` when no
+  home directory exists. Point it into the workspace on CI runners where
+  the home directory is unreliable (and restore it with your CI cache).
 
 .. variable:: OCX_PROJECT_FILE
 
@@ -573,10 +576,16 @@ function(ocx_bootstrap)
 
   if(DEFINED OCX_BOOTSTRAP_CACHE AND NOT "${OCX_BOOTSTRAP_CACHE}" STREQUAL "")
     set(cache_root "${OCX_BOOTSTRAP_CACHE}")
-  elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+  elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT "$ENV{LOCALAPPDATA}" STREQUAL "")
     set(cache_root "$ENV{LOCALAPPDATA}/find_ocx")
-  else()
+  elseif(NOT "$ENV{XDG_CACHE_HOME}" STREQUAL "")
+    set(cache_root "$ENV{XDG_CACHE_HOME}/find_ocx")
+  elseif(NOT "$ENV{HOME}" STREQUAL "")
     set(cache_root "$ENV{HOME}/.cache/find_ocx")
+  else()
+    # No usable home (some CI containers): fall back to the build tree -
+    # correctness over sharing.
+    set(cache_root "${CMAKE_BINARY_DIR}/_ocx/cache")
   endif()
   set(binary "${cache_root}/${version}/${triple}/ocx${exe_ext}")
 
