@@ -40,10 +40,10 @@ snapshotted into the cache and stays sticky for the build directory
   manifest sha256 is still enforced — a mirror can move bytes, not change
   them.
 
-.. variable:: OCX_VERSION
+.. variable:: OCX_INSTALL_VERSION
 
   ocx CLI version to bootstrap (default: the version pinned with this
-  find_ocx release).
+  find_ocx release). Same knob as the setup.ocx.sh installer.
 
 .. variable:: OCX_DEFAULT_PLATFORM
 
@@ -263,7 +263,7 @@ set_property(GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS "${__OCX_PASSTHROUGH_VARS}")
 foreach(__ocx_var IN ITEMS
     OCX_INSTALL_DIST_URL
     OCX_INSTALL_MIRROR_URL
-    OCX_VERSION
+    OCX_INSTALL_VERSION
     OCX_DEFAULT_PLATFORM
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
@@ -295,7 +295,7 @@ endfunction()
 function(__ocx_default_hint code out_var)
   set(hint "")
   if(code EQUAL 64)
-    set(hint "the pinned ocx and find_ocx disagree on the CLI surface - check OCX_VERSION against the find_ocx pin (${__OCX_PIN_VERSION})")
+    set(hint "the pinned ocx and find_ocx disagree on the CLI surface - check OCX_INSTALL_VERSION against the find_ocx pin (${__OCX_PIN_VERSION})")
   elseif(code EQUAL 65)
     set(hint "declarations changed since ocx.lock was written - run 'ocx lock' and commit the result")
   elseif(code EQUAL 69)
@@ -548,8 +548,8 @@ function(ocx_bootstrap)
   cmake_parse_arguments(arg "" "VERSION;TRIPLE" "" ${ARGN})
 
   set(version "${__OCX_PIN_VERSION}")
-  if(DEFINED OCX_VERSION AND NOT "${OCX_VERSION}" STREQUAL "")
-    set(version "${OCX_VERSION}")
+  if(DEFINED OCX_INSTALL_VERSION AND NOT "${OCX_INSTALL_VERSION}" STREQUAL "")
+    set(version "${OCX_INSTALL_VERSION}")
   endif()
   if(arg_VERSION)
     set(version "${arg_VERSION}")
@@ -571,28 +571,6 @@ function(ocx_bootstrap)
     set(triple "${arg_TRIPLE}")
   endif()
 
-  if(DEFINED OCX_INSTALL_DIST_URL AND NOT "${OCX_INSTALL_DIST_URL}" STREQUAL "")
-    set(dist_file "${CMAKE_BINARY_DIR}/_ocx/dist.json")
-    file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}" STATUS status)
-    list(GET status 0 status_code)
-    if(NOT status_code EQUAL 0)
-      list(GET status 1 status_msg)
-      message(FATAL_ERROR
-        "find_ocx: failed to fetch the dist manifest from "
-        "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}")
-    endif()
-    file(READ "${dist_file}" manifest)
-  else()
-    set(manifest "${__OCX_DIST_JSON}")
-  endif()
-
-  __ocx_select_release("${manifest}" "${version}" "${triple}" url sha tag filename)
-
-  if(DEFINED OCX_INSTALL_MIRROR_URL AND NOT "${OCX_INSTALL_MIRROR_URL}" STREQUAL "")
-    string(REGEX REPLACE "/+$" "" mirror "${OCX_INSTALL_MIRROR_URL}")
-    set(url "${mirror}/${tag}/${filename}")
-  endif()
-
   if(DEFINED OCX_BOOTSTRAP_CACHE AND NOT "${OCX_BOOTSTRAP_CACHE}" STREQUAL "")
     set(cache_root "${OCX_BOOTSTRAP_CACHE}")
   elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
@@ -602,7 +580,31 @@ function(ocx_bootstrap)
   endif()
   set(binary "${cache_root}/${version}/${triple}/ocx${exe_ext}")
 
+  # Warm machine cache: no manifest work, no network - not even the
+  # OCX_INSTALL_DIST_URL fetch (air-gapped reconfigures stay offline).
   if(NOT EXISTS "${binary}")
+    if(DEFINED OCX_INSTALL_DIST_URL AND NOT "${OCX_INSTALL_DIST_URL}" STREQUAL "")
+      set(dist_file "${CMAKE_BINARY_DIR}/_ocx/dist.json")
+      file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}" STATUS status)
+      list(GET status 0 status_code)
+      if(NOT status_code EQUAL 0)
+        list(GET status 1 status_msg)
+        message(FATAL_ERROR
+          "find_ocx: failed to fetch the dist manifest from "
+          "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}")
+      endif()
+      file(READ "${dist_file}" manifest)
+    else()
+      set(manifest "${__OCX_DIST_JSON}")
+    endif()
+
+    __ocx_select_release("${manifest}" "${version}" "${triple}" url sha tag filename)
+
+    if(DEFINED OCX_INSTALL_MIRROR_URL AND NOT "${OCX_INSTALL_MIRROR_URL}" STREQUAL "")
+      string(REGEX REPLACE "/+$" "" mirror "${OCX_INSTALL_MIRROR_URL}")
+      set(url "${mirror}/${tag}/${filename}")
+    endif()
+
     set(scratch "${CMAKE_BINARY_DIR}/_ocx")
     set(archive "${scratch}/${filename}")
     message(STATUS "find_ocx: downloading ocx ${version} (${triple}) from ${url}")
