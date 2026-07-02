@@ -40,11 +40,13 @@ tasks:
     cmds:
       - for: { var: EXAMPLES }
         cmd: >-
-          {{.CMAKE}} -Werror=dev -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
+          {{.CMAKE}} -Werror=dev -DOCX_BOOTSTRAP=ON -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
           {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} &&
           {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} --output-on-failure
     vars:
-      EXAMPLES: project package
+      # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables the
+      # bootstrap fallback for the find_package one.
+      EXAMPLES: project package find_package
 
   docs:
     desc: Sphinx (CMake domain) — warnings are errors

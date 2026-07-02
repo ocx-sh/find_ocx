@@ -1,7 +1,7 @@
 Examples
 ========
 
-Both examples live in `examples/
+All examples live in `examples/
 <https://github.com/ocx-sh/find_ocx/tree/main/examples>`_ and are built and
 tested on Linux, macOS, and Windows in CI — the sources below are included
 verbatim.
@@ -23,8 +23,11 @@ execution, and groups only when a target that uses them is built.
 
 Highlights:
 
-* ``ocx_project(BINS jq)`` — zero-arg convenience: the ``ocx.toml`` is found
-  by the upward search, the lock is verified, nothing is fetched yet.
+* The ``ocx.toml`` is found by the upward search, the lock is verified,
+  nothing is fetched yet.
+* ``NAME`` picks the result-variable prefix: ``NAME TOOLS`` →
+  ``OCX_TOOLS_RUN`` / ``OCX_TOOLS_RUN_JQ`` (``NAME`` defaults to
+  ``PROJECT``).
 * :variable:`OCX_<NAME>_RUN` is a plain CMake command list — generator
   expressions like ``$<CONFIG>`` compose naturally, no wrapper scripts.
 * The ``lint`` group costs nothing until someone builds the ``lint`` target.
@@ -49,6 +52,17 @@ Highlights:
   first build-time execution.
 * Reconfigures are memoized — with unchanged inputs no ``ocx`` process is
   spawned at all.
+
+Classic discovery (``find_package``)
+------------------------------------
+
+The find-module entry point for projects that want a system ocx to win:
+``PATH`` / ``-DOCX_EXECUTABLE`` first, pinned bootstrap only as the
+explicit ``-DOCX_BOOTSTRAP=ON`` fallback.
+
+.. literalinclude:: ../examples/find_package/CMakeLists.txt
+   :caption: examples/find_package/CMakeLists.txt
+   :start-at: cmake_minimum_required
 
 Running them
 ------------

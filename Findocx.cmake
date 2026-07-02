@@ -27,6 +27,10 @@ CMake 3.19 and ``ocx.cmake`` next to this file)::
 
   find_package(ocx REQUIRED)   # -DOCX_BOOTSTRAP=ON => zero-setup corporate UX
 
+``OCX_BOOTSTRAP`` has mirror-image defaults across the two files: here it
+is the opt-*in* (this module discovers by default), in ``ocx.cmake`` it is
+the opt-*out* (``OFF`` forbids the implicit bootstrap there).
+
 This find module works standalone on CMake 3.15+. The provisioning
 commands (:command:`ocx_project`, :command:`ocx_package`) live in
 ``ocx.cmake`` — ``include(ocx)``.

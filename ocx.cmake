@@ -23,6 +23,17 @@ Vendor this file together with ``Findocx.cmake`` into your project (e.g.
 Requires CMake 3.19 (``string(JSON)``, ``file(ARCHIVE_EXTRACT)``).
 Include after ``project()``.
 
+``include(ocx)`` itself is passive — it only defines commands and snapshots
+the ``OCX_*`` knobs. The first provisioning call (:command:`ocx_project`,
+:command:`ocx_package`, or an explicit :command:`ocx_bootstrap`) downloads
+the pinned, sha256-verified CLI into the per-machine cache **unless**
+``OCX_EXECUTABLE`` is already set. An ``ocx`` on ``PATH`` is deliberately
+never picked up here (hermeticity: every machine runs the identical
+binary) — to use a system ocx, set ``OCX_EXECUTABLE`` or call
+``find_package(ocx)`` first, which does search ``PATH`` and whose result
+this module honors. Set ``OCX_BOOTSTRAP=OFF`` to forbid the implicit
+download entirely.
+
 Corporate mirrors and behavior knobs are plain ``OCX_*`` variables. Each one
 follows the snapshot pattern: if the CMake variable is unset but the
 environment variable is set at the *first* configure, the value is
@@ -44,6 +55,16 @@ snapshotted into the cache and stays sticky for the build directory
 
   ocx CLI version to bootstrap (default: the version pinned with this
   find_ocx release). Same knob as the setup.ocx.sh installer.
+
+.. variable:: OCX_BOOTSTRAP
+
+  Implicit-bootstrap policy. Unset or ``ON`` (default): the first
+  provisioning call bootstraps the pinned CLI when ``OCX_EXECUTABLE`` is
+  not set. ``OFF``: that situation is a hard configure error instead —
+  for environments that forbid configure-time downloads. The same
+  variable is the opt-*in* inside ``Findocx.cmake`` (mirror-image
+  defaults: the find module discovers by default, this module provisions
+  by default).
 
 .. variable:: OCX_DEFAULT_PLATFORM
 
@@ -268,6 +289,7 @@ foreach(__ocx_var IN ITEMS
     OCX_INSTALL_MIRROR_URL
     OCX_INSTALL_VERSION
     OCX_DEFAULT_PLATFORM
+    OCX_BOOTSTRAP
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
     ${__OCX_PASSTHROUGH_VARS})
@@ -451,6 +473,13 @@ endfunction()
 # Ensures OCX_EXECUTABLE is usable, bootstrapping the pin if unset.
 macro(__ocx_require_cli)
   if(NOT DEFINED OCX_EXECUTABLE OR NOT EXISTS "${OCX_EXECUTABLE}")
+    if(DEFINED OCX_BOOTSTRAP AND NOT OCX_BOOTSTRAP)
+      message(FATAL_ERROR
+        "find_ocx: OCX_EXECUTABLE is not set and implicit bootstrap is "
+        "disabled (OCX_BOOTSTRAP=OFF)\n"
+        "hint: set OCX_EXECUTABLE to an ocx binary, or use "
+        "find_package(ocx) to discover one on PATH")
+    endif()
     ocx_bootstrap()
   endif()
 endmacro()
@@ -617,6 +646,10 @@ function(ocx_bootstrap)
     set(scratch "${CMAKE_BINARY_DIR}/_ocx")
     set(archive "${scratch}/${filename}")
     message(STATUS "find_ocx: downloading ocx ${version} (${triple}) from ${url}")
+    message(STATUS
+      "find_ocx:   version knob: OCX_INSTALL_VERSION (pin: "
+      "${__OCX_PIN_VERSION}); cache: ${cache_root}; opt out: "
+      "OCX_BOOTSTRAP=OFF + OCX_EXECUTABLE")
     file(DOWNLOAD "${url}" "${archive}" EXPECTED_HASH SHA256=${sha} STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)

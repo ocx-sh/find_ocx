@@ -16,14 +16,16 @@ enable_testing()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 include(ocx)
 
-# Zero-arg convenience: the ocx.toml next to this file is found by the
-# upward search; the lock is verified; nothing is pulled yet (lazy).
-ocx_project(BINS jq)
+# The ocx.toml next to this file is found by the upward search; the lock
+# is verified; nothing is pulled yet (lazy). NAME picks the prefix of the
+# result variables: NAME TOOLS -> OCX_TOOLS_RUN, OCX_TOOLS_RUN_JQ
+# (defaults to PROJECT -> OCX_PROJECT_RUN).
+ocx_project(NAME TOOLS BINS jq)
 
 # Build-time tool use, lazily materialized on first execution. Generator
 # expressions compose naturally - the command is a plain CMake list.
 add_custom_target(validate ALL
-  COMMAND ${OCX_PROJECT_RUN} jq -n -e --arg config "$<CONFIG>"
+  COMMAND ${OCX_TOOLS_RUN} jq -n -e --arg config "$<CONFIG>"
           [[$config | length >= 0]]
   VERBATIM
 )
@@ -36,5 +38,5 @@ add_custom_target(lint
 )
 
 add_test(NAME data_valid
-  COMMAND ${OCX_PROJECT_RUN_JQ} -e ".greeting == \"hello\""
+  COMMAND ${OCX_TOOLS_RUN_JQ} -e ".greeting == \"hello\""
           "${CMAKE_CURRENT_SOURCE_DIR}/data.json")

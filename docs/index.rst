@@ -31,12 +31,37 @@ under ``cmake/``:
   ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL)
 
 No ocx installation is required: the pinned CLI is bootstrapped on first
-configure into a per-machine cache. Alternatively use the classic find
-module — ``find_package(ocx REQUIRED)`` — with ``-DOCX_BOOTSTRAP=ON`` for
-the same zero-setup behavior.
+configure into a per-machine cache.
 
 Requires CMake 3.19 (``Findocx.cmake`` alone works on 3.15). Script mode
 (``cmake -P``) is fully supported.
+
+Two entry points
+----------------
+
+``include(ocx)`` — **the provisioner.** The include itself is passive
+(definitions only); the first :command:`ocx_project` /
+:command:`ocx_package` call bootstraps the *pinned*, sha256-verified CLI.
+An ``ocx`` on ``PATH`` is deliberately ignored: every developer and CI
+runner executes the identical binary (hermeticity, the rules_ocx model).
+
+``find_package(ocx REQUIRED)`` — **the discoverer.** Classic find module:
+honors ``-DOCX_EXECUTABLE``, searches ``PATH``, checks the version via
+``find_package_handle_standard_args``, defines the ``ocx::ocx`` imported
+target. With ``-DOCX_BOOTSTRAP=ON`` it falls back to the bootstrap when
+nothing is found.
+
+Which binary runs — first match wins:
+
+1. The ``OCX_EXECUTABLE`` cache variable — set by you, by a previous
+   ``find_package(ocx)``, or by an earlier bootstrap. Both entry points
+   honor it, so they compose in either order.
+2. Otherwise the pinned bootstrap (version: ``OCX_INSTALL_VERSION``,
+   default: the embedded pin). Never ``PATH``.
+
+``-DOCX_BOOTSTRAP=OFF`` forbids the implicit download for policy-strict
+environments: the configure then fails with an actionable error unless
+``OCX_EXECUTABLE`` is provided.
 
 Corporate mirrors
 -----------------

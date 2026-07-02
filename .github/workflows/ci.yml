@@ -69,7 +69,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        example: [project, package]
+        example: [project, package, find_package]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -80,7 +80,9 @@ jobs:
       - name: Configure, build, test
         shell: bash
         run: |
-          ocx run -- cmake -Werror=dev -DOCX_PULL=ON \
+          # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables
+          # the bootstrap fallback for the find_package one.
+          ocx run -- cmake -Werror=dev -DOCX_PULL=ON -DOCX_BOOTSTRAP=ON \
             -S "examples/${{ matrix.example }}" -B build/example
           ocx run -- cmake --build build/example
           ocx run -- ctest --test-dir build/example --output-on-failure

@@ -47,6 +47,23 @@ function(ocx_add_stale_lock_test)
   endforeach()
 endfunction()
 
+# Negative test: OCX_BOOTSTRAP=OFF must turn the implicit bootstrap into a
+# hard error when no OCX_EXECUTABLE is provided.
+function(ocx_add_bootstrap_off_test)
+  cmake_parse_arguments(arg "" "" "VERSIONS" ${ARGN})
+  foreach(v IN LISTS arg_VERSIONS)
+    add_test(
+      NAME bootstrap_off.cmake${v}
+      COMMAND ${OCX_CMAKE_${v}_RUN} cmake
+        "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}"
+        -DOCX_BOOTSTRAP=OFF
+        -P "${CMAKE_SOURCE_DIR}/tests/fixtures/bootstrap_off.cmake"
+    )
+    set_tests_properties(bootstrap_off.cmake${v} PROPERTIES
+      PASS_REGULAR_EXPRESSION "implicit bootstrap is disabled")
+  endforeach()
+endfunction()
+
 # Script mode: ocx.cmake must work under `cmake -P` (no project(), no
 # generator, no persistent cache).
 function(ocx_add_script_mode_test)
