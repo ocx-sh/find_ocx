@@ -30,6 +30,12 @@ ocx_index_update()
 
 include(tests/helpers.cmake)
 
+# Test names are <test>/cmake-<full-version> (tree in IDE test explorers);
+# probe the provisioned cmakes once for their resolved versions.
+foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
+  ocx_cmake_test_label(OCX_CMAKE_${v}_TEST_LABEL ${v})
+endforeach()
+
 ocx_add_cmake_version_test(bootstrap VERSIONS ${OCX_TEST_CMAKE_VERSIONS} NO_EXECUTABLE)
 ocx_add_cmake_version_test(project_run VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_cmake_version_test(package VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
