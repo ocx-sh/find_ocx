@@ -178,7 +178,7 @@ include_guard(GLOBAL)
 cmake_policy(PUSH)
 cmake_policy(VERSION 3.19)
 
-set(__OCX_MODULE_VERSION "0.2.0")
+set(__OCX_MODULE_VERSION "0.3.0")
 
 # The ocx CLI declares no stability for its command-line surface across
 # versions; find_ocx therefore pins an exact version and is tested against
