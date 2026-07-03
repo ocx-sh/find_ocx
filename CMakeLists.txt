@@ -26,7 +26,12 @@ set(OCX_TEST_CMAKE_VERSIONS 3 4)
 
 # Refresh flow: `cmake --build build --target ocx-index-update` (or
 # `task index:update`), review the diff, commit.
-ocx_index_update()
+ocx_index_update_command(index_refresh INDEX "${CMAKE_CURRENT_SOURCE_DIR}/tests/index")
+add_custom_target(ocx-index-update
+  COMMAND ${index_refresh}
+  COMMAND ${CMAKE_COMMAND} -E echo
+    "find_ocx: index snapshot refreshed - review the diff and commit the result"
+  VERBATIM)
 
 include(tests/helpers.cmake)
 

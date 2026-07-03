@@ -33,7 +33,9 @@ add_custom_target(jq_frozen_assert ALL
   VERBATIM
 )
 
-ocx_index_update()
-if(NOT TARGET ocx-index-update)
-  message(FATAL_ERROR "package fixture: ocx_index_update did not create the target")
+# Command composition: repos collected from the INDEX registration above.
+ocx_index_update_command(index_refresh INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index")
+if(NOT "${index_refresh}" MATCHES "--index;.*/index;index;update;ocx\\.sh/jq$")
+  message(FATAL_ERROR
+    "package fixture: ocx_index_update_command composed '${index_refresh}'")
 endif()

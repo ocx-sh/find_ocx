@@ -52,7 +52,7 @@ Highlights:
   first build-time execution.
 * ``INDEX`` + a committed snapshot: frozen tag resolution (rules_ocx-style)
   — the third pinning mechanism next to ``PINS`` and ``@sha256:`` digests,
-  refreshed deliberately via :command:`ocx_index_update`.
+  refreshed deliberately via :command:`ocx_index_update_command`.
 * Reconfigures are memoized — with unchanged inputs no ``ocx`` process is
   spawned at all.
 

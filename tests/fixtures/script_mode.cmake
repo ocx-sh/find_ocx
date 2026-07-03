@@ -23,6 +23,15 @@ if(NOT rc EQUAL 0)
   message(FATAL_ERROR "script_mode fixture: package-tier jq exec failed (${rc})")
 endif()
 
+# Index refresh command: composes in script mode, REPOS overrides the
+# (here empty) registration. Composition only - executing would need a
+# writable snapshot.
+ocx_index_update_command(refresh
+  INDEX "${CMAKE_CURRENT_LIST_DIR}/index" REPOS ocx.sh/jq ocx.sh/cmake)
+if(NOT "${refresh}" MATCHES "index;update;ocx\\.sh/jq;ocx\\.sh/cmake$")
+  message(FATAL_ERROR "script_mode fixture: ocx_index_update_command composed '${refresh}'")
+endif()
+
 # Project tier: explicit TOML (script mode has no project() search bound).
 get_filename_component(__toml "${CMAKE_CURRENT_LIST_DIR}/project_run/ocx.toml" ABSOLUTE)
 ocx_project(NAME tools_script TOML "${__toml}" BINS jq)

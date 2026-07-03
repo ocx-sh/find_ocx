@@ -939,7 +939,7 @@ endfunction()
   matching platform installs ``registry/repo@<digest>``. ``INDEX`` freezes
   tag resolution to a committed index snapshot
   (``ocx --index <dir> index update <package>``; see
-  :command:`ocx_index_update` for the refresh target). ``BINS`` entries are
+  :command:`ocx_index_update_command` for the refresh flow). ``BINS`` entries are
   executable names on the composed environment (a package may ship several
   tools), not package references.
 
@@ -1006,7 +1006,8 @@ function(ocx_package)
     set(index_args --index "${index_dir}" --frozen)
     # repo without :tag/@digest - the argument `ocx index update` expects.
     # Registered before the memo gate: GLOBAL properties do not survive
-    # reconfigures, so ocx_index_update() must see memoized packages too.
+    # reconfigures, so ocx_index_update_command() must see memoized
+    # packages too.
     string(REGEX REPLACE "@.*$" "" index_repo "${arg_PACKAGE}")
     string(REGEX REPLACE ":[^:/]*$" "" index_repo "${index_repo}")
     set_property(GLOBAL APPEND PROPERTY __OCX_INDEX_REFRESH "${index_dir}|${index_repo}")
@@ -1109,72 +1110,70 @@ function(ocx_package)
 endfunction()
 
 # ---------------------------------------------------------------------------
-# ocx_index_update
+# ocx_index_update_command
 # ---------------------------------------------------------------------------
 
 #[=[.rst:
-.. command:: ocx_index_update
+.. command:: ocx_index_update_command
 
-  Adds a build target that refreshes the committed index snapshots::
+  Composes the command line that refreshes an index snapshot::
 
-    ocx_index_update([TARGET <name>])
+    ocx_index_update_command(<out-var> INDEX <dir> [REPOS <repo>...])
 
-  Collects every preceding :command:`ocx_package` call that used ``INDEX``
-  and creates one custom target (default ``ocx-index-update``) running
-  ``ocx --index <dir> index update <repo>...`` once per distinct index
-  directory. Call it after the last ``ocx_package(... INDEX ...)``; project
-  mode only (script mode has no build system).
+  Returns in ``<out-var>`` a command list running
+  ``ocx --index <dir> index update <repo>...`` under the module's composed
+  environment. Without ``REPOS`` the repositories are collected from the
+  preceding :command:`ocx_package` calls that used ``INDEX <dir>``;
+  ``REPOS`` (references without tag or digest, e.g. ``ocx.sh/jq``)
+  overrides the collection. Works in project and script mode.
 
-  Deliberately never part of ``ALL``, and deliberately no ctest variant: a
-  "test" that rewrites a committed file would let CI paper over drift
-  instead of failing. The freshness gate is the frozen configure itself —
-  a tag missing from the snapshot fails with the exit-81 refresh hint.
-  Run the target, review the diff, commit.
+  How the command runs is the caller's choice — build target, test
+  fixture, or script mode::
+
+    ocx_index_update_command(refresh INDEX "${CMAKE_SOURCE_DIR}/index")
+    add_custom_target(index-update COMMAND ${refresh} VERBATIM)
+    # or, in script mode:
+    execute_process(COMMAND ${refresh} COMMAND_ERROR_IS_FATAL ANY)
+
+  Deliberately no built-in target or ctest wiring: a "test" that rewrites
+  a committed file would let CI paper over drift instead of failing. The
+  freshness gate is the frozen configure itself — a tag missing from the
+  snapshot fails with the exit-81 refresh hint. Run the command, review
+  the diff, commit.
 #]=]
-function(ocx_index_update)
-  cmake_parse_arguments(arg "" "TARGET" "" ${ARGN})
+function(ocx_index_update_command out_var)
+  cmake_parse_arguments(arg "" "INDEX" "REPOS" ${ARGN})
   if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "find_ocx: ocx_index_update: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+    message(FATAL_ERROR "find_ocx: ocx_index_update_command: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
-  if(NOT arg_TARGET)
-    set(arg_TARGET "ocx-index-update")
+  if(NOT arg_INDEX)
+    message(FATAL_ERROR "find_ocx: ocx_index_update_command: INDEX <dir> is required")
   endif()
-  if(CMAKE_SCRIPT_MODE_FILE)
-    message(FATAL_ERROR
-      "find_ocx: ocx_index_update: targets need project mode - run "
-      "'ocx --index <dir> index update <package>' directly instead")
-  endif()
-  get_property(entries GLOBAL PROPERTY __OCX_INDEX_REFRESH)
-  if(NOT entries)
-    message(FATAL_ERROR
-      "find_ocx: ocx_index_update: no preceding ocx_package(... INDEX ...) "
-      "call registered an index snapshot to refresh")
+  get_filename_component(dir "${arg_INDEX}" ABSOLUTE)
+
+  set(repos "${arg_REPOS}")
+  if(NOT repos)
+    get_property(entries GLOBAL PROPERTY __OCX_INDEX_REFRESH)
+    foreach(entry IN LISTS entries)
+      string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\1" entry_dir "${entry}")
+      string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\2" entry_repo "${entry}")
+      if(entry_dir STREQUAL dir)
+        list(APPEND repos "${entry_repo}")
+      endif()
+    endforeach()
+    list(REMOVE_DUPLICATES repos)
+    if(NOT repos)
+      message(FATAL_ERROR
+        "find_ocx: ocx_index_update_command: no ocx_package(... INDEX ...) "
+        "call registered '${dir}' - pass REPOS <repo>... explicitly")
+    endif()
   endif()
 
-  set(dirs "")
-  foreach(entry IN LISTS entries)
-    string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\1" dir "${entry}")
-    string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\2" repo "${entry}")
-    string(MAKE_C_IDENTIFIER "${dir}" dir_id)
-    list(APPEND dirs "${dir}")
-    list(APPEND repos_${dir_id} "${repo}")
-  endforeach()
-  list(REMOVE_DUPLICATES dirs)
-
+  __ocx_require_cli()
   __ocx_env_prefix(prefix)
-  set(commands "")
-  foreach(dir IN LISTS dirs)
-    string(MAKE_C_IDENTIFIER "${dir}" dir_id)
-    list(REMOVE_DUPLICATES repos_${dir_id})
-    list(APPEND commands
-      COMMAND ${prefix} "${OCX_EXECUTABLE}" --index "${dir}" index update ${repos_${dir_id}})
-  endforeach()
-  add_custom_target(${arg_TARGET}
-    ${commands}
-    COMMAND ${CMAKE_COMMAND} -E echo
-      "find_ocx: index snapshots refreshed - review the diff and commit the result"
-    VERBATIM
-  )
+  set(${out_var}
+    ${prefix} "${OCX_EXECUTABLE}" --index "${dir}" index update ${repos}
+    PARENT_SCOPE)
 endfunction()
 
 cmake_policy(POP)

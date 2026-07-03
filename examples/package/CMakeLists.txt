@@ -45,8 +45,8 @@ add_test(NAME jq_pinned_filter
 
 # Frozen-index + lazy: the tag resolves from the committed snapshot
 # (index/ocx.sh/jq.json) - reproducible without digests in this file.
-# Refresh deliberately (`ocx --index index index update ocx.sh/jq` or an
-# ocx_index_update() target), review the diff, commit.
+# Refresh deliberately (`ocx --index index index update ocx.sh/jq`, or
+# compose it with ocx_index_update_command()), review the diff, commit.
 ocx_package(NAME jq_frozen PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT
   INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index")
 
