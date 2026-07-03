@@ -49,7 +49,7 @@ tasks:
     vars:
       # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables the
       # bootstrap fallback for the find_package one.
-      EXAMPLES: project package find_package
+      EXAMPLES: project package frozen_index find_package
 
   docs:
     desc: Sphinx (CMake domain) — warnings are errors

@@ -22,21 +22,23 @@ Result variables and targets:
 
 Hints: set ``OCX_EXECUTABLE`` (e.g. via :command:`ocx_bootstrap` from the
 sibling ``ocx.cmake``) to use a specific binary. With ``OCX_BOOTSTRAP=ON``
-this module bootstraps the pinned ocx itself when none is found (requires
-CMake 3.19 and ``ocx.cmake`` next to this file)::
+this module bootstraps the pinned ocx itself when none is found, and with
+``OCX_BOOTSTRAP=ALWAYS`` it skips the ``PATH`` search and always uses the
+pin (both require CMake 3.19 and ``ocx.cmake`` next to this file)::
 
   find_package(ocx REQUIRED)   # -DOCX_BOOTSTRAP=ON => zero-setup corporate UX
 
-``OCX_BOOTSTRAP`` has mirror-image defaults across the two files: here it
-is the opt-*in* (this module discovers by default), in ``ocx.cmake`` it is
-the opt-*out* (``OFF`` forbids the implicit bootstrap there).
+Both entry points resolve ``OCX_EXECUTABLE``, then ``PATH``, then the
+pinned bootstrap — they differ only in the bootstrap default: opt-*in*
+here (find modules discover), opt-*out* in ``ocx.cmake`` (``OFF`` forbids
+the implicit download there).
 
 This find module works standalone on CMake 3.15+. The provisioning
 commands (:command:`ocx_project`, :command:`ocx_package`) live in
 ``ocx.cmake`` — ``include(ocx)``.
 #]=]
 
-if(NOT OCX_EXECUTABLE)
+if(NOT OCX_EXECUTABLE AND NOT "${OCX_BOOTSTRAP}" STREQUAL "ALWAYS")
   find_program(OCX_EXECUTABLE NAMES ocx DOC "Path to the ocx CLI")
 endif()
 

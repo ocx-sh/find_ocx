@@ -18,21 +18,26 @@ Vendor this file together with ``Findocx.cmake`` into your project (e.g.
   include(ocx)
 
   ocx_project()                    # toolchain from ./ocx.toml + ./ocx.lock
-  ocx_package(NAME jq PACKAGE ocx.sh/jq:latest)
+  ocx_package(NAME jq PACKAGE ocx.sh/jq:latest)   # frozen via ./.ocx snapshot
 
 Requires CMake 3.19 (``string(JSON)``, ``file(ARCHIVE_EXTRACT)``).
 Include after ``project()``.
 
+Resolution is reproducible-first: a floating tag resolves through a
+committed index snapshot (the nearest ``.ocx/`` directory, discovered
+like ``ocx.toml``; create it with ``ocx --index .ocx index update
+<package>``) or through digest pins — with neither, the configure fails
+(:variable:`OCX_ALLOW_FLOATING` is the explicit escape hatch).
+
 ``include(ocx)`` itself is passive — it only defines commands and snapshots
 the ``OCX_*`` knobs. The first provisioning call (:command:`ocx_project`,
-:command:`ocx_package`, or an explicit :command:`ocx_bootstrap`) downloads
-the pinned, sha256-verified CLI into the per-machine cache **unless**
-``OCX_EXECUTABLE`` is already set. An ``ocx`` on ``PATH`` is deliberately
-never picked up here (hermeticity: every machine runs the identical
-binary) — to use a system ocx, set ``OCX_EXECUTABLE`` or call
-``find_package(ocx)`` first, which does search ``PATH`` and whose result
-this module honors. Set ``OCX_BOOTSTRAP=OFF`` to forbid the implicit
-download entirely.
+:command:`ocx_package`, or an explicit :command:`ocx_bootstrap`) resolves
+the CLI: ``OCX_EXECUTABLE`` when set, else an ``ocx`` on ``PATH``, else it
+downloads the pinned, sha256-verified CLI into the per-machine cache.
+``OCX_BOOTSTRAP=ALWAYS`` skips the ``PATH`` search (hermeticity: every
+machine runs the identical pinned binary); ``OCX_BOOTSTRAP=OFF`` forbids
+the implicit download entirely. An explicit :command:`ocx_bootstrap` call
+always provisions the pin.
 
 Corporate mirrors and behavior knobs are plain ``OCX_*`` variables. Each one
 follows the snapshot pattern: if the CMake variable is unset but the
@@ -65,18 +70,40 @@ snapshotted into the cache and stays sticky for the build directory
 
 .. variable:: OCX_BOOTSTRAP
 
-  Implicit-bootstrap policy. Unset or ``ON`` (default): the first
-  provisioning call bootstraps the pinned CLI when ``OCX_EXECUTABLE`` is
-  not set. ``OFF``: that situation is a hard configure error instead —
-  for environments that forbid configure-time downloads. The same
-  variable is the opt-*in* inside ``Findocx.cmake`` (mirror-image
-  defaults: the find module discovers by default, this module provisions
-  by default).
+  Implicit-bootstrap policy for the first provisioning call when
+  ``OCX_EXECUTABLE`` is not set. Unset or ``ON`` (default): use an ``ocx``
+  found on ``PATH``, bootstrap the pinned CLI when there is none.
+  ``ALWAYS``: skip the ``PATH`` search — every machine runs the identical
+  pinned binary (hermetic mode; pair with ``OCX_INSTALL_VERSION``).
+  ``OFF``: never download — ``OCX_EXECUTABLE`` or a ``PATH`` ocx is
+  required, anything else is a hard configure error (for environments
+  that forbid configure-time downloads). Inside ``Findocx.cmake`` the
+  same variable is the opt-*in* for the bootstrap fallback (find modules
+  discover by default).
 
 .. variable:: OCX_DEFAULT_PLATFORM
 
   Default ``PLATFORM`` for :command:`ocx_project` / :command:`ocx_package`
   (empty = host).
+
+.. variable:: OCX_INDEX
+
+  Committed index snapshot directory freezing tag resolution for every
+  :command:`ocx_package` without an explicit ``INDEX``. When unset, each
+  call discovers the nearest ``.ocx/`` directory between its calling
+  directory and the last ``project()`` source dir instead
+  (:command:`ocx_index` ``FIND`` runs that discovery once and locks the
+  result into this variable). Clearing with ``-DOCX_INDEX=`` neutralizes
+  a value inherited from an outer ocx launcher without vetoing the
+  project's own committed snapshot.
+
+.. variable:: OCX_ALLOW_FLOATING
+
+  Reproducibility escape hatch. By default a floating tag with no index
+  snapshot in effect and no digest pin is a hard configure error — ocx is
+  reproducible-first. ``ON`` downgrades that to the pre-0.3 behavior
+  (live resolution, drift warning); useful transiently to print the
+  digests that seed ``PINS``.
 
 .. variable:: OCX_BOOTSTRAP_CACHE
 
@@ -326,6 +353,7 @@ foreach(__ocx_var IN ITEMS
     OCX_BOOTSTRAP
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
+    OCX_ALLOW_FLOATING
     ${__OCX_PASSTHROUGH_VARS})
   __ocx_snapshot_env(${__ocx_var})
 endforeach()
@@ -512,17 +540,26 @@ function(__ocx_cli_version out_var)
   set(${out_var} "${out}" PARENT_SCOPE)
 endfunction()
 
-# Ensures OCX_EXECUTABLE is usable, bootstrapping the pin if unset.
+# Ensures OCX_EXECUTABLE is usable: explicit setting, else PATH, else the
+# pinned bootstrap (OCX_BOOTSTRAP: ALWAYS skips PATH, OFF forbids the
+# download).
 macro(__ocx_require_cli)
   if(NOT DEFINED OCX_EXECUTABLE OR NOT EXISTS "${OCX_EXECUTABLE}")
-    if(DEFINED OCX_BOOTSTRAP AND NOT OCX_BOOTSTRAP)
-      message(FATAL_ERROR
-        "find_ocx: OCX_EXECUTABLE is not set and implicit bootstrap is "
-        "disabled (OCX_BOOTSTRAP=OFF)\n"
-        "hint: set OCX_EXECUTABLE to an ocx binary, or use "
-        "find_package(ocx) to discover one on PATH")
+    if(NOT "${OCX_BOOTSTRAP}" STREQUAL "ALWAYS")
+      find_program(OCX_EXECUTABLE NAMES ocx DOC "Path to the ocx CLI")
     endif()
-    ocx_bootstrap()
+    if(OCX_EXECUTABLE AND EXISTS "${OCX_EXECUTABLE}")
+      message(STATUS
+        "find_ocx: using ocx from PATH (${OCX_EXECUTABLE}) - "
+        "OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead")
+    elseif(DEFINED OCX_BOOTSTRAP AND NOT OCX_BOOTSTRAP)
+      message(FATAL_ERROR
+        "find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit "
+        "bootstrap is disabled (OCX_BOOTSTRAP=OFF)\n"
+        "hint: install ocx on PATH or set OCX_EXECUTABLE to an ocx binary")
+    else()
+      ocx_bootstrap()
+    endif()
   endif()
 endmacro()
 
@@ -922,6 +959,33 @@ endfunction()
 # ocx_package
 # ---------------------------------------------------------------------------
 
+# Nearest committed `.ocx/` index snapshot: walk up from the calling
+# directory, bounded by the most recent project() scope (same bound as the
+# ocx.toml search). No project() bound (script mode, include before
+# project()) -> no discovery: an unbounded walk could reach $HOME/.ocx,
+# which is the ocx store, not a snapshot.
+function(__ocx_find_index out_var)
+  set(${out_var} "" PARENT_SCOPE)
+  if(CMAKE_SCRIPT_MODE_FILE OR NOT DEFINED PROJECT_SOURCE_DIR)
+    return()
+  endif()
+  set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
+  while(TRUE)
+    if(IS_DIRECTORY "${dir}/.ocx")
+      set(${out_var} "${dir}/.ocx" PARENT_SCOPE)
+      return()
+    endif()
+    if(dir STREQUAL "${PROJECT_SOURCE_DIR}")
+      break()
+    endif()
+    get_filename_component(parent "${dir}" DIRECTORY)
+    if(parent STREQUAL "${dir}")
+      break()
+    endif()
+    set(dir "${parent}")
+  endwhile()
+endfunction()
+
 #[=[.rst:
 .. command:: ocx_package
 
@@ -929,24 +993,32 @@ endfunction()
 
     ocx_package(NAME <name> PACKAGE <registry/repo[:tag][@sha256:...]>
                 [PINS <platform>=sha256:<digest> ...]
-                [INDEX <dir>] [BINS <tool>...]
+                [INDEX <dir> | NO_INDEX] [BINS <tool>...]
                 [PLATFORM <ocx-platform>] [PULL] [NO_ROOT])
 
   Exports the same ``OCX_<NAME>_RUN`` / ``OCX_<NAME>_RUN_<BIN>`` command
   lists as :command:`ocx_project` (re-entering ``ocx package exec``, lazy
   by default). ``PINS`` maps ocx platform keys to per-platform manifest
   digests (as reported by ``ocx package install -p <platform>``); the
-  matching platform installs ``registry/repo@<digest>``. ``INDEX`` freezes
-  tag resolution to a committed index snapshot
-  (``ocx --index <dir> index update <package>``; see
-  :command:`ocx_index_update_command` for the refresh flow). ``BINS`` entries are
-  executable names on the composed environment (a package may ship several
-  tools), not package references.
+  matching platform installs ``registry/repo@<digest>``. ``BINS`` entries
+  are executable names on the composed environment (a package may ship
+  several tools), not package references.
 
-  With ``INDEX`` the exported launchers run ``ocx --index <dir> --frozen``
-  and export both knobs into child processes: a find_ocx configure nested
-  under such a launcher inherits the outer resolution mode unless it is
-  given ``-DOCX_FROZEN=`` ``-DOCX_INDEX=``.
+  Tag resolution is frozen against the first index snapshot in effect:
+  the explicit ``INDEX <dir>``, else the :variable:`OCX_INDEX` knob, else
+  the nearest committed ``.ocx/`` directory between the calling directory
+  and the last ``project()`` source dir. ``NO_INDEX`` skips all three.
+  A floating tag with no index in effect and no digest pin is a hard
+  error unless :variable:`OCX_ALLOW_FLOATING` is set — reproducible
+  first. Snapshots are created and refreshed deliberately
+  (``ocx --index <dir> index update <package>``; see
+  :command:`ocx_index` for the composed refresh command).
+
+  With an index in effect the exported launchers run
+  ``ocx --index <dir> --frozen`` and export both knobs into child
+  processes: a find_ocx configure nested under such a launcher inherits
+  the outer resolution mode unless it is given ``-DOCX_FROZEN=``
+  ``-DOCX_INDEX=``.
 
   With ``PULL`` (or the global ``OCX_PULL``) the package is installed at
   configure time and ``<name>_ROOT`` (original case, CMP0074) is set to the
@@ -956,7 +1028,7 @@ endfunction()
   ``OCX_<NAME>_PATHS`` / ``OCX_<NAME>_ENV_<KEY>`` instead of RUN commands.
 #]=]
 function(ocx_package)
-  cmake_parse_arguments(arg "PULL;NO_ROOT" "NAME;PACKAGE;INDEX;PLATFORM" "PINS;BINS" ${ARGN})
+  cmake_parse_arguments(arg "PULL;NO_ROOT;NO_INDEX" "NAME;PACKAGE;INDEX;PLATFORM" "PINS;BINS" ${ARGN})
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "find_ocx: ocx_package: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
@@ -999,14 +1071,43 @@ function(ocx_package)
     endif()
   endforeach()
 
+  # Index resolution ladder: explicit INDEX, else the OCX_INDEX knob, else
+  # the nearest committed `.ocx/` snapshot; NO_INDEX skips all three. An
+  # empty OCX_INDEX (-DOCX_INDEX=) neutralizes a launcher-inherited value
+  # but does not veto the project's own committed snapshot.
+  set(index_dir "")
+  if(arg_INDEX AND arg_NO_INDEX)
+    message(FATAL_ERROR
+      "find_ocx: ocx_package ${arg_NAME}: INDEX and NO_INDEX are mutually exclusive")
+  elseif(arg_INDEX)
+    get_filename_component(index_dir "${arg_INDEX}" ABSOLUTE)
+  elseif(NOT arg_NO_INDEX)
+    if(DEFINED OCX_INDEX AND NOT "${OCX_INDEX}" STREQUAL "")
+      get_filename_component(index_dir "${OCX_INDEX}" ABSOLUTE)
+    else()
+      __ocx_find_index(index_dir)
+    endif()
+  endif()
+
+  # Reproducible-first: a floating tag with no index in effect and no
+  # digest pin would resolve differently over time - fail instead.
+  if(NOT index_dir AND NOT ref MATCHES "@sha256:" AND NOT OCX_ALLOW_FLOATING)
+    message(FATAL_ERROR
+      "find_ocx: ocx_package ${arg_NAME}: '${ref}' is floating and no "
+      "index snapshot is in effect - resolution is not reproducible\n"
+      "fix (pick one): commit a snapshot ('ocx --index .ocx index update "
+      "${arg_PACKAGE}' next to your CMakeLists, or set OCX_INDEX); pin "
+      "digests with PINS or @sha256:; or accept drift explicitly with "
+      "-DOCX_ALLOW_FLOATING=ON")
+  endif()
+
   set(index_args "")
   set(index_leaf_sha "")
-  if(arg_INDEX)
-    get_filename_component(index_dir "${arg_INDEX}" ABSOLUTE)
+  if(index_dir)
     set(index_args --index "${index_dir}" --frozen)
     # repo without :tag/@digest - the argument `ocx index update` expects.
     # Registered before the memo gate: GLOBAL properties do not survive
-    # reconfigures, so ocx_index_update_command() must see memoized
+    # reconfigures, so ocx_index(UPDATE_COMMAND) must see memoized
     # packages too.
     string(REGEX REPLACE "@.*$" "" index_repo "${arg_PACKAGE}")
     string(REGEX REPLACE ":[^:/]*$" "" index_repo "${index_repo}")
@@ -1041,7 +1142,7 @@ function(ocx_package)
     return()
   endif()
 
-  if(arg_INDEX)
+  if(index_dir)
     set(index_hint
       "81=package not in the committed index snapshot - refresh it with 'ocx --index ${index_dir} index update ${index_repo}'")
   else()
@@ -1080,11 +1181,12 @@ function(ocx_package)
       set(${arg_NAME}_ROOT "${content}" CACHE PATH
         "find_ocx: content root of ${ref} (CMP0074 search hint)" FORCE)
     endif()
-  elseif(NOT ref MATCHES "@sha256:" AND NOT arg_INDEX)
+  elseif(NOT ref MATCHES "@sha256:" AND NOT index_dir)
+    # only reachable with OCX_ALLOW_FLOATING (the gate above fails otherwise)
     message(WARNING
       "find_ocx: ocx_package ${arg_NAME}: '${ref}' is lazy AND floating - "
-      "the tag resolves on first execution and can drift; add PINS, INDEX, "
-      "or an @sha256: digest (or PULL to resolve now)")
+      "the tag resolves on first execution and can drift; add PINS, an "
+      "index snapshot, or an @sha256: digest (or PULL to resolve now)")
   endif()
 
   if(platform)
@@ -1110,70 +1212,153 @@ function(ocx_package)
 endfunction()
 
 # ---------------------------------------------------------------------------
-# ocx_index_update_command
+# ocx_index
 # ---------------------------------------------------------------------------
 
 #[=[.rst:
-.. command:: ocx_index_update_command
+.. command:: ocx_index
 
-  Composes the command line that refreshes an index snapshot::
+  Operations on committed index snapshots — the reproducibility mechanism
+  for floating tags, next to ``PINS`` and ``@sha256:`` digests. The first
+  argument selects the operation:
 
-    ocx_index_update_command(<out-var> INDEX <dir> [REPOS <repo>...])
+  .. parsed-literal::
 
-  Returns in ``<out-var>`` a command list running
-  ``ocx --index <dir> index update <repo>...`` under the module's composed
-  environment. Without ``REPOS`` the repositories are collected from the
-  preceding :command:`ocx_package` calls that used ``INDEX <dir>``;
-  ``REPOS`` (references without tag or digest, e.g. ``ocx.sh/jq``)
-  overrides the collection. Works in project and script mode.
+    ocx_index(`FIND`_ [REQUIRED])
+    ocx_index(`UPDATE_COMMAND`_ <out-var> [INDEX <dir>] [PACKAGES <ref>...])
 
-  How the command runs is the caller's choice — build target, test
-  fixture, or script mode::
+  A snapshot is a CLI-owned directory of ``<registry>/<repo>.json`` leaves
+  mapping tags to digests, created and refreshed with
+  ``ocx --index <dir> index update <package>...``. Committing one next to
+  your ``CMakeLists.txt`` as ``.ocx/`` freezes every
+  :command:`ocx_package` tag resolution against it — see the discovery
+  ladder there.
 
-    ocx_index_update_command(refresh INDEX "${CMAKE_SOURCE_DIR}/index")
-    add_custom_target(index-update COMMAND ${refresh} VERBATIM)
-    # or, in script mode:
-    execute_process(COMMAND ${refresh} COMMAND_ERROR_IS_FATAL ANY)
+  .. signature::
+    ocx_index(FIND [REQUIRED])
 
-  Deliberately no built-in target or ctest wiring: a "test" that rewrites
-  a committed file would let CI paper over drift instead of failing. The
-  freshness gate is the frozen configure itself — a tag missing from the
-  snapshot fails with the exit-81 refresh hint. Run the command, review
-  the diff, commit.
+    Runs the ``.ocx/`` discovery once — upward from the calling directory,
+    bounded by the last ``project()`` source dir — and locks the result
+    into :variable:`OCX_INDEX` for the current directory and below.
+    ``REQUIRED`` turns "no snapshot found" into a hard error (fail-fast at
+    the top of a CMakeLists instead of per package). Without it, finding
+    nothing is a quiet no-op. Not available in script mode (no search
+    bound): set :variable:`OCX_INDEX` there instead.
+
+  .. signature::
+    ocx_index(UPDATE_COMMAND <out-var> [INDEX <dir>] [PACKAGES <ref>...])
+
+    Composes the command list that refreshes a snapshot:
+    ``ocx --index <dir> index update <package>...`` under the module's
+    composed environment. ``INDEX`` defaults to the index in effect
+    (:variable:`OCX_INDEX`, else the ``.ocx/`` discovery). Without
+    ``PACKAGES`` the packages are collected from the preceding
+    :command:`ocx_package` calls frozen against that directory;
+    ``PACKAGES`` overrides the collection (full references are accepted —
+    ``:tag`` / ``@sha256:`` are stripped). Works in project and script
+    mode.
+
+    How the command runs is the caller's choice — build target, test
+    fixture, or script mode::
+
+      ocx_index(UPDATE_COMMAND refresh)
+      add_custom_target(index-update COMMAND ${refresh} VERBATIM)
+      # or, in script mode:
+      execute_process(COMMAND ${refresh} COMMAND_ERROR_IS_FATAL ANY)
+
+    Deliberately no built-in target or ctest wiring: a "test" that
+    rewrites a committed file would let CI paper over drift instead of
+    failing. The freshness gate is the frozen configure itself — a tag
+    missing from the snapshot fails with the exit-81 refresh hint. Run
+    the command, review the diff, commit.
 #]=]
-function(ocx_index_update_command out_var)
-  cmake_parse_arguments(arg "" "INDEX" "REPOS" ${ARGN})
-  if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "find_ocx: ocx_index_update_command: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
-  endif()
-  if(NOT arg_INDEX)
-    message(FATAL_ERROR "find_ocx: ocx_index_update_command: INDEX <dir> is required")
-  endif()
-  get_filename_component(dir "${arg_INDEX}" ABSOLUTE)
-
-  set(repos "${arg_REPOS}")
-  if(NOT repos)
-    get_property(entries GLOBAL PROPERTY __OCX_INDEX_REFRESH)
-    foreach(entry IN LISTS entries)
-      string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\1" entry_dir "${entry}")
-      string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\2" entry_repo "${entry}")
-      if(entry_dir STREQUAL dir)
-        list(APPEND repos "${entry_repo}")
-      endif()
-    endforeach()
-    list(REMOVE_DUPLICATES repos)
-    if(NOT repos)
+function(ocx_index op)
+  if(op STREQUAL "FIND")
+    cmake_parse_arguments(arg "REQUIRED" "" "" ${ARGN})
+    if(arg_UNPARSED_ARGUMENTS)
       message(FATAL_ERROR
-        "find_ocx: ocx_index_update_command: no ocx_package(... INDEX ...) "
-        "call registered '${dir}' - pass REPOS <repo>... explicitly")
+        "find_ocx: ocx_index(FIND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
     endif()
-  endif()
+    if(CMAKE_SCRIPT_MODE_FILE)
+      message(FATAL_ERROR
+        "find_ocx: ocx_index(FIND) needs a project() search bound and "
+        "script mode has none - set OCX_INDEX instead")
+    endif()
+    __ocx_find_index(dir)
+    if(NOT dir)
+      if(arg_REQUIRED)
+        message(FATAL_ERROR
+          "find_ocx: ocx_index(FIND REQUIRED): no .ocx index snapshot "
+          "between ${CMAKE_CURRENT_SOURCE_DIR} and ${PROJECT_SOURCE_DIR}\n"
+          "hint: create one with 'ocx --index .ocx index update "
+          "<package>...' and commit it")
+      endif()
+      return()
+    endif()
+    set(OCX_INDEX "${dir}" PARENT_SCOPE)
+    message(STATUS "find_ocx: index snapshot: ${dir}")
 
-  __ocx_require_cli()
-  __ocx_env_prefix(prefix)
-  set(${out_var}
-    ${prefix} "${OCX_EXECUTABLE}" --index "${dir}" index update ${repos}
-    PARENT_SCOPE)
+  elseif(op STREQUAL "UPDATE_COMMAND")
+    set(args ${ARGN})
+    if(NOT args)
+      message(FATAL_ERROR
+        "find_ocx: ocx_index(UPDATE_COMMAND) requires an <out-var>")
+    endif()
+    list(POP_FRONT args out_var)
+    cmake_parse_arguments(arg "" "INDEX" "PACKAGES" ${args})
+    if(arg_UNPARSED_ARGUMENTS)
+      message(FATAL_ERROR
+        "find_ocx: ocx_index(UPDATE_COMMAND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+    endif()
+
+    if(arg_INDEX)
+      get_filename_component(dir "${arg_INDEX}" ABSOLUTE)
+    elseif(DEFINED OCX_INDEX AND NOT "${OCX_INDEX}" STREQUAL "")
+      get_filename_component(dir "${OCX_INDEX}" ABSOLUTE)
+    else()
+      __ocx_find_index(dir)
+    endif()
+    if(NOT dir)
+      message(FATAL_ERROR
+        "find_ocx: ocx_index(UPDATE_COMMAND): no index in effect - pass "
+        "INDEX <dir>, set OCX_INDEX, or commit a .ocx snapshot")
+    endif()
+
+    set(repos "")
+    foreach(pkg IN LISTS arg_PACKAGES)
+      # full references accepted: strip @digest, then :tag
+      string(REGEX REPLACE "@.*$" "" pkg "${pkg}")
+      string(REGEX REPLACE ":[^:/]*$" "" pkg "${pkg}")
+      list(APPEND repos "${pkg}")
+    endforeach()
+    if(NOT repos)
+      get_property(entries GLOBAL PROPERTY __OCX_INDEX_REFRESH)
+      foreach(entry IN LISTS entries)
+        string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\1" entry_dir "${entry}")
+        string(REGEX REPLACE "^(.*)\\|([^|]+)$" "\\2" entry_repo "${entry}")
+        if(entry_dir STREQUAL dir)
+          list(APPEND repos "${entry_repo}")
+        endif()
+      endforeach()
+      list(REMOVE_DUPLICATES repos)
+      if(NOT repos)
+        message(FATAL_ERROR
+          "find_ocx: ocx_index(UPDATE_COMMAND): no ocx_package call is "
+          "frozen against '${dir}' - pass PACKAGES <ref>... explicitly")
+      endif()
+    endif()
+
+    __ocx_require_cli()
+    __ocx_env_prefix(prefix)
+    set(${out_var}
+      ${prefix} "${OCX_EXECUTABLE}" --index "${dir}" index update ${repos}
+      PARENT_SCOPE)
+
+  else()
+    message(FATAL_ERROR
+      "find_ocx: ocx_index: unknown operation '${op}' "
+      "(expected FIND or UPDATE_COMMAND)")
+  endif()
 endfunction()
 
 cmake_policy(POP)

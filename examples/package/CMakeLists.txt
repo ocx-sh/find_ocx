@@ -17,9 +17,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 include(ocx)
 
 # Floating + eager: resolved at configure time; the log suggests the PINS
-# line for reproducibility. Exports jq_ROOT (CMP0074) - a subsequent
-# find_package(jq)/find_program would search the OCX-provisioned content.
+# line for reproducibility. Floating with no index in effect is a hard
+# error by default (reproducible-first) - OCX_ALLOW_FLOATING is the
+# explicit, deliberate escape hatch, and this exact flow is how the PINS
+# digests below were generated in the first place. Exports jq_ROOT
+# (CMP0074) - a subsequent find_package(jq)/find_program would search the
+# OCX-provisioned content.
+set(OCX_ALLOW_FLOATING ON)
 ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL)
+unset(OCX_ALLOW_FLOATING)
 message(STATUS "example: jq content at ${jq_ROOT}")
 
 # Digest-pinned + lazy: per-platform manifest digests (from
@@ -43,10 +49,12 @@ add_test(NAME jq_pinned_filter
   COMMAND ${OCX_JQ_PINNED_RUN_JQ} -e ".target == \"cmake\""
           "${CMAKE_CURRENT_SOURCE_DIR}/data.json")
 
-# Frozen-index + lazy: the tag resolves from the committed snapshot
-# (index/ocx.sh/jq.json) - reproducible without digests in this file.
-# Refresh deliberately (`ocx --index index index update ocx.sh/jq`, or
-# compose it with ocx_index_update_command()), review the diff, commit.
+# Frozen-index + lazy with an explicit INDEX override: the tag resolves
+# from the committed snapshot (index/ocx.sh/jq.json) - reproducible
+# without digests in this file. Prefer a project-shipped .ocx/ directory
+# (auto-discovered; see the frozen_index example); an explicit INDEX
+# points anywhere. Refresh deliberately (compose the command with
+# ocx_index(UPDATE_COMMAND ...)), review the diff, commit.
 ocx_package(NAME jq_frozen PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT
   INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index")
 

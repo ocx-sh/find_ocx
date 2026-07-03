@@ -9,7 +9,10 @@
 
 include(ocx)
 
-# Package tier: eager install + exec through the RUN command list.
+# Package tier: eager install + exec through the RUN command list. Script
+# mode has no project() bound, so the .ocx discovery is off; the floating
+# tag needs the explicit escape hatch (gate covered by floating_fatal).
+set(OCX_ALLOW_FLOATING ON)
 ocx_package(NAME jq_script PACKAGE ocx.sh/jq:latest PULL NO_ROOT)
 if(NOT EXISTS "${OCX_JQ_SCRIPT_CONTENT}")
   message(FATAL_ERROR "script_mode fixture: OCX_JQ_SCRIPT_CONTENT missing")
@@ -23,13 +26,15 @@ if(NOT rc EQUAL 0)
   message(FATAL_ERROR "script_mode fixture: package-tier jq exec failed (${rc})")
 endif()
 
-# Index refresh command: composes in script mode, REPOS overrides the
-# (here empty) registration. Composition only - executing would need a
-# writable snapshot.
-ocx_index_update_command(refresh
-  INDEX "${CMAKE_CURRENT_LIST_DIR}/index" REPOS ocx.sh/jq ocx.sh/cmake)
+# Index refresh command: composes in script mode; PACKAGES accepts full
+# references (tag/digest stripped) and overrides the (here empty)
+# registration. Composition only - executing would need a writable
+# snapshot.
+ocx_index(UPDATE_COMMAND refresh
+  INDEX "${CMAKE_CURRENT_LIST_DIR}/index"
+  PACKAGES ocx.sh/jq:latest ocx.sh/cmake@sha256:0000000000000000000000000000000000000000000000000000000000000000)
 if(NOT "${refresh}" MATCHES "index;update;ocx\\.sh/jq;ocx\\.sh/cmake$")
-  message(FATAL_ERROR "script_mode fixture: ocx_index_update_command composed '${refresh}'")
+  message(FATAL_ERROR "script_mode fixture: ocx_index(UPDATE_COMMAND) composed '${refresh}'")
 endif()
 
 # Project tier: explicit TOML (script mode has no project() search bound).

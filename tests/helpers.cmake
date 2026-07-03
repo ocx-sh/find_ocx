@@ -79,7 +79,25 @@ function(ocx_add_bootstrap_off_test)
         -P "${CMAKE_SOURCE_DIR}/tests/fixtures/bootstrap_off.cmake"
     )
     set_tests_properties(bootstrap_off/${OCX_CMAKE_${v}_TEST_LABEL} PROPERTIES
-      PASS_REGULAR_EXPRESSION "implicit bootstrap is disabled")
+      PASS_REGULAR_EXPRESSION "is disabled \\(OCX_BOOTSTRAP=OFF\\)")
+  endforeach()
+endfunction()
+
+# Negative test: a floating tag with no index in effect and no digest pin
+# must fail the configure (reproducible-first gate).
+function(ocx_add_floating_fatal_test)
+  cmake_parse_arguments(arg "" "" "VERSIONS" ${ARGN})
+  foreach(v IN LISTS arg_VERSIONS)
+    add_test(
+      NAME floating_fatal/${OCX_CMAKE_${v}_TEST_LABEL}
+      COMMAND ${OCX_CMAKE_${v}_RUN} cmake
+        "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}"
+        "-DOCX_EXECUTABLE=${OCX_EXECUTABLE}"
+        -DOCX_FROZEN= -DOCX_INDEX=
+        -P "${CMAKE_SOURCE_DIR}/tests/fixtures/floating_fatal.cmake"
+    )
+    set_tests_properties(floating_fatal/${OCX_CMAKE_${v}_TEST_LABEL} PROPERTIES
+      PASS_REGULAR_EXPRESSION "resolution is not reproducible")
   endforeach()
 endfunction()
 

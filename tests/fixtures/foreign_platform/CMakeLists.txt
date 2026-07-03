@@ -9,6 +9,9 @@ project(fixture_foreign_platform LANGUAGES NONE)
 
 include(ocx)
 
+# Under test: foreign-platform env export, not pinning - allow the
+# floating tag (the reproducibility gate is covered by floating_fatal).
+set(OCX_ALLOW_FLOATING ON)
 ocx_package(NAME JQ_ARM PACKAGE ocx.sh/jq:latest PLATFORM linux/arm64 NO_ROOT)
 
 if(DEFINED CACHE{OCX_JQ_ARM_RUN})

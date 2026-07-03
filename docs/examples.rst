@@ -50,11 +50,34 @@ Highlights:
   the digest to copy into ``PINS`` for reproducibility.
 * ``PINS`` + lazy: fully reproducible, and nothing is downloaded until the
   first build-time execution.
-* ``INDEX`` + a committed snapshot: frozen tag resolution (rules_ocx-style)
-  — the third pinning mechanism next to ``PINS`` and ``@sha256:`` digests,
-  refreshed deliberately via :command:`ocx_index_update_command`.
+* Floating + no index = hard error by default; the demo opts out with
+  ``OCX_ALLOW_FLOATING`` because printing the digest *is* how the ``PINS``
+  lines were generated.
+* ``INDEX`` + a committed snapshot: frozen tag resolution against an
+  explicit directory — the override next to the auto-discovered ``.ocx/``
+  (see below), refreshed deliberately via :command:`ocx_index`.
 * Reconfigures are memoized — with unchanged inputs no ``ocx`` process is
   spawned at all.
+
+Project-shipped index snapshot (``.ocx/``)
+------------------------------------------
+
+The reproducible-first default: a committed ``.ocx/`` directory freezes
+every floating-tag resolution in the project, no digests in the CMake
+code, and the refresh stays a deliberate reviewed step.
+
+.. literalinclude:: ../examples/frozen_index/CMakeLists.txt
+   :caption: examples/frozen_index/CMakeLists.txt
+   :start-at: cmake_minimum_required
+
+Highlights:
+
+* ``ocx_index(FIND REQUIRED)`` fails fast when the snapshot is missing
+  and locks the discovery result into ``OCX_INDEX``; each
+  :command:`ocx_package` would also discover ``.ocx/`` on its own.
+* ``ocx_index(UPDATE_COMMAND refresh)`` composes the refresh command;
+  the ``index-update`` target is this project's choice of how to run it —
+  never wired up automatically.
 
 Classic discovery (``find_package``)
 ------------------------------------

@@ -17,6 +17,11 @@ Vendor ``Findocx.cmake`` and ``ocx.cmake`` (from the `GitHub release assets
 <https://github.com/ocx-sh/find_ocx/releases>`_) into your repository, e.g.
 under ``cmake/``:
 
+.. code-block:: console
+
+   ocx --index .ocx index update ocx.sh/jq   # snapshot the tag resolution
+   git add .ocx                              # commit it - the visible lock
+
 .. code-block:: cmake
 
   # CMakeLists.txt
@@ -27,11 +32,13 @@ under ``cmake/``:
   ocx_project(BINS jq)
   add_custom_command(... COMMAND ${OCX_PROJECT_RUN_JQ} . in.json > out.json)
 
-  # Ad-hoc package; PULL exports jq_ROOT for find_package/find_library:
+  # Ad-hoc package, frozen through the committed .ocx/ snapshot;
+  # PULL exports jq_ROOT for find_package/find_library:
   ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL)
 
-No ocx installation is required: the pinned CLI is bootstrapped on first
-configure into a per-machine cache.
+No ocx installation is required: an ``ocx`` on ``PATH`` is used when
+present, otherwise the pinned CLI is bootstrapped on first configure into
+a per-machine cache.
 
 Requires CMake 3.19 (``Findocx.cmake`` alone works on 3.15). Script mode
 (``cmake -P``) is fully supported.
@@ -55,9 +62,7 @@ Two entry points
 
 ``include(ocx)`` — **the provisioner.** The include itself is passive
 (definitions only); the first :command:`ocx_project` /
-:command:`ocx_package` call bootstraps the *pinned*, sha256-verified CLI.
-An ``ocx`` on ``PATH`` is deliberately ignored: every developer and CI
-runner executes the identical binary (hermeticity, the rules_ocx model).
+:command:`ocx_package` call resolves the CLI and provisions through it.
 
 ``find_package(ocx REQUIRED)`` — **the discoverer.** Classic find module:
 honors ``-DOCX_EXECUTABLE``, searches ``PATH``, checks the version via
@@ -65,22 +70,59 @@ honors ``-DOCX_EXECUTABLE``, searches ``PATH``, checks the version via
 target. With ``-DOCX_BOOTSTRAP=ON`` it falls back to the bootstrap when
 nothing is found.
 
-Which binary runs — first match wins:
+Which binary runs — first match wins, identical in both entry points:
 
 1. The ``OCX_EXECUTABLE`` cache variable — set by you, by a previous
    ``find_package(ocx)``, or by an earlier bootstrap. Both entry points
    honor it, so they compose in either order.
-2. Otherwise the pinned bootstrap (version: ``OCX_INSTALL_VERSION``,
-   default: the embedded pin). Never ``PATH``.
+2. An ``ocx`` on ``PATH``.
+3. The pinned, sha256-verified bootstrap (version:
+   ``OCX_INSTALL_VERSION``, default: the embedded pin) — the default
+   fallback under ``include(ocx)``, the explicit ``-DOCX_BOOTSTRAP=ON``
+   opt-in under ``find_package(ocx)``.
 
-``-DOCX_BOOTSTRAP=OFF`` forbids the implicit download for policy-strict
-environments: the configure then fails with an actionable error unless
-``OCX_EXECUTABLE`` is provided.
+Two policy overrides: ``-DOCX_BOOTSTRAP=ALWAYS`` skips the ``PATH`` step —
+every developer and CI runner executes the identical pinned binary
+(hermeticity, the rules_ocx model). ``-DOCX_BOOTSTRAP=OFF`` forbids the
+implicit download for policy-strict environments: the configure fails
+with an actionable error unless step 1 or 2 provides a binary.
 
 Vendoring only ``ocx.cmake`` is fully supported — ``-DOCX_EXECUTABLE`` plus
 ``-DOCX_BOOTSTRAP=OFF`` is the fully explicit mode. ``Findocx.cmake`` is
 the optional classic front door for projects that want ``find_package``
 semantics and a system ocx to win.
+
+Index snapshots — reproducible first
+------------------------------------
+
+ocx would rather fail than compromise on reproducibility. A floating tag
+(``:latest``, ``:3.31``) with no index snapshot in effect and no digest
+pin is a hard configure error, not a warning — the escape hatch is the
+explicit ``-DOCX_ALLOW_FLOATING=ON`` (useful transiently: the eager
+install prints the digests that seed ``PINS``).
+
+The snapshot is a CLI-owned directory of ``<registry>/<repo>.json``
+leaves, committed like a lockfile:
+
+.. code-block:: console
+
+   ocx --index .ocx index update ocx.sh/jq ocx.sh/cmake
+   git add .ocx
+
+Every :command:`ocx_package` resolves it through a ladder — explicit
+``INDEX <dir>``, else the ``OCX_INDEX`` variable, else the nearest
+``.ocx/`` directory between the calling directory and the last
+``project()`` source dir (a vendored subproject with its own ``project()``
+gets its own bound, so snapshots never leak across projects).
+``ocx_index(FIND REQUIRED)`` runs that discovery once, fails fast when
+nothing is committed, and locks the result into ``OCX_INDEX``.
+
+Snapshots are **never auto-updated**. The refresh is a deliberate act:
+``ocx_index(UPDATE_COMMAND <var>)`` composes the command line, the caller
+decides how it runs (build target, script, CI job that opens a PR) —
+review the diff, commit. The freshness gate is the frozen configure
+itself: a tag missing from the snapshot fails with an actionable refresh
+hint.
 
 Corporate mirrors
 -----------------
