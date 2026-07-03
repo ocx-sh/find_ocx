@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+vars:
+  GIT_CLIFF: ocx run -- git-cliff
+
+tasks:
+  # Regenerate CHANGELOG.md from the full git history.
+  changelog:
+    desc: Update CHANGELOG.md from git history
+    cmds:
+      - "{{.GIT_CLIFF}} --output CHANGELOG.md"
+
+  # Show what would go into the next release's changelog section.
+  changelog:preview:
+    desc: Preview unreleased changes
+    cmds:
+      - "{{.GIT_CLIFF}} --unreleased"
+
+  # Full release preparation: compute next version, stamp ocx.cmake, update
+  # CHANGELOG, run verify. After this task succeeds, the human reviews,
+  # commits, and tags — the release workflow ships on the tag push and
+  # re-checks that the tag equals __OCX_MODULE_VERSION.
+  prepare:
+    desc: Prepare a release (compute version, stamp module, update changelog, verify)
+    vars:
+      # Bumped from the latest tag via conventional commits (feat → minor).
+      NEXT_VERSION:
+        sh: ocx run -- git-cliff --bumped-version
+    cmds:
+      - 'echo "Next version: {{.NEXT_VERSION}}"'
+      - sed -i 's/^set(__OCX_MODULE_VERSION "[^"]*")/set(__OCX_MODULE_VERSION "{{.NEXT_VERSION | trimPrefix "v"}}")/' ocx.cmake
+      - "{{.GIT_CLIFF}} --tag {{.NEXT_VERSION}} -o CHANGELOG.md"
+      - task: :verify
+      - |
+        echo ""
+        echo "Release prepared ({{.NEXT_VERSION}}). Review changes, then:"
+        echo "  git add -A && git commit -m 'release: {{.NEXT_VERSION}}'"
+        echo "  git tag {{.NEXT_VERSION}}"
+        echo "  git push --atomic origin main {{.NEXT_VERSION}}"

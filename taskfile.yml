@@ -1,6 +1,9 @@
 # https://taskfile.dev — dev toolchain provisioned via ocx (see ocx.toml)
 version: "3"
 
+includes:
+  release: taskfiles/release.taskfile.yml
+
 env:
   # ninja comes from the composed ocx environment (ocx.toml) — dogfooding.
   CMAKE_GENERATOR: Ninja
