@@ -29,6 +29,9 @@ jobs:
       - name: Open PR if changed
         uses: peter-evans/create-pull-request@v7
         with:
+          # GITHUB_TOKEN-created PRs never trigger CI workflows; a PAT makes
+          # checks run. Falls back to GITHUB_TOKEN when the secret is unset.
+          token: ${{ secrets.DIST_PR_TOKEN || github.token }}
           branch: chore/update-dist
           commit-message: "chore(dist): refresh embedded dist.json snapshot"
           title: "chore(dist): refresh embedded dist.json snapshot"
