@@ -84,7 +84,9 @@ snapshotted into the cache and stays sticky for the build directory
 .. variable:: OCX_DEFAULT_PLATFORM
 
   Default ``PLATFORM`` for :command:`ocx_project` / :command:`ocx_package`
-  (empty = host).
+  (empty = host). For :command:`ocx_package` this is an ordered platform
+  preference list (first match wins) and may be a CMake ``;``-list; at the
+  :command:`ocx_project` tier only the first/single entry is meaningful.
 
 .. variable:: OCX_INDEX
 
@@ -1026,7 +1028,7 @@ endfunction()
     ocx_package(NAME <name> PACKAGE <registry/repo[:tag][@sha256:...]>
                 [PINS <platform>=sha256:<digest> ...]
                 [INDEX <dir> | NO_INDEX] [BINS <tool>...]
-                [PLATFORM <ocx-platform>] [PULL] [NO_ROOT])
+                [PLATFORM <ocx-platform>...] [PULL] [NO_ROOT])
 
   Exports the same ``OCX_<NAME>_RUN`` / ``OCX_<NAME>_RUN_<BIN>`` command
   lists as :command:`ocx_project` (re-entering ``ocx package exec``, lazy
@@ -1058,9 +1060,15 @@ endfunction()
   ``find_library`` searches the OCX-provisioned content — suppress with
   ``NO_ROOT``. A foreign ``PLATFORM`` exports
   ``OCX_<NAME>_PATHS`` / ``OCX_<NAME>_ENV_<KEY>`` instead of RUN commands.
+
+  ``PLATFORM`` is an ordered preference list — multiple values (or a CMake
+  ``;``-list) are forwarded to a single ``ocx ... -p a,b,c`` resolution and
+  the first tier with a match wins (concrete cross-arch/variant fallback,
+  e.g. ``PLATFORM linux/arm64 linux/amd64`` to accept amd64 under
+  qemu/rosetta). ``PINS`` keys off the primary (first) entry.
 #]=]
 function(ocx_package)
-  cmake_parse_arguments(arg "PULL;NO_ROOT;NO_INDEX" "NAME;PACKAGE;INDEX;PLATFORM" "PINS;BINS" ${ARGN})
+  cmake_parse_arguments(arg "PULL;NO_ROOT;NO_INDEX" "NAME;PACKAGE;INDEX" "PINS;BINS;PLATFORM" ${ARGN})
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "find_ocx: ocx_package: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
@@ -1083,8 +1091,11 @@ function(ocx_package)
 
   __ocx_require_cli()
   __ocx_host_info(host_triple host_platform exe_ext)
-  set(pin_platform "${platform}")
-  if(NOT pin_platform)
+  # PLATFORM is an ordered preference list; the single-platform-facing
+  # logic (PINS key, pin hint) keys off the primary (first) entry.
+  if(platform)
+    list(GET platform 0 pin_platform)
+  else()
     set(pin_platform "${host_platform}")
   endif()
 
@@ -1156,7 +1167,8 @@ function(ocx_package)
   endif()
   set(platform_args "")
   if(platform)
-    set(platform_args -p "${platform}")
+    list(JOIN platform "," platform_csv)
+    set(platform_args -p "${platform_csv}")
   endif()
 
   set(pull ${arg_PULL})
@@ -1223,7 +1235,7 @@ function(ocx_package)
 
   if(platform)
     __ocx_run(
-      WHAT "composing the ${platform} environment of ${ref}"
+      WHAT "composing the ${platform_csv} environment of ${ref}"
       COMMAND ${index_args} --format json package env ${platform_args} "${ref}"
       OUTPUT_VARIABLE env_json
       HINTS "${index_hint}"
