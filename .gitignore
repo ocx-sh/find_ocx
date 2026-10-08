@@ -5,3 +5,10 @@ docs/.venv/
 .lycheecache
 .task/
 __pycache__/
+
+# Starlight site: dependencies, build output and pages generated from docs/ and the module sources by site/scripts/port-docs.mjs.
+site/node_modules/
+site/dist/
+site/.astro/
+site/src/content/docs/
+site/.lighthouseci/
