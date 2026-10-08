@@ -6,4 +6,4 @@
 # first. (OCX_ALLOW_FLOATING=ON is the explicit escape hatch.)
 
 include(ocx)
-ocx_package(NAME DRIFTY PACKAGE ocx.sh/jq:latest)
+ocx_package(NAME DRIFTY PACKAGE ocx.sh/jqlang/jq:latest)

@@ -23,8 +23,8 @@ include(ocx)
 ocx_index(FIND REQUIRED)
 
 # Floating tag, no INDEX argument, no digests: resolves frozen from the
-# committed snapshot (.ocx/ocx.sh/jq.json).
-ocx_package(NAME jq PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT)
+# committed snapshot (.ocx/ocx.sh/p/jqlang/jq.json).
+ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
 
 add_test(NAME jq_frozen COMMAND ${OCX_JQ_RUN_JQ} -n -e "1 == 1")
 

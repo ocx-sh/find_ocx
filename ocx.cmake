@@ -18,7 +18,7 @@ Vendor this file together with ``Findocx.cmake`` into your project (e.g.
   include(ocx)
 
   ocx_project()                    # toolchain from ./ocx.toml + ./ocx.lock
-  ocx_package(NAME jq PACKAGE ocx.sh/jq:latest)   # frozen via ./.ocx snapshot
+  ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest)   # frozen via ./.ocx snapshot
 
 Requires CMake 3.19 (``string(JSON)``, ``file(ARCHIVE_EXTRACT)``).
 Include after ``project()``.
@@ -1146,7 +1146,10 @@ function(ocx_package)
     set_property(GLOBAL APPEND PROPERTY __OCX_INDEX_REFRESH "${index_dir}|${index_repo}")
     # The flag string alone would memoize across snapshot refreshes: hash
     # the <repo>.json leaf into the fingerprint and retrigger on edits.
-    set(index_leaf "${index_dir}/${index_repo}.json")
+    # CLI >= 0.6 layout: <registry>/p/<repo path>.json
+    string(REGEX REPLACE "/.*$" "" index_registry "${index_repo}")
+    string(REGEX REPLACE "^[^/]*/" "" index_path "${index_repo}")
+    set(index_leaf "${index_dir}/${index_registry}/p/${index_path}.json")
     if(EXISTS "${index_leaf}")
       file(SHA256 "${index_leaf}" index_leaf_sha)
       if(NOT CMAKE_SCRIPT_MODE_FILE)
@@ -1205,7 +1208,13 @@ function(ocx_package)
       HINTS "${index_hint}"
     )
     string(JSON member MEMBER "${which_json}" 0)
-    string(JSON store_root GET "${which_json}" "${member}")
+    # CLI >= 0.6 answers {"kind", "path"} per package, older CLIs a bare path.
+    string(JSON which_type TYPE "${which_json}" "${member}")
+    if(which_type STREQUAL "OBJECT")
+      string(JSON store_root GET "${which_json}" "${member}" path)
+    else()
+      string(JSON store_root GET "${which_json}" "${member}")
+    endif()
     set(content "${store_root}/content")
     __ocx_set_result(OCX_${name}_CONTENT "${content}")
     list(APPEND guard_paths "${content}")
@@ -1259,7 +1268,7 @@ endfunction()
     ocx_index(`FIND`_ [REQUIRED])
     ocx_index(`UPDATE_COMMAND`_ <out-var> [INDEX <dir>] [PACKAGES <ref>...])
 
-  A snapshot is a CLI-owned directory of ``<registry>/<repo>.json`` leaves
+  A snapshot is a CLI-owned directory of ``<registry>/p/<repo>.json`` leaves
   mapping tags to digests, created and refreshed with
   ``ocx --index <dir> index update <package>...``. Committing one next to
   your ``CMakeLists.txt`` as ``.ocx/`` freezes every

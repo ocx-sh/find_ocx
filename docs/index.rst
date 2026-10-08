@@ -19,7 +19,7 @@ under ``cmake/``:
 
 .. code-block:: console
 
-   ocx --index .ocx index update ocx.sh/jq   # snapshot the tag resolution
+   ocx --index .ocx index update ocx.sh/jqlang/jq   # snapshot the tag resolution
    git add .ocx                              # commit it - the visible lock
 
 .. code-block:: cmake
@@ -34,7 +34,7 @@ under ``cmake/``:
 
   # Ad-hoc package, frozen through the committed .ocx/ snapshot;
   # PULL exports jq_ROOT for find_package/find_library:
-  ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL)
+  ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
 
 No ocx installation is required: an ``ocx`` on ``PATH`` is used when
 present, otherwise the pinned CLI is bootstrapped on first configure into
@@ -101,12 +101,12 @@ pin is a hard configure error, not a warning — the escape hatch is the
 explicit ``-DOCX_ALLOW_FLOATING=ON`` (useful transiently: the eager
 install prints the digests that seed ``PINS``).
 
-The snapshot is a CLI-owned directory of ``<registry>/<repo>.json``
+The snapshot is a CLI-owned directory of ``<registry>/p/<repo>.json``
 leaves, committed like a lockfile:
 
 .. code-block:: console
 
-   ocx --index .ocx index update ocx.sh/jq ocx.sh/cmake
+   ocx --index .ocx index update ocx.sh/jqlang/jq ocx.sh/kitware/cmake
    git add .ocx
 
 Every :command:`ocx_package` resolves it through a ladder — explicit

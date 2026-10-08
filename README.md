@@ -28,7 +28,7 @@ add_custom_command(
 
 # Ad-hoc: a single package. PULL exports jq_ROOT (CMP0074) so a following
 # find_package/find_library searches the OCX-provisioned content.
-ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL)
+ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
 ```
 
 No ocx installation required: the pinned CLI is bootstrapped at first

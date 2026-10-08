@@ -1,5 +1,5 @@
 [tools]
-jq = "ocx.sh/jq:latest"
+jq = "ocx.sh/jqlang/jq:latest"
 
-[group.lint]
-shellcheck = "ocx.sh/shellcheck:latest"
+[group.lint.tools]
+shellcheck = "ocx.sh/shellcheck/shellcheck:latest"

@@ -15,12 +15,12 @@ include(ocx)
 # hard error unless explicitly allowed (the error path is covered by the
 # floating_fatal fixture).
 set(OCX_ALLOW_FLOATING ON)
-ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL NO_INDEX)
+ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL NO_INDEX)
 if(NOT DEFINED CACHE{jq_ROOT} OR NOT EXISTS "${jq_ROOT}")
   message(FATAL_ERROR "package fixture: jq_ROOT not exported or missing (${jq_ROOT})")
 endif()
 
-ocx_package(NAME JQ_LAZY PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT NO_INDEX)
+ocx_package(NAME JQ_LAZY PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT NO_INDEX)
 unset(OCX_ALLOW_FLOATING)
 
 add_custom_target(jq_lazy_assert ALL
@@ -32,7 +32,7 @@ add_custom_target(jq_lazy_assert ALL
 # resolves from the committed ./.ocx snapshot found upward from this
 # directory. The exported launcher carries --index --frozen into every
 # execution.
-ocx_package(NAME JQ_FROZEN PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT)
+ocx_package(NAME JQ_FROZEN PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
 if(NOT "${OCX_JQ_FROZEN_RUN}" MATCHES "--index;.*\\.ocx;--frozen")
   message(FATAL_ERROR
     "package fixture: discovered .ocx not composed into the launcher: "
@@ -50,7 +50,7 @@ add_subdirectory(subproject)
 # Command composition: INDEX defaults to the discovered .ocx, packages
 # collected from the frozen registration above.
 ocx_index(UPDATE_COMMAND index_refresh)
-if(NOT "${index_refresh}" MATCHES "--index;.*\\.ocx;index;update;ocx\\.sh/jq$")
+if(NOT "${index_refresh}" MATCHES "--index;.*\\.ocx;index;update;ocx\\.sh/jqlang/jq$")
   message(FATAL_ERROR
     "package fixture: ocx_index(UPDATE_COMMAND) composed '${index_refresh}'")
 endif()

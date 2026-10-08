@@ -10,4 +10,4 @@ include(ocx)
 # PATH so the fixture exercises the "nothing found + OFF" error.
 # (find_program still searches system dirs; ocx is not installed there.)
 set(ENV{PATH} "")
-ocx_package(NAME POLICY PACKAGE ocx.sh/jq:latest)
+ocx_package(NAME POLICY PACKAGE ocx.sh/jqlang/jq:latest)

@@ -3,7 +3,7 @@
 
 # Repo-internal test harness (not part of the published module). Dogfoods
 # ocx.cmake: the CMake versions under test are provisioned as OCX packages
-# from the mirror-cmake bundle (ocx.sh/cmake:<tag>).
+# from the mirror-cmake bundle (ocx.sh/kitware/cmake:<tag>).
 
 cmake_minimum_required(VERSION 3.19)
 project(find_ocx LANGUAGES NONE)
@@ -13,15 +13,15 @@ enable_testing()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
 include(ocx)
 
-# The committed .ocx/ snapshot (ocx.sh/cmake.json) freezes the :3.31/:4
+# The committed .ocx/ snapshot (ocx.sh/p/kitware/cmake.json) freezes the :3.31/:4
 # tags - CI tag resolution is hermetic. FIND REQUIRED locks the discovery
 # into OCX_INDEX (fail-fast, dogfoods the ladder).
 ocx_index(FIND REQUIRED)
-ocx_package(NAME CMAKE_3 PACKAGE ocx.sh/cmake:3.31 PULL NO_ROOT)
-ocx_package(NAME CMAKE_4 PACKAGE ocx.sh/cmake:4 PULL NO_ROOT)
+ocx_package(NAME CMAKE_3 PACKAGE ocx.sh/kitware/cmake:3.31 PULL NO_ROOT)
+ocx_package(NAME CMAKE_4 PACKAGE ocx.sh/kitware/cmake:4 PULL NO_ROOT)
 # TODO(mirror backfill): mirror-cmake versions.min is 3.31.0; enable once
 # 3.19.x is published, see the plan's external prerequisite.
-# ocx_package(NAME CMAKE_3_19 PACKAGE ocx.sh/cmake:3.19 PULL NO_ROOT)
+# ocx_package(NAME CMAKE_3_19 PACKAGE ocx.sh/kitware/cmake:3.19 PULL NO_ROOT)
 set(OCX_TEST_CMAKE_VERSIONS 3 4)
 
 # Refresh flow: `cmake --build build --target ocx-index-update` (or

@@ -24,20 +24,20 @@ include(ocx)
 # (CMP0074) - a subsequent find_package(jq)/find_program would search the
 # OCX-provisioned content.
 set(OCX_ALLOW_FLOATING ON)
-ocx_package(NAME jq PACKAGE ocx.sh/jq:latest PULL)
+ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
 unset(OCX_ALLOW_FLOATING)
 message(STATUS "example: jq content at ${jq_ROOT}")
 
 # Digest-pinned + lazy: per-platform manifest digests (from
 # `ocx package install -p <platform>` or the ocx.lock of a project);
 # nothing is fetched until the first execution.
-ocx_package(NAME jq_pinned PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT
+ocx_package(NAME jq_pinned PACKAGE ocx.sh/jqlang/jq:1.8.2 BINS jq NO_ROOT
   PINS
-    "linux/amd64=sha256:11814b34158ab143969a8efffe59a320dd07c0b176a65366427514b326e2a347"
-    "linux/arm64=sha256:1f31a7547df94c14075efbbadb1f89a8a8d2ae4635411e5a7a7192c5601032e7"
-    "darwin/amd64=sha256:b17686a01c7d3d6252e4c8ce681ff8f06e6e06f293200a6b2f20e3923614a2cb"
-    "darwin/arm64=sha256:5be7552a463835dead65ca4c858ebc10703a0d9cff7308967f04d08fa8e2da1a"
-    "windows/amd64=sha256:8434027cf0a6c340a10e533ecdfd8137f085e476437352b98237294adf821c7d"
+    "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
+    "linux/arm64=sha256:81b771e5c4e9b70cfeb19c825ca2b00a5078c238e7d3175eee9d772cedda006b"
+    "darwin/amd64=sha256:f750c91d28769d12298ba9a4c10340152fcbdd48c48102bf275c21d736cc72a2"
+    "darwin/arm64=sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
+    "windows/amd64=sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"
 )
 
 add_custom_target(pretty ALL
@@ -50,12 +50,12 @@ add_test(NAME jq_pinned_filter
           "${CMAKE_CURRENT_SOURCE_DIR}/data.json")
 
 # Frozen-index + lazy with an explicit INDEX override: the tag resolves
-# from the committed snapshot (index/ocx.sh/jq.json) - reproducible
+# from the committed snapshot (index/ocx.sh/p/jqlang/jq.json) - reproducible
 # without digests in this file. Prefer a project-shipped .ocx/ directory
 # (auto-discovered; see the frozen_index example); an explicit INDEX
 # points anywhere. Refresh deliberately (compose the command with
 # ocx_index(UPDATE_COMMAND ...)), review the diff, commit.
-ocx_package(NAME jq_frozen PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT
+ocx_package(NAME jq_frozen PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT
   INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index")
 
 add_test(NAME jq_frozen_filter

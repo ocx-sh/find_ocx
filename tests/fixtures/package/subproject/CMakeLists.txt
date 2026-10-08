@@ -8,7 +8,7 @@
 project(fixture_subproject LANGUAGES NONE)
 
 set(OCX_ALLOW_FLOATING ON)
-ocx_package(NAME JQ_SUB PACKAGE ocx.sh/jq:latest BINS jq NO_ROOT)
+ocx_package(NAME JQ_SUB PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
 if("${OCX_JQ_SUB_RUN}" MATCHES "--index")
   message(FATAL_ERROR
     "package fixture: outer .ocx leaked across a nested project() bound: "

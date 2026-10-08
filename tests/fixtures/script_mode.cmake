@@ -13,7 +13,7 @@ include(ocx)
 # mode has no project() bound, so the .ocx discovery is off; the floating
 # tag needs the explicit escape hatch (gate covered by floating_fatal).
 set(OCX_ALLOW_FLOATING ON)
-ocx_package(NAME jq_script PACKAGE ocx.sh/jq:latest PULL NO_ROOT)
+ocx_package(NAME jq_script PACKAGE ocx.sh/jqlang/jq:latest PULL NO_ROOT)
 if(NOT EXISTS "${OCX_JQ_SCRIPT_CONTENT}")
   message(FATAL_ERROR "script_mode fixture: OCX_JQ_SCRIPT_CONTENT missing")
 endif()
@@ -32,8 +32,8 @@ endif()
 # snapshot.
 ocx_index(UPDATE_COMMAND refresh
   INDEX "${CMAKE_CURRENT_LIST_DIR}/index"
-  PACKAGES ocx.sh/jq:latest ocx.sh/cmake@sha256:0000000000000000000000000000000000000000000000000000000000000000)
-if(NOT "${refresh}" MATCHES "index;update;ocx\\.sh/jq;ocx\\.sh/cmake$")
+  PACKAGES ocx.sh/jqlang/jq:latest ocx.sh/kitware/cmake@sha256:0000000000000000000000000000000000000000000000000000000000000000)
+if(NOT "${refresh}" MATCHES "index;update;ocx\\.sh/jqlang/jq;ocx\\.sh/kitware/cmake$")
   message(FATAL_ERROR "script_mode fixture: ocx_index(UPDATE_COMMAND) composed '${refresh}'")
 endif()
 

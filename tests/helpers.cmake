@@ -18,7 +18,7 @@ function(ocx_cmake_test_label out_var v)
 endfunction()
 
 # Adds one test per CMake version: the fixture is configured AND built with
-# the OCX-provisioned cmake (ocx package exec ocx.sh/cmake:<tag> -- ctest
+# the OCX-provisioned cmake (ocx package exec ocx.sh/kitware/cmake:<tag> -- ctest
 # --build-and-test). Fixtures self-assert at configure/build time.
 function(ocx_add_cmake_version_test fixture)
   cmake_parse_arguments(arg "NO_EXECUTABLE" "" "VERSIONS;OPTIONS" ${ARGN})

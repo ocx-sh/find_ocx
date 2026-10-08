@@ -1,2 +1,2 @@
 [tools]
-jq = "ocx.sh/jq:latest"
+jq = "ocx.sh/jqlang/jq:latest"
