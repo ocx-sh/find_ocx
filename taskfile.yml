@@ -24,13 +24,16 @@ tasks:
       - task: test
       - task: test:examples
       - task: docs
+      - task: site:check
 
   lint:
     desc: actionlint + license headers + links
     cmds:
       - ocx run -- actionlint
       - ocx run -- hawkeye check
-      - ocx run -- lychee --no-progress README.md CONTRIBUTING.md SECURITY.md
+      # The ocx.sh/integrations/cmake/ link 404s until the site's first deploy and the edge flip;
+      # drop the exclude then.
+      - ocx run -- lychee --no-progress --exclude '^https://ocx\.sh/integrations/cmake/' README.md CONTRIBUTING.md SECURITY.md
 
   test:
     desc: Harness — dogfooded CMake-version matrix via CTest
@@ -55,6 +58,42 @@ tasks:
     desc: Sphinx (CMake domain) — warnings are errors
     cmds:
       - ocx run -- uv run --project docs sphinx-build -W -b html docs docs/_build/html
+
+  site:install:
+    desc: Install the site's dependencies from the committed lockfile
+    dir: site
+    cmds:
+      - ocx exec -- pnpm install --frozen-lockfile
+
+  site:build:
+    desc: Build the Starlight site (ocx.sh/integrations/cmake/) from site/pages, docs/*.rst and the modules
+    deps: [site:install]
+    dir: site
+    cmds:
+      - ocx exec -- pnpm run build
+
+  site:check:
+    desc: Build the site, test the port script and check the layout and reference anchors
+    deps: [site:build]
+    dir: site
+    cmds:
+      - ocx exec -- pnpm run test
+      - ocx exec -- pnpm run check
+
+  site:lighthouse:
+    desc: Lighthouse (mobile, 100 in all four categories, budgets) over every built page under the base path
+    deps: [site:build]
+    dir: site
+    cmds:
+      - ocx exec -- pnpm exec playwright-core install chromium
+      - ocx exec -- pnpm run lighthouse
+
+  site:dev:
+    desc: Live site at http://localhost:4321/integrations/cmake/
+    deps: [site:install]
+    dir: site
+    cmds:
+      - ocx exec -- pnpm run dev
 
   dist:update:
     desc: Refresh the dist.json snapshot embedded in ocx.cmake
