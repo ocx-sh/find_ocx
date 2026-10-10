@@ -131,9 +131,10 @@ def sandbox(pin, committed, argv, ci_pin=None):
     `ci_pin` defaults to `pin`; pass a different one when the test has to tell
     "left alone" apart from "rewritten to the value it already had"."""
     tmp = pathlib.Path(tempfile.mkdtemp())
-    (tmp / "ocx.cmake").write_text(module_text(pin, committed))
+    update_dist.write(tmp / "ocx.cmake", module_text(pin, committed))
     (tmp / "workflows").mkdir()
-    (tmp / "workflows" / "ci.yml").write_text(
+    update_dist.write(
+        tmp / "workflows" / "ci.yml",
         f'      - uses: ocx-sh/setup-ocx@v1\n        with:\n          version: "{ci_pin or pin}"\n'
     )
     saved = (update_dist.OCX_CMAKE, update_dist.WORKFLOWS, sys.argv)
@@ -732,7 +733,7 @@ def test_wiring_check_on_an_unreadable_snapshot_dies_instead_of_tracebacking():
     the embedded snapshot is a plausible way to arrive here, and a JSONDecodeError
     traceback gives the operator nothing to do about it."""
     with sandbox("0.5.2", manifest("0.5.2"), argv=["--check"]) as tmp:
-        (tmp / "ocx.cmake").write_text(module_text("0.5.2", '{"releases": ['))
+        update_dist.write(tmp / "ocx.cmake", module_text("0.5.2", '{"releases": ['))
         msg = dies(update_dist.main, why="a truncated committed snapshot")
     assert "git checkout" in msg, f"must name the way back to a good file; got: {msg}"
 
@@ -841,7 +842,8 @@ def test_wiring_ci_pins_cover_yaml_and_refuse_to_miss_a_step():
     incoming = json.dumps(manifest("0.5.1", "0.5.2", "0.5.3")).encode()
 
     with sandbox("0.5.2", committed, argv=[]) as tmp, served(incoming):
-        (tmp / "workflows" / "publish.yaml").write_text(
+        update_dist.write(
+            tmp / "workflows" / "publish.yaml",
             '      - uses: ocx-sh/setup-ocx@v1\n        with:\n          version: "0.4.9"\n'
         )
         update_dist.main()
@@ -857,7 +859,7 @@ def test_wiring_ci_pins_cover_yaml_and_refuse_to_miss_a_step():
         ("no version key at all", "      - uses: ocx-sh/setup-ocx@v1\n"),
     ):
         with sandbox("0.5.2", committed, argv=[]) as tmp, served(incoming):
-            (tmp / "workflows" / "other.yml").write_text(body)
+            update_dist.write(tmp / "workflows" / "other.yml", body)
             msg = dies(update_dist.main, why=case)
         assert "setup-ocx" in msg, f"die() must name the step it could not repin ({case}); got: {msg}"
 
@@ -922,7 +924,7 @@ def test_a_failed_ci_repin_leaves_the_module_untouched():
     committed = manifest("0.5.1", "0.5.2")
     incoming = json.dumps(manifest("0.5.1", "0.5.2", "0.5.3")).encode()
     with sandbox("0.5.2", committed, argv=[]) as tmp, served(incoming):
-        (tmp / "workflows" / "other.yml").write_text("      - uses: ocx-sh/setup-ocx@v1\n")
+        update_dist.write(tmp / "workflows" / "other.yml", "      - uses: ocx-sh/setup-ocx@v1\n")
         before = (tmp / "ocx.cmake").read_bytes()
         dies(update_dist.main, why="an unrepinnable setup-ocx step")
         assert (tmp / "ocx.cmake").read_bytes() == before, "the module was written before the CI plan passed"
