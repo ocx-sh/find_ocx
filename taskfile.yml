@@ -35,10 +35,8 @@ tasks:
     desc: gersemi + actionlint + license headers + links (repo docs, site pages, changelog)
     cmds:
       # Tracked listfiles only: gersemi would descend into build trees.
-      # foreign_platform waits for its rewrite - re-enable it once formatted.
       - >-
         git ls-files -z -- '*CMakeLists.txt' '*.cmake'
-        ':!tests/fixtures/foreign_platform'
         | xargs -0 -r {{.GERSEMI}} --check
       - ocx exec -- actionlint
       - ocx exec -- actionlint examples/ci/github-actions.yml
