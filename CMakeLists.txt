@@ -55,3 +55,4 @@ ocx_add_script_mode_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_self_update_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 
 include(tests/i2.cmake)
+include(tests/i3.cmake)
