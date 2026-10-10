@@ -3,27 +3,15 @@
 # doc: guides-pin-and-freeze/frozen-offline
 # title: Configure and build offline from a snapshot
 # description: With a committed index snapshot and a warm cache, a configure and a build need no network.
-#
-# Harness contract: see site/scripts/run-cast-script.sh. Setup stands in for an earlier online session: it
-# commits the snapshot and warms OCX_HOME. The region then runs with OCX_OFFLINE=1; the verification repeats
-# the configure with every network route dead, so a quiet network fallback cannot pass.
+
+# Setup stands in for an earlier online session (snapshot committed, OCX_HOME warm).
+# The verification repeats the run with every network route dead.
 set -euo pipefail
 
 # region setup
 mkdir cmake
 cp "$FIND_OCX_ROOT/Findocx.cmake" "$FIND_OCX_ROOT/ocx.cmake" cmake/
-cat > CMakeLists.txt <<'CMAKE'
-cmake_minimum_required(VERSION 3.19)
-project(frozen_offline LANGUAGES NONE)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(ocx)
-
-ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
-add_custom_target(check ALL
-  COMMAND ${OCX_JQ_RUN_JQ} -n -e "1 == 1"
-  VERBATIM)
-CMAKE
+cp "$FIND_OCX_ROOT/site/casts/fixtures/guides-pin-and-freeze__frozen-offline"/* .
 PATH="$(dirname "$CAST_OCX"):$PATH"
 ocx --index .ocx index update ocx.sh/jqlang/jq:latest
 cmake -S . -B build

@@ -1,13 +1,8 @@
-// Records site/casts/*.sh (those with `# cast: true`) into site/public/casts/<doc>.cast (asciicast v3, gitignored).
-// A cast is a view on a script that already passes as a ctest: the recorder never gates anything (DOC-EX-11)
-// and every recorded byte comes from a real run, only the typed command line is simulated (DOC-EX-12).
-// Every run records every script from a cold start; there is no cache that could hide a failure, and one
-// failed recording fails the command.
-//
+// Records site/casts/*.sh (`# cast: true`) into site/public/casts/<doc>.cast (asciicast v3, gitignored).
+// The ctests (tests/casts.cmake) are the correctness gate; a cast is a view on a script that passes there.
+// A failed recording still fails this command and so the site build (DOC-EX-11).
+// Every byte comes from a real cold run, only the typed command line is simulated (DOC-EX-12).
 //   ocx exec -- node scripts/record-casts.mjs [--only <doc>] [--out <dir>] [--jobs <n>]
-//
-// Needs asciinema (ocx.toml), cmake, ninja and network on PATH. Headless: asciinema --headless runs the
-// driver in its own PTY, so no terminal is required (CI, ssh without -t, a pipe).
 import { spawn } from 'node:child_process';
 import { availableParallelism, homedir, tmpdir } from 'node:os';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';

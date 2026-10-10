@@ -3,27 +3,15 @@
 # doc: guides-add-a-tool/stale-lock
 # title: Add a tool and refresh the lock
 # description: Add a tool to ocx.toml without refreshing ocx.lock, read the configure error, then fix it with ocx lock.
-#
-# Harness contract: see site/scripts/run-cast-script.sh. Error cast: the region runs with errexit off
-# because the first configure must fail; the verification repeats that configure and asserts status and message.
+
+# Error cast: the region runs with errexit off because the first configure must fail.
+# The verification repeats that configure and asserts status and message.
 set -euo pipefail
 
 # region setup
 mkdir cmake
 cp "$FIND_OCX_ROOT/Findocx.cmake" "$FIND_OCX_ROOT/ocx.cmake" cmake/
-cat > ocx.toml <<'TOML'
-[tools]
-jq = "ocx.sh/jqlang/jq:latest"
-TOML
-cat > CMakeLists.txt <<'CMAKE'
-cmake_minimum_required(VERSION 3.19)
-project(add_a_tool LANGUAGES NONE)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(ocx)
-
-ocx_project(NAME TOOLS)
-CMAKE
+cp "$FIND_OCX_ROOT/site/casts/fixtures/guides-add-a-tool__stale-lock"/* .
 "$CAST_OCX" lock
 PATH="$(dirname "$CAST_OCX"):$PATH"
 # endregion setup

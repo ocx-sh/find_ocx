@@ -3,23 +3,15 @@
 # doc: guides-pin-and-freeze/floating-fatal
 # title: A floating tag is a configure error
 # description: Request a floating tag with nothing to freeze it, read the configure error, then freeze the tag with an index snapshot.
-#
-# Harness contract: see site/scripts/run-cast-script.sh. Error cast: the region runs with errexit off
-# because the first configure must fail; the verification repeats that configure and asserts status and message.
+
+# Error cast: the region runs with errexit off because the first configure must fail.
+# The verification repeats that configure and asserts status and message.
 set -euo pipefail
 
 # region setup
 mkdir cmake
 cp "$FIND_OCX_ROOT/Findocx.cmake" "$FIND_OCX_ROOT/ocx.cmake" cmake/
-cat > CMakeLists.txt <<'CMAKE'
-cmake_minimum_required(VERSION 3.19)
-project(floating_fatal LANGUAGES NONE)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(ocx)
-
-ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest BINS jq)
-CMAKE
+cp "$FIND_OCX_ROOT/site/casts/fixtures/guides-pin-and-freeze__floating-fatal"/* .
 PATH="$(dirname "$CAST_OCX"):$PATH"
 # endregion setup
 

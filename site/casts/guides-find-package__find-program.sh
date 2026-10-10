@@ -3,9 +3,9 @@
 # doc: guides-find-package/find-program
 # title: find_program does not search the package root
 # description: Provision a package with PULL, watch find_program miss its binary, then point find_program at the exported root.
-#
-# Harness contract: see site/scripts/run-cast-script.sh. Both configures in the region succeed (find_program
-# reports NOTFOUND, it does not fail); the verification asserts the NOTFOUND and then the hit.
+
+# Both configures succeed (find_program reports NOTFOUND, it does not fail).
+# The verification asserts the NOTFOUND, then the hit.
 set -euo pipefail
 
 # The demonstration needs a tool the host does not provide; a host lychee would make the first search succeed.
@@ -14,19 +14,7 @@ set -euo pipefail
 # region setup
 mkdir cmake
 cp "$FIND_OCX_ROOT/Findocx.cmake" "$FIND_OCX_ROOT/ocx.cmake" cmake/
-cat > CMakeLists.txt <<'CMAKE'
-cmake_minimum_required(VERSION 3.19)
-project(find_program_demo LANGUAGES NONE)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(ocx)
-
-ocx_package(NAME lychee PACKAGE ocx.sh/lychee/lychee:latest PULL)
-message(STATUS "lychee_ROOT is ${lychee_ROOT}")
-
-find_program(LYCHEE_EXE lychee)
-message(STATUS "find_program found: ${LYCHEE_EXE}")
-CMAKE
+cp "$FIND_OCX_ROOT/site/casts/fixtures/guides-find-package__find-program"/* .
 PATH="$(dirname "$CAST_OCX"):$PATH"
 ocx --index .ocx index update ocx.sh/lychee/lychee:latest
 # endregion setup

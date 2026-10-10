@@ -1,15 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-# Registers every docs cast script (site/casts/*.sh) as the ctest doc/<key>,
-# <key> being the script's "# doc:" line. The script is the test: it runs
-# through the same wrapper the recorder uses, against the real module in
-# FIND_OCX_ROOT, and passes or fails without asciinema. The recording
-# (site/scripts/record-casts.mjs) is a view on a passing script and is never
-# part of this gate.
-#
-# Not registered on Windows: the scripts are bash, and asciinema, which
-# records them for the site, has no Windows build.
+# Registers each site/casts/*.sh as the ctest doc/<key> (<key> is its "# doc:" line).
+# The script is the test: it runs through the recorder's wrapper against the real module.
+# Not on Windows: the scripts are bash and asciinema has no Windows build.
 if(CMAKE_HOST_WIN32)
   return()
 endif()

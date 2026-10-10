@@ -4,32 +4,15 @@
 # title: First configure and build
 # dir: hello-jq
 # description: Configure a project that includes find_ocx, then build it; the build runs a pinned jq nobody installed.
-#
-# Harness contract (site/scripts/run-cast-script.sh): cwd is an empty directory, HOME and OCX_HOME are
-# throwaway, $FIND_OCX_ROOT is the repository, cmake and ninja are on PATH and ocx is not ($CAST_OCX is
-# the host ocx, for setup only). The `cast` region is what the page shows and what the recording types;
-# everything else runs silently.
+
+# Environment: see site/scripts/run-cast-script.sh ($CAST_OCX is the host ocx, setup only).
+# The cast region is what the page shows; setup and verification run silently.
 set -euo pipefail
 
 # region setup
 mkdir cmake
 cp "$FIND_OCX_ROOT/Findocx.cmake" "$FIND_OCX_ROOT/ocx.cmake" cmake/
-cat > ocx.toml <<'TOML'
-[tools]
-jq = "ocx.sh/jqlang/jq:latest"
-TOML
-cat > CMakeLists.txt <<'CMAKE'
-cmake_minimum_required(VERSION 3.19)
-project(hello_jq LANGUAGES NONE)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(ocx)
-
-ocx_project(NAME TOOLS BINS jq)
-add_custom_target(validate ALL
-  COMMAND ${OCX_TOOLS_RUN} jq -n -e "true"
-  VERBATIM)
-CMAKE
+cp "$FIND_OCX_ROOT/site/casts/fixtures/tutorial__first-configure"/* .
 "$CAST_OCX" lock
 # endregion setup
 

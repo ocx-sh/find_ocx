@@ -3,26 +3,17 @@
 # doc: guides-mirror/bootstrap
 # title: Bootstrap ocx through an internal mirror
 # description: Where github.com is unreachable the bootstrap fails with a hint; point it at an internal mirror and the pinned ocx downloads and verifies.
-#
-# Harness contract: see site/scripts/run-cast-script.sh. Setup stands in for the corporate network: a static
-# mirror of the pinned release on loopback ($MIRROR) and a dead proxy for everything else. Error cast: the
-# region runs with errexit off because the first configure must fail; the verification repeats that configure
-# and asserts status and message. Needs python3 and network access to fetch the release once.
+
+# Error cast: the region runs with errexit off because the first configure must fail.
+# The verification repeats that configure and asserts status and message.
+# Setup fakes the corporate network: a loopback mirror plus a dead proxy.
+# Needs python3 and network access to fetch the release once.
 set -euo pipefail
 
 # region setup
 mkdir cmake
 cp "$FIND_OCX_ROOT/Findocx.cmake" "$FIND_OCX_ROOT/ocx.cmake" cmake/
-cat > CMakeLists.txt <<'CMAKE'
-cmake_minimum_required(VERSION 3.19)
-project(behind_a_mirror LANGUAGES NONE)
-
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(ocx)
-
-ocx_bootstrap()
-message(STATUS "ocx is ${OCX_EXECUTABLE}")
-CMAKE
+cp "$FIND_OCX_ROOT/site/casts/fixtures/guides-mirror__bootstrap"/* .
 mkdir "$CAST_TMP/mirror"
 python3 "$FIND_OCX_ROOT/site/scripts/make-cast-mirror.py" cmake/ocx.cmake "$CAST_TMP/mirror"
 port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')

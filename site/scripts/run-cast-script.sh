@@ -1,23 +1,8 @@
 #!/usr/bin/env bash
-# Run one bash file in the cast-script environment. ctest runs a cast script through this file and
-# scripts/record-casts.mjs runs its generated driver through it, so the test and the recording see
-# the same world:
-#
-#   - cwd is an empty directory ($CAST_WORK); HOME and OCX_HOME are throwaway, so every run is cold;
-#   - FIND_OCX_ROOT points at the repository, the module under test;
-#   - PATH holds cmake, ctest and ninja and the system tools, never ocx: a host ocx would short-circuit
-#     the bootstrap. The host ocx stays reachable as $CAST_OCX for the setup region, and a script that
-#     wants it on PATH says so itself;
-#   - nothing else leaks in but the locale and the proxy/CA variables.
-#
-#   run-cast-script.sh <file.sh>
-#
-# Needs cmake and ninja on PATH (`ocx exec --` provides both) and, unless the script bootstraps, ocx.
-# Environment knobs:
-#   CAST_TMP=<dir>               use (and keep) this directory instead of a mktemp one
-#   CAST_OCX_HOME=<dir>          reuse a warm OCX_HOME (faster ctest runs); a recording always starts cold
-#   CAST_OCX_EXECUTABLE=<path>   run the module through this ocx (becomes OCX_EXECUTABLE) instead of the
-#                                pinned bootstrap; for proving a script while the pin lags the CLI
+# Run one cast script in a throwaway world: empty cwd, fresh HOME and OCX_HOME, FIND_OCX_ROOT set.
+# ctest and the recorder both go through here, so the test and the recording see the same world.
+# PATH holds cmake, ninja and system tools, never ocx; the host ocx is $CAST_OCX.
+#   run-cast-script.sh <file.sh>      knobs: site/casts/README.md
 set -euo pipefail
 
 file=$(realpath "$1")
@@ -39,7 +24,7 @@ done
 [[ -n "${CAST_OCX_EXECUTABLE:-}" ]] && pass+=("OCX_EXECUTABLE=$CAST_OCX_EXECUTABLE")
 
 cd "$tmp/work"
-env -i "${pass[@]}" PATH="$path" TERM=xterm-256color LANG=C.UTF-8 HOME="$tmp/home" \
+env -i ${pass[@]+"${pass[@]}"} PATH="$path" TERM=xterm-256color LANG=C.UTF-8 HOME="$tmp/home" \
   OCX_HOME="${CAST_OCX_HOME:-$tmp/home/.ocx}" OCX_NO_UPDATE_CHECK=1 \
   CAST_OCX="$(command -v ocx || true)" CAST_TMP="$tmp" CAST_WORK="$tmp/work" FIND_OCX_ROOT="$root" \
   bash "$file" || { rc=$?; echo "run-cast-script: $(basename "$file") exited $rc" >&2; exit "$rc"; }
