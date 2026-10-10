@@ -81,3 +81,7 @@ include(tests/i3.cmake)
 include(tests/i1.cmake)
 
 include(tests/casts.cmake)
+
+# The README quick-start fences must equal the examples/tutorial regions.
+add_test(NAME readme_check
+  COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_CURRENT_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/readme_check.cmake)
