@@ -1,5 +1,8 @@
 {
   "claudeMdExcludes": [
-    "**/.claude/rules/docs-quality/**"
+    "**/.claude/rules/docs-quality/**",
+    "**/.claude/rules/cmake-build/**",
+    "**/.claude/rules/code-docs/**",
+    "**/.claude/rules/cpp-packaging/**"
   ]
 }

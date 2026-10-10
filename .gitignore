@@ -12,3 +12,6 @@ site/dist/
 site/.astro/
 site/src/content/docs/
 site/.lighthouseci/
+
+# Agent worktrees (disposable)
+.agents/worktrees/
