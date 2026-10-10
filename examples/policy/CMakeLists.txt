@@ -15,9 +15,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 include(ocx)
 
 # region config
-ocx_project(NAME TOOLS BINS jq
-  CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/ocx-config.toml"
-  NO_CONFIG)
+ocx_project(NAME TOOLS BINS jq CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/ocx-config.toml" NO_CONFIG)
 # endregion
 
 add_test(NAME jq_runs COMMAND ${OCX_TOOLS_RUN_JQ} -n -e "true")

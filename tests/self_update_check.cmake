@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Script mode (cmake -P): self-update check against a fake file:// release.
 # Copies the vendored ocx.cmake/Findocx.cmake from MODULE_DIR into a
 # scratch dir, builds a doctored "release" (version stamp 9.9.9) with a

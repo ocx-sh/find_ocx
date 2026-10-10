@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Script mode (cmake -P): module-level contracts of ocx.cmake. A second copy
 # with another version is FATAL; the first load is a GLOBAL property;
 # ocx_self_update is public, takes no arguments and refuses a project
@@ -30,7 +30,8 @@ function(i1_run name expect)
     RESULT_VARIABLE rc
     OUTPUT_VARIABLE out
     ERROR_VARIABLE err
-    ENCODING UTF-8)
+    ENCODING UTF-8
+  )
   if(expect STREQUAL "OK")
     if(NOT rc EQUAL 0)
       message(FATAL_ERROR "module_checks[${name}]: exit ${rc}\n${out}\n${err}")
@@ -42,7 +43,10 @@ function(i1_run name expect)
     # CMake wraps long diagnostics: compare with whitespace collapsed.
     string(REGEX REPLACE "[ \n]+" " " flat_err "${err}")
     if(NOT flat_err MATCHES "${expect}")
-      message(FATAL_ERROR "module_checks[${name}]: exit ${rc} but stderr lacks '${expect}':\n${err}")
+      message(
+        FATAL_ERROR
+        "module_checks[${name}]: exit ${rc} but stderr lacks '${expect}':\n${err}"
+      )
     endif()
   endif()
   set(out "${out}" PARENT_SCOPE)
@@ -53,21 +57,36 @@ endfunction()
 file(MAKE_DIRECTORY "${SCRATCH}/a" "${SCRATCH}/b" "${SCRATCH}/same")
 file(COPY_FILE "${module}" "${SCRATCH}/a/ocx.cmake")
 file(COPY_FILE "${module}" "${SCRATCH}/same/ocx.cmake")
-string(REPLACE
-  "set(__OCX_MODULE_VERSION \"${version}\")" "set(__OCX_MODULE_VERSION \"9.9.9\")"
-  other "${content}")
+string(
+  REPLACE "set(__OCX_MODULE_VERSION \"${version}\")"
+  "set(__OCX_MODULE_VERSION \"9.9.9\")"
+  other
+  "${content}"
+)
 file(WRITE "${SCRATCH}/b/ocx.cmake" "${other}")
 
 set(two "${CMAKE_COMMAND}" "-DCOPY_A=${SCRATCH}/a/ocx.cmake")
 set(fixtures "${CMAKE_CURRENT_LIST_DIR}")
-i1_run(second_copy_other_version "two copies of ocx\\.cmake with different versions"
-  ${two} "-DCOPY_B=${SCRATCH}/b/ocx.cmake" -P "${fixtures}/two_copies.cmake")
+i1_run(
+  second_copy_other_version
+  "two copies of ocx\\.cmake with different versions"
+  ${two}
+  "-DCOPY_B=${SCRATCH}/b/ocx.cmake"
+  -P
+  "${fixtures}/two_copies.cmake"
+)
 string(REGEX REPLACE "[ \n]+" " " flat_err "${err}")
 if(NOT flat_err MATCHES "${version} from [^ ]*a/ocx\\.cmake and 9\\.9\\.9 from [^ ]*b/ocx\\.cmake")
   message(FATAL_ERROR "module_checks: the error must name both copies:\n${err}")
 endif()
-i1_run(second_copy_same_version OK
-  ${two} "-DCOPY_B=${SCRATCH}/same/ocx.cmake" -P "${fixtures}/two_copies.cmake")
+i1_run(
+  second_copy_same_version
+  OK
+  ${two}
+  "-DCOPY_B=${SCRATCH}/same/ocx.cmake"
+  -P
+  "${fixtures}/two_copies.cmake"
+)
 if(NOT out MATCHES "two_copies: first ${version} .*a/ocx\\.cmake")
   message(FATAL_ERROR "module_checks: first load not recorded:\n${out}")
 endif()
@@ -76,11 +95,24 @@ if(NOT out MATCHES "two_copies: both loaded")
 endif()
 
 # --- 3: the public self-update entry -----------------------------------------
-i1_run(self_update_name "ocx_self_update: unexpected arguments: BOGUS"
-  "${CMAKE_COMMAND}" "-DCMAKE_MODULE_PATH=${MODULE_DIR}" -P "${fixtures}/self_update_name.cmake")
-i1_run(self_update_configure "runs in script mode only"
-  "${CMAKE_COMMAND}" -S "${fixtures}/configure_self_update" -B "${SCRATCH}/configure"
-  "-DCMAKE_MODULE_PATH=${MODULE_DIR}")
+i1_run(
+  self_update_name
+  "ocx_self_update: unexpected arguments: BOGUS"
+  "${CMAKE_COMMAND}"
+  "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
+  -P
+  "${fixtures}/self_update_name.cmake"
+)
+i1_run(
+  self_update_configure
+  "runs in script mode only"
+  "${CMAKE_COMMAND}"
+  -S
+  "${fixtures}/configure_self_update"
+  -B
+  "${SCRATCH}/configure"
+  "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
+)
 
 # --- 4: static contracts -----------------------------------------------------
 # Definitions sit between the single PUSH and the single POP.
@@ -91,11 +123,16 @@ math(EXPR span_last_index "${span_len} - 1")
 list(GET span ${span_last_index} span_last)
 list(FILTER span INCLUDE REGEX "cmake_policy")
 list(LENGTH span pins)
-if(NOT span_first MATCHES "cmake_policy\\(PUSH\\)" OR NOT span_last MATCHES "cmake_policy\\(POP\\)"
-    OR NOT pins EQUAL 2)
-  message(FATAL_ERROR
+if(
+  NOT span_first MATCHES "cmake_policy\\(PUSH\\)"
+  OR NOT span_last MATCHES "cmake_policy\\(POP\\)"
+  OR NOT pins EQUAL 2
+)
+  message(
+    FATAL_ERROR
     "module_checks: every function/macro must sit between the one "
-    "cmake_policy(PUSH) and the one cmake_policy(POP) of ocx.cmake")
+    "cmake_policy(PUSH) and the one cmake_policy(POP) of ocx.cmake"
+  )
 endif()
 if(NOT content MATCHES "\ncmake_policy\\(VERSION 3\\.25\\.\\.\\.4\\.4\\)\n")
   message(FATAL_ERROR "module_checks: the module policy must be VERSION 3.25...4.4")
@@ -109,7 +146,10 @@ endif()
 string(REGEX MATCHALL "file\\([ \n]*DOWNLOAD[ \n][^)]*\\)" downloads "${content}")
 list(LENGTH downloads download_count)
 if(download_count LESS 5)
-  message(FATAL_ERROR "module_checks: expected at least the 5 file(DOWNLOAD) calls, found ${download_count}")
+  message(
+    FATAL_ERROR
+    "module_checks: expected at least the 5 file(DOWNLOAD) calls, found ${download_count}"
+  )
 endif()
 foreach(call IN LISTS downloads)
   foreach(keyword IN ITEMS "TLS_VERIFY ON" "TIMEOUT" "STATUS")

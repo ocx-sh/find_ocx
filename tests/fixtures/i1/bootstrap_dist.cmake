@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Script mode (cmake -P): ocx_bootstrap() of the pin from a fake file://
 # distribution, offline. The payload is OCX_EXE (the pinned version) archived
 # as a release ships it: nested ocx-<triple>/ocx in .tar.gz on unix, flat
@@ -22,12 +22,15 @@ execute_process(
   RESULT_VARIABLE rc
   OUTPUT_VARIABLE real_version
   ERROR_VARIABLE err
-  ENCODING UTF-8)
+  ENCODING UTF-8
+)
 string(STRIP "${real_version}" real_version)
 if(NOT rc EQUAL 0 OR NOT real_version VERSION_EQUAL pin)
-  message(FATAL_ERROR
+  message(
+    FATAL_ERROR
     "bootstrap_dist: OCX_EXE=${OCX_EXE} must be the pinned ocx ${pin} "
-    "(reports '${real_version}', exit ${rc})\n${err}")
+    "(reports '${real_version}', exit ${rc})\n${err}"
+  )
 endif()
 
 file(REMOVE_RECURSE "${SCRATCH}")
@@ -42,13 +45,21 @@ function(i1_file_url path out_var)
   endif()
 endfunction()
 
-function(i1_write_manifest file version filename sha url)
+function(
+  i1_write_manifest
+  file
+  version
+  filename
+  sha
+  url
+)
   file(
     WRITE "${file}"
     "{\"schema\":1,\"latest\":{\"version\":\"${version}\",\"channel\":\"stable\"},"
     "\"latest_next\":null,\"releases\":[{\"version\":\"${version}\","
     "\"channel\":\"stable\",\"tag\":\"v${version}\",\"target\":\"${triple}\","
-    "\"filename\":\"${filename}\",\"sha256\":\"${sha}\",\"url\":\"${url}\"}]}\n")
+    "\"filename\":\"${filename}\",\"sha256\":\"${sha}\",\"url\":\"${url}\"}]}\n"
+  )
 endfunction()
 
 # --- the release archive -----------------------------------------------------
@@ -58,7 +69,14 @@ file(MAKE_DIRECTORY "${stage}/ocx-${triple}" "${SCRATCH}/stage_zip" "${SCRATCH}/
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
   set(filename "ocx-${triple}.zip")
   file(COPY_FILE "${real_exe}" "${stage}/ocx.exe")
-  set(pack tar cf "${SCRATCH}/${filename}" --format=zip ocx.exe)
+  set(
+    pack
+    tar
+    cf
+    "${SCRATCH}/${filename}"
+    --format=zip
+    ocx.exe
+  )
 else()
   set(filename "ocx-${triple}.tar.gz")
   file(COPY_FILE "${real_exe}" "${stage}/ocx-${triple}/ocx")
@@ -69,7 +87,8 @@ execute_process(
   COMMAND "${CMAKE_COMMAND}" -E ${pack}
   WORKING_DIRECTORY "${stage}"
   RESULT_VARIABLE rc
-  ERROR_VARIABLE err)
+  ERROR_VARIABLE err
+)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "bootstrap_dist: cannot pack ${filename}: ${err}")
 endif()
@@ -84,7 +103,8 @@ if(NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
     COMMAND "${CMAKE_COMMAND}" -E tar cf "${SCRATCH}/${zip_filename}" --format=zip ocx
     WORKING_DIRECTORY "${SCRATCH}/stage_zip"
     RESULT_VARIABLE rc
-    ERROR_VARIABLE err)
+    ERROR_VARIABLE err
+  )
   if(NOT rc EQUAL 0)
     message(FATAL_ERROR "bootstrap_dist: cannot pack ${zip_filename}: ${err}")
   endif()
@@ -104,8 +124,13 @@ if(DEFINED zip_sha)
   i1_file_url("${SCRATCH}/${zip_filename}" zip_url)
   i1_write_manifest("${SCRATCH}/flat_zip.json" "${pin}" "${zip_filename}" "${zip_sha}" "${zip_url}")
 endif()
-i1_write_manifest("${SCRATCH}/mirrored.json" "${pin}" "${filename}" "${sha}"
-  "https://invalid.example/ocx-sh/ocx/releases/download/v${pin}/${filename}")
+i1_write_manifest(
+  "${SCRATCH}/mirrored.json"
+  "${pin}"
+  "${filename}"
+  "${sha}"
+  "https://invalid.example/ocx-sh/ocx/releases/download/v${pin}/${filename}"
+)
 i1_write_manifest("${SCRATCH}/bad_hash.json" "${pin}" "${filename}" "${zeros}" "${archive_url}")
 i1_write_manifest("${SCRATCH}/other_version.json" "0.0.1" "${filename}" "${sha}" "${archive_url}")
 i1_write_manifest("${SCRATCH}/traversal.json" "${pin}" "../evil.tar.gz" "${sha}" "${archive_url}")
@@ -129,16 +154,16 @@ function(i1_case name)
   execute_process(
     COMMAND
       "${CMAKE_COMMAND}" -E env --unset=OCX_EXECUTABLE --unset=OCX_INSTALL_DIST_URL
-      --unset=OCX_INSTALL_MIRROR_URL --unset=OCX_INSTALL_VERSION
-      --unset=OCX_BOOTSTRAP_CACHE "${CMAKE_COMMAND}" -Werror=dev
-      "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
+      --unset=OCX_INSTALL_MIRROR_URL --unset=OCX_INSTALL_VERSION --unset=OCX_BOOTSTRAP_CACHE
+      "${CMAKE_COMMAND}" -Werror=dev "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
       "-DOCX_BOOTSTRAP_CACHE=${cache}" ${arg_DEFINES} "-DBOOT_ARGS=${arg_ARGS}" -P
       "${CMAKE_CURRENT_LIST_DIR}/bootstrap_child.cmake"
     WORKING_DIRECTORY "${work}"
     RESULT_VARIABLE rc
     OUTPUT_VARIABLE out
     ERROR_VARIABLE err
-    ENCODING UTF-8)
+    ENCODING UTF-8
+  )
   if(arg_FAIL)
     if(rc EQUAL 0)
       message(FATAL_ERROR "bootstrap_dist[${name}]: expected a failure, got exit 0:\n${out}")
@@ -146,8 +171,10 @@ function(i1_case name)
     # CMake wraps long diagnostics: compare with whitespace collapsed.
     string(REGEX REPLACE "[ \n]+" " " flat_err "${err}")
     if(NOT flat_err MATCHES "${arg_FAIL}")
-      message(FATAL_ERROR
-        "bootstrap_dist[${name}]: exit ${rc} but stderr lacks '${arg_FAIL}':\n${err}")
+      message(
+        FATAL_ERROR
+        "bootstrap_dist[${name}]: exit ${rc} but stderr lacks '${arg_FAIL}':\n${err}"
+      )
     endif()
     return()
   endif()
@@ -161,8 +188,10 @@ function(i1_case name)
     message(FATAL_ERROR "bootstrap_dist[${name}]: binary does not report ${pin}:\n${out}")
   endif()
   if(NOT EXISTS "${cache}/${pin}/${triple}/ocx${exe_ext}")
-    message(FATAL_ERROR
-      "bootstrap_dist[${name}]: ${cache}/${pin}/${triple}/ocx${exe_ext} was not cached")
+    message(
+      FATAL_ERROR
+      "bootstrap_dist[${name}]: ${cache}/${pin}/${triple}/ocx${exe_ext} was not cached"
+    )
   endif()
 endfunction()
 
@@ -175,46 +204,71 @@ endif()
 # it (a keyword beats the ambient value), so an unreachable URL is never fetched.
 i1_file_url("${SCRATCH}/direct.json" direct_url)
 i1_case(dist_url DEFINES "-DOCX_INSTALL_DIST_URL=${direct_url}")
-i1_case(dist_manifest_over_url
+i1_case(
+  dist_manifest_over_url
   DEFINES "-DOCX_INSTALL_DIST_URL=file://${SCRATCH}/no-such-dist.json"
-  ARGS DIST_MANIFEST "${SCRATCH}/direct.json")
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
+)
 # OCX_INSTALL_CA_BUNDLE must name a file before the first download; an existing
 # file is accepted (file:// downloads ignore it).
-i1_case(ca_bundle_missing DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/no-such-ca.pem"
+i1_case(
+  ca_bundle_missing
+  DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/no-such-ca.pem"
   ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
-  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*no-such-ca\\.pem' is not a readable file")
-i1_case(ca_bundle_dir DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}"
+  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*no-such-ca\\.pem' is not a readable file"
+)
+i1_case(
+  ca_bundle_dir
+  DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}"
   ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
-  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*' is not a readable file")
+  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*' is not a readable file"
+)
 file(WRITE "${SCRATCH}/ca.pem" "")
-i1_case(ca_bundle_file DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/ca.pem"
-  ARGS DIST_MANIFEST "${SCRATCH}/direct.json")
+i1_case(
+  ca_bundle_file
+  DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/ca.pem"
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
+)
 # A <sha256>.json manifest whose name is its digest is verified and accepted...
 i1_file_url("${SCRATCH}/${manifest_sha}.json" named_url)
 i1_case(dist_url_sha_named DEFINES "-DOCX_INSTALL_DIST_URL=${named_url}")
 # ...and one whose name lies about its digest is refused.
 i1_file_url("${SCRATCH}/${zeros}.json" lying_url)
-i1_case(dist_url_sha_lies DEFINES "-DOCX_INSTALL_DIST_URL=${lying_url}"
-  FAIL "HASH mismatch|failed to fetch the dist manifest")
+i1_case(
+  dist_url_sha_lies
+  DEFINES "-DOCX_INSTALL_DIST_URL=${lying_url}"
+  FAIL "HASH mismatch|failed to fetch the dist manifest"
+)
 # The mirror rewrite serves a row whose own url is unreachable.
-i1_case(mirror DEFINES "-DOCX_INSTALL_MIRROR_URL=${mirror_url}"
-  ARGS DIST_MANIFEST "${SCRATCH}/mirrored.json")
+i1_case(
+  mirror
+  DEFINES "-DOCX_INSTALL_MIRROR_URL=${mirror_url}"
+  ARGS DIST_MANIFEST "${SCRATCH}/mirrored.json"
+)
 # The row sha256 is enforced whichever manifest and url served the bytes.
-i1_case(row_hash_mismatch ARGS DIST_MANIFEST "${SCRATCH}/bad_hash.json"
-  FAIL "HASH mismatch|download of .* failed")
+i1_case(
+  row_hash_mismatch
+  ARGS DIST_MANIFEST "${SCRATCH}/bad_hash.json"
+  FAIL "HASH mismatch|download of .* failed"
+)
 # An archive that unpacks to a binary of another version is refused and removed.
-i1_case(wrong_version ARGS VERSION 0.0.1 DIST_MANIFEST "${SCRATCH}/other_version.json"
-  FAIL "reports version ${pin}, expected 0\\.0\\.1")
+i1_case(
+  wrong_version
+  ARGS VERSION 0.0.1 DIST_MANIFEST "${SCRATCH}/other_version.json"
+  FAIL "reports version ${pin}, expected 0\\.0\\.1"
+)
 if(EXISTS "${SCRATCH}/cache-wrong_version/0.0.1/${triple}/ocx${exe_ext}")
   message(FATAL_ERROR "bootstrap_dist: the mismatching binary stayed in the cache")
 endif()
 # tag and filename are path segments: a manifest cannot walk out of them.
-i1_case(traversal ARGS DIST_MANIFEST "${SCRATCH}/traversal.json"
-  FAIL "not a single path segment")
+i1_case(traversal ARGS DIST_MANIFEST "${SCRATCH}/traversal.json" FAIL "not a single path segment")
 # Keyword hygiene.
 i1_case(unparsed ARGS BOGUS FAIL "unexpected arguments: BOGUS")
 i1_case(missing_value ARGS DIST_MANIFEST FAIL "missing value for DIST_MANIFEST")
-i1_case(missing_file ARGS DIST_MANIFEST "${SCRATCH}/nope.json"
-  FAIL "DIST_MANIFEST .* does not exist")
+i1_case(
+  missing_file
+  ARGS DIST_MANIFEST "${SCRATCH}/nope.json"
+  FAIL "DIST_MANIFEST .* does not exist"
+)
 
 message(STATUS "bootstrap_dist: ok (ocx ${pin}, ${filename})")

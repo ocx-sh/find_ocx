@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Child of module_checks.cmake (script mode): loads two vendored copies of
 # ocx.cmake, COPY_A then COPY_B, and reports what the GLOBAL property
 # recorded for the first.

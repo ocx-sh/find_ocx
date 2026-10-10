@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Child of bootstrap_dist.cmake (script mode): runs ocx_bootstrap(${BOOT_ARGS})
 # with no OCX_EXECUTABLE in play and reports the version the binary prints.
 #
@@ -16,7 +16,8 @@ execute_process(
   RESULT_VARIABLE rc
   OUTPUT_VARIABLE reported
   ERROR_VARIABLE err
-  ENCODING UTF-8)
+  ENCODING UTF-8
+)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "bootstrap_child: '${OCX_EXECUTABLE} version' exited ${rc}\n${err}")
 endif()

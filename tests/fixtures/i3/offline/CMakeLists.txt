@@ -14,9 +14,11 @@ if(NOT OCX_OFFLINE OR NOT OCX_HOME)
   message(FATAL_ERROR "i3 offline fixture: run with -DOCX_OFFLINE=1 -DOCX_HOME=<empty dir>")
 endif()
 
-ocx_package(NAME OFF
+ocx_package(
+  NAME OFF
   PACKAGE ocx.sh/jqlang/jq@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6
-  BINS jqq)
+  BINS jqq
+)
 if(NOT DEFINED CACHE{OCX_OFF_RUN_JQQ})
   message(FATAL_ERROR "i3 offline fixture: OCX_OFF_RUN_JQQ missing")
 endif()

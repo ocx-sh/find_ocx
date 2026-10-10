@@ -11,8 +11,8 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
     NAME hint_table
     COMMAND
       "${CMAKE_COMMAND}" "-DMODULE_FILE=${CMAKE_SOURCE_DIR}/ocx.cmake"
-      "-DPAGE_FILE=${CMAKE_SOURCE_DIR}/site/pages/troubleshooting/exit-codes.md"
-      -P "${CMAKE_CURRENT_LIST_FILE}"
+      "-DPAGE_FILE=${CMAKE_SOURCE_DIR}/site/pages/troubleshooting/exit-codes.md" -P
+      "${CMAKE_CURRENT_LIST_FILE}"
   )
   set_tests_properties(hint_table PROPERTIES TIMEOUT 30)
   return()

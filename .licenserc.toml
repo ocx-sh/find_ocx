@@ -13,3 +13,9 @@ includes = [
     "scripts/**/*.py",
 ]
 excludes = ["build/**"]
+
+# hawkeye knows CMakeLists.txt but not the .cmake extension; without this mapping
+# it skips every module and test script as "unsupported".
+[[rules]]
+style_out = "script"
+extensions = ["cmake"]
