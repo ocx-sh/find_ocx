@@ -23,8 +23,14 @@ It downloads once per machine and logs the download.
 
 To find out whether a configure needs the network, configure a fresh build directory with `-DOCX_OFFLINE=1`.
 A call that needs content stops with exit 79 when the package is pinned and the store lacks it.
-It stops with exit 81 when the tag is unpinned.
+A tag that a snapshot resolves stops with exit 81 when its manifest is not cached.
 The message names the command.
+A lazy call with a digest reference and `BINS` passes, and prints a status line instead of checking the names:
+
+```text
+find_ocx: ocx_package X (<ref>): BINS not validated (OCX_OFFLINE and the package is not in the local store)
+```
+
 A configure that passes touched no network.
 
 ## Eager mode {#eager}
@@ -45,7 +51,8 @@ A lazy call pins the reference and waits for the first execution:
 
 A lazy configure leaves the package store empty.
 A later offline run of the tool then fails with exit 79 for a pinned package, because nothing was downloaded while the network was reachable.
-An unpinned tag fails with exit 81 instead.
+The build step prints `error: failed to find package: <ref> — package not found`.
+A tag that a snapshot resolves fails with exit 81 instead.
 
 Fill the store first, with a configure that pulls. Then configure offline against the lock file or snapshot:
 

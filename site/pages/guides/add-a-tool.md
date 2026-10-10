@@ -14,7 +14,7 @@ Pinning one prebuilt tool for one build step is not what they are built for.
 This page adds the tool to `ocx.toml`, refreshes `ocx.lock` and selects the tool in CMake, so a teammate who pulls the change gets the same copy.
 
 You need a project that already calls `ocx_project`, as in the [tutorial](../tutorial.md).
-You also need an `ocx` CLI on the machine that writes the lock.
+You also need an `ocx` CLI on the machine that writes the lock, or the CLI that find_ocx downloads, as the [next section](#bootstrapped-lock) shows.
 Machines that only build do not need one.
 
 ## Add the tool to a group {#edit-toml}
@@ -43,6 +43,28 @@ Add it, so two branches that each add a tool merge without a conflict in the loc
 ```text
 ocx.lock merge=union
 ```
+
+## Write the first lock without an installed ocx {#bootstrapped-lock}
+
+A configure checks the lock and never writes it.
+A project with an `ocx.toml` and no `ocx.lock` therefore stops the first configure with exit code 78 and this message:
+
+```text
+ocx.lock not found at <path>/ocx.lock; run `ocx lock` to create it
+```
+
+On a machine with no `ocx`, that stop comes after the configure has downloaded the pinned CLI, and `OCX_EXECUTABLE` in the cache names it.
+Run that binary to write the lock, then configure again.
+The recording runs the three commands on a machine with no `ocx`.
+
+<!-- cast: guides-add-a-tool/bootstrapped-lock -->
+
+`cmake -L -N build` prints the cache entry `OCX_EXECUTABLE`, and the `sed` filter keeps its value.
+The command substitution needs a POSIX shell.
+On Windows, copy the path from the `OCX_EXECUTABLE:FILEPATH=` line and run `<path> lock` in the directory of `ocx.toml`.
+
+The CLI that wrote the lock is the one the next configure runs, so both agree on the lock format.
+A lock that a different `ocx` wrote can fail with exit code 78, as [Fix a failing configure](../troubleshooting/configure-errors.md#stale-lock) describes.
 
 ## Select the group in CMake {#select-group}
 

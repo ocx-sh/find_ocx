@@ -33,7 +33,7 @@ A toolchain file is the usual place to describe the target, so the provisioning 
 CMake reads a toolchain file again for each compiler probe.
 An `ocx_project` or `ocx_package` call with the same `NAME` and identical arguments does nothing on re-entry, so the call needs no guard.
 A different call under the same `NAME` is a configure error.
-Every configure reruns the call, so run `cmake` again after you edit `ocx.lock` or `ocx.toml`.
+The call registers `ocx.toml` and `ocx.lock` as configure dependencies, so the next build reruns the configure after you edit either one.
 
 <!-- snippet: examples/cross_build/toolchain.cmake#toolchain -->
 

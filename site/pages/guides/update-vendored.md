@@ -21,7 +21,7 @@ Run `cmake -P cmake/ocx.cmake`.
 Script mode starts no project and writes no build cache.
 The module asks the GitHub releases API for the newest tag, downloads the files, verifies them and replaces both.
 
-It prints one line with the old and the new version, for example `0.3.0 -> 0.4.0 (v0.4.0)`.
+It prints one line with the old and the new version, for example `-- find_ocx: 0.3.0 -> 0.4.0 (v0.4.0)`.
 
 ## Choose a release {#version}
 
@@ -36,6 +36,13 @@ Then run `cmake -DOCX_SELF_UPDATE_VERSION=v0.4.0 -DOCX_SELF_UPDATE_URL=https://m
 
 A mirror cannot answer the releases API, so the version is required.
 Without it the update stops and names `OCX_SELF_UPDATE_VERSION`.
+A mirror that lacks the files fails like this:
+
+```text
+find_ocx: failed to fetch http://mirror.corp/find_ocx/v0.4.0/SHA256SUMS: "HTTP response code said error"
+hint: a mirror must allow anonymous read
+```
+
 The module fetches `SHA256SUMS` from the same mirror, so the check catches corruption and partial downloads but not a mirror that serves an altered pair.
 If you do not trust the mirror, compare its `SHA256SUMS` against the GitHub release, or verify the signed tag, before you commit.
 

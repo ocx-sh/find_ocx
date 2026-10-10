@@ -27,8 +27,9 @@ Machines that have `ocx` stop at step 2 and download nothing.
 
 ## Tell which binary a configure runs {#which}
 
-The configure log names the choice in one status line.
-It reads `find_ocx: using ocx from PATH` followed by the path, or `find_ocx: using bootstrapped ocx` followed by the version when the pin was downloaded.
+The first configure of a build tree names the choice in one status line.
+It reads `find_ocx: using ocx from PATH (<path>) - OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead`, or `find_ocx: using bootstrapped ocx <version> (<path>)` when the pin was downloaded.
+A later configure of the same tree reuses the cached answer and prints nothing, and so does an explicit `OCX_EXECUTABLE`.
 The cache keeps the answer too, and `cmake -LA -N build` prints it as `OCX_EXECUTABLE`.
 To read that binary's version, run `ocx version`, because the CLI has no `--version` flag.
 
@@ -56,7 +57,14 @@ The recording configures the example and prints the version it found.
 ## Forbid the download {#no-bootstrap}
 
 Pass `-DOCX_BOOTSTRAP=OFF` on machines where configure must never download.
-A missing CLI then stops the configure with a message that names `OCX_EXECUTABLE` and `PATH`.
+A missing CLI then stops the configure with this message:
+
+```text
+find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit bootstrap is disabled (OCX_BOOTSTRAP=OFF)
+hint: install ocx on PATH or set OCX_EXECUTABLE to an ocx binary
+```
+
+An empty value, as in `-DOCX_BOOTSTRAP=`, counts as `OFF`.
 
 ## Run the pinned CLI everywhere {#always}
 
@@ -66,10 +74,10 @@ Use it when installed copies are old or unmanaged.
 
 ## Keep the installed CLI current {#versions}
 
-find_ocx is tested against its pinned CLI version, which `OCX_INSTALL_VERSION` defaults to.
-The tested version is the pinned 0.6.5.
-An `ocx` below 0.6.5 can reject lock version 3 or lack a verb the module calls, and the configure then fails with an exit-code hint.
-An `ocx` above 0.6.5 is expected to work until ocx removes a verb the module calls, and find_ocx does not call the deprecated `ocx run`.
+find_ocx is tested against its pinned CLI version 0.6.5, which `OCX_INSTALL_VERSION` defaults to.
+An `ocx` below 0.6.0 lacks verbs the module calls, and the configure then fails with exit code 64 and its hint.
+Versions from 0.6.0 up to 0.6.5 are untested.
+An `ocx` above 0.6.5 is expected to work until ocx removes a verb the module calls.
 When in doubt, use `ALWAYS`.
 
 ## Next steps {#next-steps}

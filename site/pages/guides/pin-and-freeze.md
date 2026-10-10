@@ -59,12 +59,21 @@ A digest of the image index fixes every platform at once, so write it into `PACK
 After an `index update`, the index digest is the file name under `.ocx/ocx.sh/p/jqlang/jq/o/sha256/`.
 
 `PINS` fixes one manifest digest per platform instead.
+A pin applies only to the platform of the call, which is `PLATFORM` when set and the host otherwise.
+A pin for another platform is ignored, and a tag with no matching pin stays floating.
 Nothing downloads until the first build-time execution.
 
 <!-- snippet: examples/package/CMakeLists.txt#pins -->
 
 A project's `ocx.lock` lists these per-platform digests under each tool.
-Without a project, `ocx --format json package install -p <platform> <package>` prints the digest in the `identifier` field, which reads `<ref>@sha256:<digest>`.
+Without a project, an eager configure of the floating tag with `-DOCX_ALLOW_FLOATING=ON -DOCX_PULL=ON` logs the line to copy:
+
+```text
+-- find_ocx: DRIFTY resolved floating - pin it with PINS "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
+```
+
+The line names one platform only, so repeat the step for each platform you build for.
+`ocx --format json package install -p <platform> <package>` prints the digest in the `identifier` field, which reads `<ref>@sha256:<digest>`.
 Take the part after `@`, which is the manifest digest for that platform, and not the whole field.
 The plain table output omits it.
 

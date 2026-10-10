@@ -40,7 +40,15 @@ Every ocx version you set with `OCX_INSTALL_VERSION` needs its own archives and 
 Both files must allow anonymous read.
 find_ocx downloads them without credentials, and the sha256 in the manifest is the security boundary, not the mirror.
 A mirror locked down later breaks the download with an error that looks like a network failure.
-When a file is missing, the error names the URL that was requested, so check the mirror's access log for the status code.
+A missing or locked manifest fails like this, and the message names the URL that was requested:
+
+```text
+find_ocx: failed to fetch the dist manifest from OCX_INSTALL_DIST_URL='<url>/dist.json': "HTTP response code said error"
+hint: the mirror must allow anonymous read; a manifest named <sha256>.json must match that digest
+```
+
+A missing archive ends with `find_ocx: download of <url> failed` and a hint that names both variables.
+CMake does not print the HTTP status, so check the access log of the mirror for it.
 
 ## Point the configure at the mirror {#point-the-configure}
 
@@ -95,10 +103,19 @@ Three more variables cover the usual corporate network:
 
 - `OCX_INSECURE_REGISTRIES` takes a comma list of hosts that speak plain HTTP.
 - `OCX_EXTRA_CA_CERTS` adds the corporate root to the trust of every `ocx` call. It takes a path to a PEM file or the PEM text.
-- `CMAKE_TLS_CAINFO` is a CMake variable, not an environment variable. It names the CA bundle for the `ocx` download, because CMake performs that download itself, and `OCX_EXTRA_CA_CERTS` does not cover it.
+- `OCX_INSTALL_CA_BUNDLE` names a PEM file that the download of the `ocx` binary and its manifest trusts instead of the system store. CMake performs that download itself, so `OCX_EXTRA_CA_CERTS` does not cover it.
 
-Set the first two in the environment of the first configure, like the mirror variables.
-Pass `CMAKE_TLS_CAINFO` with `-DCMAKE_TLS_CAINFO=<path>`, or set it before `include(ocx)`.
+Set all three in the environment of the first configure, like the mirror variables.
+`OCX_INSTALL_CA_BUNDLE` also reaches every `ocx` call as `OCX_EXTRA_CA_CERTS`, unless you set `OCX_EXTRA_CA_CERTS` yourself.
+So one corporate bundle covers the whole configure, and the `ocx` installers at setup.ocx.sh read the same variable.
+A value that is not a file stops the download with this message:
+
+```text
+find_ocx: OCX_INSTALL_CA_BUNDLE='<path>' is not a readable file
+hint: point it at a PEM bundle, or clear it with -DOCX_INSTALL_CA_BUNDLE=
+```
+
+The check runs only when the configure downloads the binary, so a warm bootstrap cache hides a wrong path until the next download.
 
 ## Pass credentials {#credentials}
 
@@ -133,8 +150,10 @@ Any other case is a configure error that names this setting.
 Configure once with network access or a mirror and `-DOCX_PULL=ON`, so the local store holds every tool.
 Then set `OCX_OFFLINE=1`.
 The next configure, even in a fresh build directory, runs without any request.
+The pinned `ocx` binary must be in `OCX_BOOTSTRAP_CACHE` too, or installed, because the download of the binary is not offline-capable.
 
-An offline configure against an empty store fails with a package-not-found error and exit code 79.
+An offline configure or build against an empty store fails with exit code 79 or 81.
+The message says that the package or its manifest is not in the local store or cache.
 Restore the store from your CI cache or pull it once online, as in [Reproduce the build in CI](ci.md#offline).
 
 ## Next steps {#next-steps}

@@ -15,10 +15,11 @@ A missing capability becomes an issue against ocx, not a workaround in this modu
 ## What runs, in order {#order}
 
 1. `include(ocx)` is passive. It defines commands and fetches nothing.
-2. The first provisioning call picks the CLI. It uses `OCX_EXECUTABLE`, then an `ocx` on `PATH`, then a pinned bootstrap that is sha256-verified and cached once per machine. [Two entry points](entry-points.md#which-binary) lists the rules.
-3. Every `ocx` call goes through one wrapper. It sets a fixed environment, retries only exit 75, and turns any other non-zero exit into a configure error with a hint. [Environment and config](env-and-config.md) lists the environment, and [Exit codes](../troubleshooting/exit-codes.md) lists the hints.
+2. The first provisioning call picks the CLI. It uses `OCX_EXECUTABLE`, then an `ocx` on `PATH`, then a pinned bootstrap that is sha256-verified and cached once per machine. The first configure of a build tree prints the choice unless you set `OCX_EXECUTABLE`. [Two entry points](entry-points.md#which-binary) lists the rules.
+3. Every `ocx` call goes through one wrapper. It sets a fixed environment and retries exit 75 twice on the calls that download. Any other non-zero exit becomes a configure error with a hint. [Environment and config](env-and-config.md) lists the environment, and [Exit codes](../troubleshooting/exit-codes.md) lists the hints.
 4. `ocx_project` runs `ocx lock --check` as an offline staleness gate. `ocx_package` resolves its reference through the [index ladder](reproducible-first.md#index-ladder).
-5. Eager mode adds `ocx pull` or `ocx package install`. A foreign `PLATFORM` also composes the environment with `ocx env --pinned`, so the paths do not depend on which platform ocx rendered last.
+5. Eager mode adds `ocx pull` or `ocx package install`. A foreign `PLATFORM` also composes the environment.
+A project uses `ocx env --pinned` and a package uses `ocx package env`, so the paths do not depend on the platform ocx rendered last.
 6. Each name in `BINS` is checked against what the package declares, using `ocx inspect --closure`. A name that does not exist stops the configure.
 7. The call exports `OCX_<NAME>_RUN` and the other [result variables](../reference/commands.md#ocx_project).
 8. With unchanged inputs, a later configure skips steps 4 to 7. [Lazy versus eager](lazy-vs-eager.md#memoized) explains how.
