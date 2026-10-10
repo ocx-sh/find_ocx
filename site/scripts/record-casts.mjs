@@ -2,7 +2,7 @@
 // The ctests (tests/casts.cmake) are the correctness gate; a cast is a view on a script that passes there.
 // A failed recording still fails this command and so the site build (DOC-EX-11).
 // Every byte comes from a real cold run, only the typed command line is simulated (DOC-EX-12).
-//   ocx exec -- node scripts/record-casts.mjs [--only <doc>] [--out <dir>] [--jobs <n>]
+//   ocx exec -g default -g casts -- node scripts/record-casts.mjs [--only <doc>] [--out <dir>] [--jobs <n>]
 import { spawn } from 'node:child_process';
 import { availableParallelism, homedir, tmpdir } from 'node:os';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';

@@ -79,7 +79,7 @@ tasks:
     desc: Record the docs terminal casts from site/casts/*.sh (real runs, sanitized, gitignored; Linux and macOS)
     dir: site
     cmds:
-      - ocx exec -- node scripts/record-casts.mjs
+      - ocx exec -g default -g casts -- node scripts/record-casts.mjs
 
   site:build:
     desc: Build the Starlight site (ocx.sh/integrations/cmake/) from site/pages, the module rst blocks and the casts

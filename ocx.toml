@@ -1,6 +1,5 @@
 [tools]
 actionlint = "ocx.sh/actionlint/actionlint:latest"
-asciinema = "ocx.sh/asciinema/asciinema:3.2"
 cmake = "ocx.sh/kitware/cmake:3.31"
 git-cliff = "ocx.sh/git-cliff/git-cliff:latest"
 go-task = "ocx.sh/go-task/task:latest"
@@ -10,3 +9,7 @@ ninja = "ocx.sh/ninja-build/ninja:latest"
 uv = "ocx.sh/astral-sh/uv:latest"
 node = "ocx.sh/nodejs/node:24"
 pnpm = "ocx.sh/pnpm/pnpm:11"
+
+# Records the docs casts (task site:casts); no Windows build, so it stays out of the default group.
+[group.casts.tools]
+asciinema = "ocx.sh/asciinema/asciinema:3.2"
