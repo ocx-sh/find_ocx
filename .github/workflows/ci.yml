@@ -29,6 +29,8 @@ jobs:
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
           version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Lint (actionlint, license headers, links)
         run: ocx exec -- task lint
 
@@ -47,6 +49,8 @@ jobs:
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
           version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Dogfooded CMake-version matrix, 3.25 / 3.31 / 4.4 (live ocx.sh registry)
         run: ocx exec -- task test
 
@@ -78,6 +82,8 @@ jobs:
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
           version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Configure, build, test
         shell: bash
         env:
@@ -109,6 +115,8 @@ jobs:
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
           version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Warm configure (pulls everything)
         run: ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/warm
       - name: Offline configure in a fresh build dir (must succeed)
