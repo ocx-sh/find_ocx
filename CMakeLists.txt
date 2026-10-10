@@ -53,3 +53,7 @@ ocx_add_floating_fatal_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_memoize_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_script_mode_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_self_update_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+
+# The README quick-start fences must equal the examples/tutorial regions.
+add_test(NAME readme_check
+  COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_CURRENT_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/readme_check.cmake)
