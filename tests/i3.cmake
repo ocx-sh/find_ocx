@@ -40,6 +40,7 @@ function(ocx_i3_add_test name fixture)
       COMMAND ${OCX_CMAKE_${v}_RUN} cmake ${args}
         -P "${CMAKE_SOURCE_DIR}/tests/i3_configure_check.cmake"
     )
+    __ocx_test_props(i3_${name}/${OCX_CMAKE_${v}_TEST_LABEL})
   endforeach()
 endfunction()
 
@@ -112,6 +113,17 @@ ocx_i3_add_test(index_missing_value cases VERSIONS ${i3_versions}
 ocx_i3_add_test(index_find_empty cases VERSIONS ${i3_versions}
   CASE index_find_empty
   EXPECT_FAIL "ocx_index\\(FIND\\): empty argument")
+
+# The commands reject an empty argument (an unset variable) like ocx_index does.
+ocx_i3_add_test(package_empty_value cases VERSIONS ${i3_versions}
+  CASE package_empty_value
+  EXPECT_FAIL "ocx_package: empty argument in")
+ocx_i3_add_test(package_empty_name cases VERSIONS ${i3_versions}
+  CASE package_empty_name
+  EXPECT_FAIL "ocx_package: empty argument in")
+ocx_i3_add_test(project_empty_value cases VERSIONS ${i3_versions}
+  CASE project_empty_value
+  EXPECT_FAIL "ocx_project: empty argument in")
 
 # CONFIG reaches the CLI: a missing file is the CLI's own error.
 ocx_i3_add_test(config_missing cases VERSIONS ${i3_versions}

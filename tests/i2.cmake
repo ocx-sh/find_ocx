@@ -22,5 +22,5 @@ foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
       -P "${CMAKE_SOURCE_DIR}/tests/i2_check.cmake"
   )
   set_tests_properties(runtime_core/${OCX_CMAKE_${v}_TEST_LABEL}
-    PROPERTIES TIMEOUT 120)
+    PROPERTIES TIMEOUT 120 FIXTURES_REQUIRED ocx_fixtures)
 endforeach()

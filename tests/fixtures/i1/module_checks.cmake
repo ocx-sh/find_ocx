@@ -105,7 +105,8 @@ if(NOT content MATCHES "VERSION_LESS 3\\.25\\)")
 endif()
 
 # Every download checks its status, verifies TLS and is bounded.
-string(REGEX MATCHALL "file\\(DOWNLOAD[ \n][^)]*\\)" downloads "${content}")
+# gersemi puts DOWNLOAD on its own line: allow whitespace after the paren.
+string(REGEX MATCHALL "file\\([ \n]*DOWNLOAD[ \n][^)]*\\)" downloads "${content}")
 list(LENGTH downloads download_count)
 if(download_count LESS 5)
   message(FATAL_ERROR "module_checks: expected at least the 5 file(DOWNLOAD) calls, found ${download_count}")

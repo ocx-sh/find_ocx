@@ -35,11 +35,10 @@ tasks:
     desc: gersemi + actionlint + license headers + links
     cmds:
       # Tracked listfiles only: gersemi would descend into build trees.
-      # ocx.cmake and Findocx.cmake are not checked yet and foreign_platform
-      # waits for its rewrite - re-enable all three once they are formatted.
+      # foreign_platform waits for its rewrite - re-enable it once formatted.
       - >-
         git ls-files -z -- '*CMakeLists.txt' '*.cmake'
-        ':!ocx.cmake' ':!Findocx.cmake' ':!tests/fixtures/foreign_platform'
+        ':!tests/fixtures/foreign_platform'
         | xargs -0 -r {{.GERSEMI}} --check
       - ocx exec -- actionlint
       - ocx exec -- actionlint examples/ci/github-actions.yml

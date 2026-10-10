@@ -44,13 +44,17 @@ endif()
 
 if(NOT OCX_EXECUTABLE AND OCX_BOOTSTRAP)
   if(CMAKE_VERSION VERSION_LESS 3.25)
-    message(WARNING
+    message(
+      WARNING
       "find_ocx: OCX_BOOTSTRAP requires CMake >= 3.25 (this is "
-      "${CMAKE_VERSION}) - install ocx on PATH or set OCX_EXECUTABLE")
+      "${CMAKE_VERSION}) - install ocx on PATH or set OCX_EXECUTABLE"
+    )
   elseif(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/ocx.cmake")
-    message(WARNING
+    message(
+      WARNING
       "find_ocx: OCX_BOOTSTRAP is set but ocx.cmake is not next to "
-      "Findocx.cmake (${CMAKE_CURRENT_LIST_DIR})")
+      "Findocx.cmake (${CMAKE_CURRENT_LIST_DIR})"
+    )
   else()
     include("${CMAKE_CURRENT_LIST_DIR}/ocx.cmake")
     ocx_bootstrap()
@@ -78,15 +82,11 @@ if(OCX_EXECUTABLE AND EXISTS "${OCX_EXECUTABLE}")
 endif()
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(ocx
-  REQUIRED_VARS OCX_EXECUTABLE
-  VERSION_VAR OCX_VERSION_STRING
-)
+find_package_handle_standard_args(ocx REQUIRED_VARS OCX_EXECUTABLE VERSION_VAR OCX_VERSION_STRING)
 
 if(ocx_FOUND AND NOT TARGET ocx::ocx)
   add_executable(ocx::ocx IMPORTED)
-  set_target_properties(ocx::ocx PROPERTIES
-    IMPORTED_LOCATION "${OCX_EXECUTABLE}")
+  set_target_properties(ocx::ocx PROPERTIES IMPORTED_LOCATION "${OCX_EXECUTABLE}")
 endif()
 
 mark_as_advanced(OCX_EXECUTABLE)
