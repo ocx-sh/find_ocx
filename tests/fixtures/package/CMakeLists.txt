@@ -50,7 +50,7 @@ add_subdirectory(subproject)
 # Command composition: INDEX defaults to the discovered .ocx, packages
 # collected from the frozen registration above.
 ocx_index(UPDATE_COMMAND index_refresh)
-if(NOT "${index_refresh}" MATCHES "--index;.*\\.ocx;index;update;ocx\\.sh/jqlang/jq$")
+if(NOT "${index_refresh}" MATCHES "--index;.*\\.ocx;index;update;ocx\\.sh/jqlang/jq:latest$")
   message(FATAL_ERROR
     "package fixture: ocx_index(UPDATE_COMMAND) composed '${index_refresh}'")
 endif()
