@@ -352,7 +352,7 @@ set(__OCX_DIST_JSON [=[
 # --- END OCX DIST SNAPSHOT ---
 
 # ---------------------------------------------------------------------------
-# Environment snapshotting
+# Environment classes
 # ---------------------------------------------------------------------------
 
 function(__ocx_snapshot_env var)
@@ -362,22 +362,53 @@ function(__ocx_snapshot_env var)
   endif()
 endfunction()
 
-# Passthrough set forwarded to every ocx invocation when set. Mirrors
-# rules_ocx OCX_PASSTHROUGH_ENV. OCX_AUTH_* is intentionally absent:
-# secrets must never land in CMakeCache.txt.
-set(__OCX_PASSTHROUGH_VARS
-  OCX_HOME
-  OCX_MIRRORS
-  OCX_INSECURE_REGISTRIES
-  OCX_OFFLINE
-  OCX_FROZEN
-  OCX_REMOTE
-  OCX_JOBS
-  OCX_INDEX
-  OCX_DEFAULT_REGISTRY
+# The OCX_* variables this module controls, one "<class>|<entry>" row each.
+# OCX_AUTH_* is in no class: credentials must never reach CMakeCache.txt.
+set(__ocx_rows
+  # site: snapshotted env -> cache at the first configure and forwarded to
+  # every call; -DVAR= removes it from every call.
+  "site|OCX_HOME"
+  "site|OCX_MIRRORS"
+  "site|OCX_INSECURE_REGISTRIES"
+  "site|OCX_OFFLINE"
+  "site|OCX_FROZEN"
+  "site|OCX_REMOTE"
+  "site|OCX_JOBS"
+  "site|OCX_INDEX"
+  "site|OCX_DEFAULT_REGISTRY"
+  "site|OCX_MANAGED_CONFIG"
+  "site|OCX_PATCHES"
+  "site|OCX_EXTRA_CA_CERTS"
+  # translucent: a command keyword overrides it, else the ambient value is
+  # inherited unchanged (__ocx_translucent_env).
+  "translucent|OCX_CONFIG"
+  "translucent|OCX_PATCH_SNAPSHOT"
+  "translucent|OCX_SIGSTORE_TRUSTED_ROOT"
+  "translucent|OCX_NO_CONFIG"
+  # explicit: set only by ocx_policy; an ambient value is removed.
+  "explicit|OCX_NO_VERIFY"
+  "explicit|OCX_ALLOW_YANKED"
+  # pinned: "VAR=value" forced on every call (empty value = unset).
+  "pinned|OCX_PROJECT="
+  "pinned|OCX_GLOBAL=0"
+  "pinned|OCX_QUIET=0"
+  "pinned|OCX_NO_PROJECT=1"
+  "pinned|OCX_NO_CONFIG_REFRESH=1"
+  "pinned|OCX_NO_CONSENT=1"
+  "pinned|OCX_SELF_UPDATE=manual"
 )
-set_property(GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS "${__OCX_PASSTHROUGH_VARS}")
+foreach(__ocx_row IN LISTS __ocx_rows)
+  if(NOT __ocx_row MATCHES "^([a-z]+)\\|(.+)$")
+    message(FATAL_ERROR "find_ocx: malformed env class row '${__ocx_row}'")
+  endif()
+  string(TOUPPER "${CMAKE_MATCH_1}" __ocx_class)
+  set_property(GLOBAL APPEND PROPERTY __OCX_ENV_${__ocx_class} "${CMAKE_MATCH_2}")
+endforeach()
+unset(__ocx_rows)
+unset(__ocx_row)
+unset(__ocx_class)
 
+get_property(__ocx_site GLOBAL PROPERTY __OCX_ENV_SITE)
 foreach(__ocx_var IN ITEMS
     OCX_EXECUTABLE
     OCX_INSTALL_DIST_URL
@@ -388,60 +419,238 @@ foreach(__ocx_var IN ITEMS
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
     OCX_ALLOW_FLOATING
-    ${__OCX_PASSTHROUGH_VARS})
+    ${__ocx_site})
   __ocx_snapshot_env(${__ocx_var})
 endforeach()
 unset(__ocx_var)
-unset(__OCX_PASSTHROUGH_VARS)
+unset(__ocx_site)
+
+# Registers the config.toml tiers that exist right now, so editing one
+# re-runs the configure; a file created later needs a manual reconfigure.
+# Not watched: Windows /etc/ocx (drive-relative) and the Windows user tier
+# (location undocumented).
+function(__ocx_watch_config)
+  if(CMAKE_SCRIPT_MODE_FILE)
+    return()
+  endif()
+  set(files "")
+  if(NOT CMAKE_HOST_WIN32)
+    list(APPEND files "/etc/ocx/config.toml")
+  endif()
+  if(CMAKE_HOST_APPLE)
+    list(APPEND files "$ENV{HOME}/Library/Application Support/ocx/config.toml")
+  elseif(NOT CMAKE_HOST_WIN32)
+    if(IS_ABSOLUTE "$ENV{XDG_CONFIG_HOME}")
+      list(APPEND files "$ENV{XDG_CONFIG_HOME}/ocx/config.toml")
+    else()
+      list(APPEND files "$ENV{HOME}/.config/ocx/config.toml")
+    endif()
+  endif()
+  if(DEFINED OCX_HOME AND NOT "${OCX_HOME}" STREQUAL "")
+    set(home "${OCX_HOME}")
+  elseif(CMAKE_HOST_WIN32)
+    set(home "$ENV{USERPROFILE}/.ocx")
+  else()
+    set(home "$ENV{HOME}/.ocx")
+  endif()
+  list(APPEND files
+    "${home}/config.toml"
+    "${home}/state/managed-config/snapshot.json"
+    "${home}/state/managed-config/config.toml"
+    "$ENV{OCX_CONFIG}")
+  foreach(file IN LISTS files)
+    if(IS_ABSOLUTE "${file}" AND EXISTS "${file}" AND NOT IS_DIRECTORY "${file}")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${file}")
+    endif()
+  endforeach()
+endfunction()
+__ocx_watch_config()
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-# Command prefix applied to every ocx invocation (configure-time and inside
-# the exported *_RUN command lists). OCX_PROJECT is always neutralized
-# (pure launcher transport: an outer `ocx run` must not hijack this
-# build). Passthrough knobs pin the snapshotted value; a knob cleared with
-# -DVAR= is actively removed - `cmake -E env VAR=` would not do, the CLI
-# reads an empty OCX_INDEX as "index at the current directory" and writes
-# resolved tags there. Undefined knobs inherit the execution environment.
+# Appends env entries ("VAR=value" or "--unset=VAR") to the list named
+# <list_var>; a later entry for a VAR replaces the earlier one.
+function(__ocx_env_merge list_var)
+  set(merged ${${list_var}})
+  foreach(entry IN LISTS ARGN)
+    if(NOT entry MATCHES "^(--unset=)?([A-Za-z_][A-Za-z0-9_]*)(=|$)")
+      message(FATAL_ERROR "find_ocx: malformed env entry '${entry}'")
+    endif()
+    set(name "${CMAKE_MATCH_2}")
+    list(FILTER merged EXCLUDE REGEX "^(--unset=)?${name}(=|$)")
+    list(APPEND merged "${entry}")
+  endforeach()
+  set(${list_var} "${merged}" PARENT_SCOPE)
+endfunction()
+
+# The env assignments ocx_policy requested ("OCX_NO_VERIFY=1",
+# "OCX_ALLOW_YANKED=1", "OCX_SIGSTORE_TRUSTED_ROOT=<path>"); empty when no
+# policy was set. __ocx_env_prefix folds them into every call.
+function(__ocx_policy_env out_var)
+  set(env "")
+  get_property(unverified GLOBAL PROPERTY __OCX_POLICY_UNVERIFIED)
+  get_property(yanked GLOBAL PROPERTY __OCX_POLICY_YANKED)
+  get_property(root GLOBAL PROPERTY __OCX_POLICY_ROOT)
+  if(unverified)
+    list(APPEND env "OCX_NO_VERIFY=1")
+  endif()
+  if(yanked)
+    list(APPEND env "OCX_ALLOW_YANKED=1")
+  endif()
+  if(root)
+    list(APPEND env "OCX_SIGSTORE_TRUSTED_ROOT=${root}")
+  endif()
+  set(${out_var} "${env}" PARENT_SCOPE)
+endfunction()
+
+# __ocx_translucent_env(<out> [CONFIG <file>] [NO_CONFIG <bool>]
+#                       [PATCH_SNAPSHOT <file>])
+# Env assignments for the translucent keywords, to pass as ENV to __ocx_run
+# or as extra arguments to __ocx_env_prefix. Paths must be absolute; NO_CONFIG
+# blanks the ambient config, patch snapshot and OCX_PATCHES unless named.
+function(__ocx_translucent_env out_var)
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "CONFIG;NO_CONFIG;PATCH_SNAPSHOT" "")
+  if(arg_UNPARSED_ARGUMENTS OR arg_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR
+      "find_ocx: __ocx_translucent_env: bad arguments "
+      "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'")
+  endif()
+  set(env "")
+  if(arg_NO_CONFIG)
+    list(APPEND env "OCX_NO_CONFIG=1" "OCX_PATCHES=")
+    if(NOT arg_CONFIG)
+      list(APPEND env "OCX_CONFIG=")
+    endif()
+    if(NOT arg_PATCH_SNAPSHOT)
+      list(APPEND env "OCX_PATCH_SNAPSHOT=")
+    endif()
+  endif()
+  foreach(keyword IN ITEMS CONFIG PATCH_SNAPSHOT)
+    if(NOT arg_${keyword})
+      continue()
+    endif()
+    if(NOT IS_ABSOLUTE "${arg_${keyword}}")
+      message(FATAL_ERROR
+        "find_ocx: ${keyword} must be an absolute path, got '${arg_${keyword}}'")
+    endif()
+    list(APPEND env "OCX_${keyword}=${arg_${keyword}}")
+    if(NOT CMAKE_SCRIPT_MODE_FILE AND EXISTS "${arg_${keyword}}")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${arg_${keyword}}")
+    endif()
+  endforeach()
+  set(${out_var} "${env}" PARENT_SCOPE)
+endfunction()
+
+# __ocx_env_prefix(<out> [<extra env entries>...])
+# Command prefix of every ocx call (also the exported *_RUN lists): pinned
+# set, site knobs, ocx_policy, then the extra entries, which win. A site
+# knob cleared with -DVAR= is removed with --unset, never set empty (an
+# empty OCX_INDEX makes ocx write to the current directory). Freezes policy.
 function(__ocx_env_prefix out_var)
-  set(prefix "${CMAKE_COMMAND}" -E env "OCX_PROJECT=")
-  get_property(vars GLOBAL PROPERTY __OCX_PASSTHROUGH_VARS)
-  foreach(var IN LISTS vars)
+  set_property(GLOBAL PROPERTY __OCX_POLICY_FROZEN TRUE)
+  get_property(pinned GLOBAL PROPERTY __OCX_ENV_PINNED)
+  get_property(site GLOBAL PROPERTY __OCX_ENV_SITE)
+  get_property(explicit GLOBAL PROPERTY __OCX_ENV_EXPLICIT)
+  set(entries ${pinned})
+  foreach(var IN LISTS site)
     if(NOT DEFINED ${var})
       continue()
     endif()
     if("${${var}}" STREQUAL "")
-      list(APPEND prefix "--unset=${var}")
+      list(APPEND entries "--unset=${var}")
     else()
-      list(APPEND prefix "${var}=${${var}}")
+      list(APPEND entries "${var}=${${var}}")
     endif()
   endforeach()
-  set(${out_var} "${prefix}" PARENT_SCOPE)
+  foreach(var IN LISTS explicit)
+    list(APPEND entries "--unset=${var}")
+  endforeach()
+  __ocx_policy_env(policy)
+  __ocx_env_merge(entries ${policy} ${ARGN})
+  set(${out_var} "${CMAKE_COMMAND}" -E env ${entries} PARENT_SCOPE)
 endfunction()
 
+# Default hint per ocx exit code (sysexits plus the ocx-specific 79-87).
+# A call site overrides it with HINTS "<code>=<text>".
 function(__ocx_default_hint code out_var)
   set(hint "")
   if(code EQUAL 64)
-    set(hint "the pinned ocx and find_ocx disagree on the CLI surface - check OCX_INSTALL_VERSION against the find_ocx pin (${__OCX_PIN_VERSION})")
+    set(hint "usage error - this ocx and find_ocx disagree on the command line, or a platform, group or reference was rejected; check OCX_EXECUTABLE / OCX_INSTALL_VERSION against the version this find_ocx release pins")
   elseif(code EQUAL 65)
-    set(hint "declarations changed since ocx.lock was written - run 'ocx lock' and commit the result")
+    set(hint "data error - ocx.lock is out of date with ocx.toml (run 'ocx lock' and commit the result), a reference or digest is malformed, the registry served bytes that fail verification, or a patch snapshot predates this ocx")
   elseif(code EQUAL 69)
-    set(hint "registry unreachable - check the network, OCX_MIRRORS, and registry credentials (OCX_AUTH_*)")
+    set(hint "service unavailable - the registry or index answered but not usefully (a rerun will not help): check the network, OCX_MIRRORS and OCX_AUTH_*; behind an intercepting proxy set OCX_EXTRA_CA_CERTS")
+  elseif(code EQUAL 74)
+    set(hint "I/O error - a local read or write failed: check free space and permissions on OCX_HOME")
+  elseif(code EQUAL 75)
+    set(hint "transient registry failure (timeout, throttling, short transfer) that outlasted the retries: rerun, or route through OCX_MIRRORS")
+  elseif(code EQUAL 77)
+    set(hint "permission denied - the registry rejected the request, or OCX_HOME is not writable by this user")
   elseif(code EQUAL 78)
-    set(hint "expected configuration missing - is ocx.toml/ocx.lock where find_ocx expects it?")
+    set(hint "configuration error - an unsupported or missing ocx.lock: regenerate with 'ocx lock' and commit it; a managed config that was never synced: run 'ocx config update', or set OCX_NO_CONFIG=1 to skip the managed tier; a malformed ocx.toml or config.toml: fix the file the message names")
+  elseif(code EQUAL 79)
+    set(hint "not found - the name or tag is not in the registry or index, a required patch companion is missing (run 'ocx patch sync'), or an explicit OCX_CONFIG / config file does not exist; under OCX_OFFLINE the package may simply not be installed yet")
+  elseif(code EQUAL 80)
+    set(hint "authentication required - run 'ocx login <registry>' or export OCX_AUTH_<REGISTRY>_* and reconfigure")
+  elseif(code EQUAL 81)
+    set(hint "blocked by policy - OCX_OFFLINE, OCX_FROZEN or a frozen index refused to resolve this reference: pin it by digest, populate the index snapshot ('ocx index update'), or lift the setting")
+  elseif(code EQUAL 83)
+    set(hint "the transparency log is unreachable, so the signature could not be verified: retry later, or accept unverified content with ocx_policy(ALLOW_UNVERIFIED)")
+  elseif(code EQUAL 84)
+    set(hint "the registry does not support the OCI Referrers API, so signatures cannot be discovered: use a registry that does, or opt out with ocx_policy(ALLOW_UNVERIFIED)")
+  elseif(code EQUAL 85)
+    set(hint "the trust policy names a signing-key backend this ocx recognizes but does not implement: point it at a file key or a supported backend")
+  elseif(code EQUAL 86)
+    set(hint "the forge lacks a capability this transport needs - an administrator of the index project must enable it")
+  elseif(code EQUAL 87)
+    set(hint "the registry does not delete tags - a rerun never helps; use a registry that supports tag deletion")
   endif()
   set(${out_var} "${hint}" PARENT_SCOPE)
 endfunction()
 
-# __ocx_run(WHAT <description> COMMAND <ocx args...>
-#           [OUTPUT_VARIABLE <var>] [RETRIES <n>] [HINTS "<code>=<hint>" ...])
-# Runs the ocx CLI through the env prefix; fails the configure with an
-# actionable hint on nonzero exit (sysexits convention, same as rules_ocx).
+# Reduces ocx's stderr to its message: the error lines only (progress lines
+# drop out), each with the chain segments ocx repeats ("A: A") listed once.
+# ocx writes an error as `error: <text>` or, under a launcher, as
+# `<ISO timestamp> ERROR <text>`. Falls back to the whole stderr when
+# neither form occurs.
+function(__ocx_error_message out_var stderr)
+  set(marker "(error:|[0-9][-0-9T:.Z+]* ERROR)")
+  string(REPLACE "\r" "" text "${stderr}")
+  string(REPLACE ";" "@OCX_SEMI@" text "${text}")
+  string(REGEX MATCHALL "(^|\n)${marker} [^\n]*" lines "${text}")
+  if(NOT lines)
+    string(STRIP "${text}" reason)
+  else()
+    set(messages "")
+    foreach(line IN LISTS lines)
+      string(REGEX REPLACE "^\n?${marker} " "" line "${line}")
+      string(STRIP "${line}" line)
+      string(REPLACE ": " ";" segments "${line}")
+      list(REMOVE_DUPLICATES segments)
+      list(JOIN segments ": " line)
+      list(APPEND messages "${line}")
+    endforeach()
+    list(REMOVE_DUPLICATES messages)
+    list(JOIN messages "\n" reason)
+  endif()
+  string(REPLACE "@OCX_SEMI@" ";" reason "${reason}")
+  set(${out_var} "${reason}" PARENT_SCOPE)
+endfunction()
+
+# __ocx_run(WHAT <description> COMMAND <ocx args...> [OUTPUT_VARIABLE <var>]
+#           [RETRIES <n>] [ENV <entries...>] [HINTS "<code>=<hint>" ...])
+# Runs ocx through the env prefix (ENV: __ocx_translucent_env entries). Only
+# exit 75, ocx's retry-safe code, is retried (<n> times, growing pause);
+# any other failure ends the configure with ocx's message and a hint.
 function(__ocx_run)
-  cmake_parse_arguments(arg "" "WHAT;OUTPUT_VARIABLE;RETRIES" "COMMAND;HINTS" ${ARGN})
-  __ocx_env_prefix(prefix)
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "WHAT;OUTPUT_VARIABLE;RETRIES" "COMMAND;ENV;HINTS")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "find_ocx: __ocx_run: unexpected arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
+  __ocx_env_prefix(prefix ${arg_ENV})
   set(attempts 1)
   if(arg_RETRIES)
     math(EXPR attempts "${arg_RETRIES} + 1")
@@ -452,6 +661,7 @@ function(__ocx_run)
       RESULT_VARIABLE rc
       OUTPUT_VARIABLE stdout
       ERROR_VARIABLE stderr
+      ENCODING UTF-8
     )
     if(rc EQUAL 0)
       if(arg_OUTPUT_VARIABLE)
@@ -459,6 +669,13 @@ function(__ocx_run)
       endif()
       return()
     endif()
+    if(NOT rc EQUAL 75 OR attempt EQUAL attempts)
+      break()
+    endif()
+    message(STATUS
+      "find_ocx: ${arg_WHAT}: transient failure (exit 75), retry ${attempt}/${arg_RETRIES}")
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep ${attempt}
+      COMMAND_ERROR_IS_FATAL ANY)
   endforeach()
   set(hint "")
   foreach(entry IN LISTS arg_HINTS)
@@ -468,14 +685,15 @@ function(__ocx_run)
     endif()
   endforeach()
   if(hint STREQUAL "")
-    __ocx_default_hint(${rc} hint)
+    __ocx_default_hint("${rc}" hint)
   endif()
   if(NOT hint STREQUAL "")
     set(hint "\nhint: ${hint}")
   endif()
+  __ocx_error_message(reason "${stderr}")
   list(JOIN arg_COMMAND " " pretty)
   message(FATAL_ERROR
-    "find_ocx: ${arg_WHAT} failed (exit ${rc}): ocx ${pretty}\n${stderr}${hint}")
+    "find_ocx: ${arg_WHAT} failed (exit ${rc}): ocx ${pretty}\n${reason}${hint}")
 endfunction()
 
 # Host detection -> cargo-dist release triple, ocx platform key, exe suffix.
@@ -554,15 +772,19 @@ function(__ocx_cli_version out_var)
     set(${out_var} "${cached}" PARENT_SCOPE)
     return()
   endif()
+  # Through the env prefix: an ambient OCX_QUIET=1 would blank the output.
+  __ocx_env_prefix(prefix)
   execute_process(
-    COMMAND "${OCX_EXECUTABLE}" version
+    COMMAND ${prefix} "${OCX_EXECUTABLE}" version
     RESULT_VARIABLE rc
     OUTPUT_VARIABLE out
     ERROR_VARIABLE err
+    ENCODING UTF-8
   )
   if(NOT rc EQUAL 0)
+    __ocx_error_message(reason "${err}")
     message(FATAL_ERROR
-      "find_ocx: '${OCX_EXECUTABLE} version' failed (exit ${rc})\n${err}")
+      "find_ocx: '${OCX_EXECUTABLE} version' failed (exit ${rc})\n${reason}")
   endif()
   string(STRIP "${out}" out)
   if(NOT out MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+")
@@ -577,7 +799,7 @@ endfunction()
 # Ensures OCX_EXECUTABLE is usable: explicit setting, else PATH, else the
 # pinned bootstrap (OCX_BOOTSTRAP: ALWAYS skips PATH, OFF forbids the
 # download).
-macro(__ocx_require_cli)
+function(__ocx_require_cli)
   if(NOT DEFINED OCX_EXECUTABLE OR NOT EXISTS "${OCX_EXECUTABLE}")
     if(NOT "${OCX_BOOTSTRAP}" STREQUAL "ALWAYS")
       find_program(OCX_EXECUTABLE NAMES ocx DOC "Path to the ocx CLI")
@@ -595,7 +817,7 @@ macro(__ocx_require_cli)
       ocx_bootstrap()
     endif()
   endif()
-endmacro()
+endfunction()
 
 # Registers a provisioning NAME; duplicate names across the whole configure
 # are an error (GLOBAL property, so add_subdirectory cannot shadow).
@@ -666,6 +888,86 @@ function(__ocx_export_env name json)
   endif()
   __ocx_set_result(OCX_${name}_PATHS "${paths}")
   __ocx_set_result(OCX_${name}_ENV_KEYS "${keys}")
+endfunction()
+
+# ---------------------------------------------------------------------------
+# ocx_policy
+# ---------------------------------------------------------------------------
+
+#[=[.rst:
+.. command:: ocx_policy
+
+  Weakens the verification posture of every later ocx call in this
+  configure, explicitly::
+
+    ocx_policy([ALLOW_UNVERIFIED] [ALLOW_YANKED]
+               [SIGSTORE_TRUSTED_ROOT <file>])
+
+  ``ALLOW_UNVERIFIED``
+    Accept packages that fail or lack Sigstore verification
+    (``OCX_NO_VERIFY=1`` for the ocx calls).
+
+  ``ALLOW_YANKED``
+    Resolve yanked versions (``OCX_ALLOW_YANKED=1``).
+
+  ``SIGSTORE_TRUSTED_ROOT <file>``
+    Absolute path of the Sigstore trusted root to verify against
+    (``OCX_SIGSTORE_TRUSTED_ROOT``).
+
+  The policy is explicit-only: an ``OCX_NO_VERIFY`` or ``OCX_ALLOW_YANKED``
+  in the environment is removed from every ocx call, so an inherited
+  variable can never weaken a build silently. Nothing is cached - state the
+  policy in the project listfile on every configure.
+
+  Call it before the first :command:`ocx_project` or :command:`ocx_package`.
+  A repeated call with identical arguments is a
+  no-op; a call that differs from an earlier one, or that weakens the
+  posture after ocx has already run, is a fatal error.
+#]=]
+function(ocx_policy)
+  cmake_parse_arguments(PARSE_ARGV 0 arg
+    "ALLOW_UNVERIFIED;ALLOW_YANKED" "SIGSTORE_TRUSTED_ROOT" "")
+  if(arg_UNPARSED_ARGUMENTS OR arg_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR
+      "find_ocx: ocx_policy: bad arguments "
+      "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'")
+  endif()
+  if(arg_SIGSTORE_TRUSTED_ROOT AND NOT IS_ABSOLUTE "${arg_SIGSTORE_TRUSTED_ROOT}")
+    message(FATAL_ERROR
+      "find_ocx: ocx_policy: SIGSTORE_TRUSTED_ROOT must be an absolute path, "
+      "got '${arg_SIGSTORE_TRUSTED_ROOT}'")
+  endif()
+  set(unverified 0)
+  set(yanked 0)
+  if(arg_ALLOW_UNVERIFIED)
+    set(unverified 1)
+  endif()
+  if(arg_ALLOW_YANKED)
+    set(yanked 1)
+  endif()
+  set(signature "${unverified}|${yanked}|${arg_SIGSTORE_TRUSTED_ROOT}")
+
+  get_property(known GLOBAL PROPERTY __OCX_POLICY_SIGNATURE SET)
+  if(known)
+    get_property(current GLOBAL PROPERTY __OCX_POLICY_SIGNATURE)
+    if(NOT signature STREQUAL current)
+      message(FATAL_ERROR
+        "find_ocx: ocx_policy: conflicting second call - the policy is "
+        "'${signature}' but an earlier call set '${current}' "
+        "(allow_unverified|allow_yanked|sigstore_trusted_root)")
+    endif()
+    return()
+  endif()
+  get_property(frozen GLOBAL PROPERTY __OCX_POLICY_FROZEN)
+  if(frozen AND NOT signature STREQUAL "0|0|")
+    message(FATAL_ERROR
+      "find_ocx: ocx_policy must be called before the first ocx_project or "
+      "ocx_package - ocx has already run without it")
+  endif()
+  set_property(GLOBAL PROPERTY __OCX_POLICY_SIGNATURE "${signature}")
+  set_property(GLOBAL PROPERTY __OCX_POLICY_UNVERIFIED "${unverified}")
+  set_property(GLOBAL PROPERTY __OCX_POLICY_YANKED "${yanked}")
+  set_property(GLOBAL PROPERTY __OCX_POLICY_ROOT "${arg_SIGSTORE_TRUSTED_ROOT}")
 endfunction()
 
 # ---------------------------------------------------------------------------
