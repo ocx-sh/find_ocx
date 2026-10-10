@@ -26,10 +26,15 @@ test('module blocks yield 6 commands and 15 variables', () => {
   assert.equal(src.variables.length, 15);
 });
 
-test('reference pages convert and keep every entry as a heading', () => {
+test('reference pages convert; each command has a page of its own and the commands page lists them', () => {
   const cmds = expand('<!-- cmake: commands -->', 't').text;
-  for (const c of src.commands) assert.match(cmds, new RegExp(`^## ${c.name} \\{#${c.name}\\}$`, 'm'));
-  assert.match(cmds, /^### FIND \{#ocx_\w+-find\}$/m);
+  for (const c of src.commands) {
+    assert.match(cmds, new RegExp(`^- \\[\`${c.name}\`\\]\\(/integrations/cmake/reference/commands/${c.name}/\\): `, 'm'));
+    assert.doesNotMatch(cmds, new RegExp(`^## ${c.name} `, 'm'));
+  }
+  const index = expand('<!-- cmake: command ocx_index -->', 't').text;
+  assert.match(index, /^## FIND \{#ocx_\w+-find\}$/m);
+  assert.throws(() => expand('<!-- cmake: command nope -->', 't'), /no command nope/);
   const vars = expand('<!-- cmake: variables -->', 't').text;
   for (const v of src.variables) assert.match(vars, new RegExp(`^## ${v.name} \\{#${v.name.toLowerCase()}\\}$`, 'm'));
   assert.doesNotMatch(expand('<!-- cmake: findocx -->', 't').text, /^Findocx$/m);
@@ -37,13 +42,13 @@ test('reference pages convert and keep every entry as a heading', () => {
 
 test('the commands page opens with the module synopsis, and a single-form command has no sub-heading', () => {
   const cmds = expand('<!-- cmake: commands -->', 't').text;
-  assert.ok(cmds.indexOf('## Synopsis {#synopsis}') < cmds.indexOf('## ocx_policy {#ocx_policy}'));
-  assert.match(cmds, /^ocx_project\(\[NAME <name>\]/m);
-  for (const c of src.commands.filter((c) => c.name !== 'ocx_index')) assert.doesNotMatch(cmds, new RegExp(`^### ${c.name} `, 'm'));
+  assert.ok(cmds.indexOf('## Synopsis {#synopsis}') < cmds.indexOf('## Commands {#commands}'));
+  assert.match(cmds, /^  ocx_project\(\[NAME <name>\]/m);
+  for (const c of src.commands.filter((c) => c.name !== 'ocx_index')) assert.doesNotMatch(expand(`<!-- cmake: command ${c.name} -->`, 't').text, new RegExp(`^## ${c.name} `, 'm'));
 });
 
 test('rst constructs', () => {
-  assert.equal(toMarkdown('See :command:`ocx_project` and ``x``.', ctx), 'See [`ocx_project`](/integrations/cmake/reference/commands/#ocx_project) and `x`.');
+  assert.equal(toMarkdown('See :command:`ocx_project` and ``x``.', ctx), 'See [`ocx_project`](/integrations/cmake/reference/commands/ocx_project/) and `x`.');
   assert.match(toMarkdown('.. warning::\n\n   Careful.', ctx), /^:::caution\nCareful\.\n\n:::$/);
   assert.match(toMarkdown('Run::\n\n  cmake -P x\n', ctx), /^Run:\n\n```cmake\ncmake -P x\n```$/);
 });
