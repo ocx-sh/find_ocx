@@ -60,8 +60,11 @@ configure_from_mirror(bad)
 if(bad_RC EQUAL 0)
   message(FATAL_ERROR "mirror_check: a tampered archive must fail the configure:\n${bad_OUT}")
 endif()
-if(NOT bad_OUT MATCHES "CMake Error at [^\n]*\\(message\\)")
-  message(FATAL_ERROR "mirror_check: tampered archive: no CMake Error diagnostic:\n${bad_OUT}")
+# The refusal must be the sha256 check itself, not a TLS, URL or other failure;
+# CMake wraps the diagnostic, so match the whitespace-flattened output.
+string(REGEX REPLACE "[ \t\r\n]+" " " bad_flat "${bad_OUT}")
+if(NOT bad_flat MATCHES "CMake Error at [^ ]+ \\(file\\): file DOWNLOAD HASH mismatch")
+  message(FATAL_ERROR "mirror_check: tampered archive: not refused as a HASH mismatch:\n${bad_OUT}")
 endif()
 file(GLOB_RECURSE landed "${SCRATCH}/bad-cache/ocx" "${SCRATCH}/bad-cache/ocx.exe")
 if(landed)
