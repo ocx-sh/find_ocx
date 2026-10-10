@@ -71,7 +71,9 @@ run_configure(baseline out)
 assert_memo(baseline "${out}" FALSE ${untouched} ${touched})
 
 run_configure(repeat out)
+# region memoized
 assert_memo(repeat "${out}" TRUE ${untouched} ${touched})
+# endregion memoized
 
 # Changed input: an appended newline leaves the JSON valid and changes the
 # leaf's sha256, which the frozen package's fingerprint includes.

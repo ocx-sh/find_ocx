@@ -24,10 +24,12 @@ include(ocx)
 # (CMP0074) - a subsequent find_package(jq)/find_program would search the
 # OCX-provisioned content.
 # region pull-root
+# region eager
 set(OCX_ALLOW_FLOATING ON)
 ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
 unset(OCX_ALLOW_FLOATING)
 message(STATUS "example: jq content at ${jq_ROOT}")
+# endregion eager
 # endregion pull-root
 
 # region find-program
@@ -45,6 +47,7 @@ message(STATUS "example: find_program found ${JQ_EXECUTABLE}")
 # Digest-pinned + lazy: per-platform manifest digests (from
 # `ocx package install -p <platform>` or the ocx.lock of a project);
 # nothing is fetched until the first execution.
+# region pinned-lazy
 ocx_package(
   NAME jq_pinned
   PACKAGE ocx.sh/jqlang/jq:1.8.2
@@ -57,6 +60,7 @@ ocx_package(
     "darwin/arm64=sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
     "windows/amd64=sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"
 )
+# endregion pinned-lazy
 # endregion pins
 
 add_custom_target(

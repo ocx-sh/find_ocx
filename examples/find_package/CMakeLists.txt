@@ -17,9 +17,11 @@ enable_testing()
 
 # region find-ocx
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+# region find-package
 find_package(ocx REQUIRED)
 
 message(STATUS "example: ocx ${OCX_VERSION_STRING} at ${OCX_EXECUTABLE}")
+# endregion find-package
 
 add_test(NAME ocx_version COMMAND ocx::ocx version)
 # endregion find-ocx

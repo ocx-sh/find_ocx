@@ -21,11 +21,13 @@ include(ocx)
 # Fail-fast when the snapshot is missing, and lock the discovered .ocx/
 # into OCX_INDEX for this directory and below. (Each ocx_package would
 # also discover it on its own - FIND REQUIRED makes the intent explicit.)
+# region frozen-index
 ocx_index(FIND REQUIRED)
 
 # Floating tag, no INDEX argument, no digests: resolves frozen from the
 # committed snapshot (.ocx/ocx.sh/p/jqlang/jq.json).
 ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
+# endregion frozen-index
 # endregion snapshot
 
 add_test(NAME jq_frozen COMMAND ${OCX_JQ_RUN_JQ} -n -e "1 == 1")

@@ -85,3 +85,6 @@ include(tests/casts.cmake)
 # The README quick-start fences must equal the examples/tutorial regions.
 add_test(NAME readme_check
   COMMAND ${CMAKE_COMMAND} -DROOT=${CMAKE_CURRENT_SOURCE_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/readme_check.cmake)
+
+# Docs check: the exit-code table on the troubleshooting page matches the hint table (no ocx needed).
+include(tests/hint_table_check.cmake)

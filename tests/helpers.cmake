@@ -75,7 +75,9 @@ function(ocx_add_cmake_version_test fixture)
   # Fixtures run under the harness's frozen launcher (OCX_CMAKE_<v>_RUN
   # exports OCX_FROZEN/OCX_INDEX into children): clear both so fixtures
   # resolve independently of the outer index.
+# region nested-opt-out
   set(common_options "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}" "-DOCX_FROZEN=" "-DOCX_INDEX=")
+# endregion nested-opt-out
   if(DEFINED OCX_BOOTSTRAP_CACHE AND NOT "${OCX_BOOTSTRAP_CACHE}" STREQUAL "")
     list(APPEND common_options "-DOCX_BOOTSTRAP_CACHE=${OCX_BOOTSTRAP_CACHE}")
   endif()
