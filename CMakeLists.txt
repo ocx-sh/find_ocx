@@ -57,9 +57,18 @@ endforeach()
 
 ocx_add_cmake_version_test(bootstrap VERSIONS ${OCX_TEST_CMAKE_VERSIONS} NO_EXECUTABLE)
 ocx_add_cmake_version_test(project_run VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+ocx_add_cmake_version_test(project_groups VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_cmake_version_test(package VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
   ocx_add_cmake_version_test(foreign_platform VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+  # Needs the idempotent re-entry of ocx_package()/ocx_project() for a
+  # toolchain file that CMake reads more than once.
+  ocx_add_cmake_version_test(
+    foreign_toolchain
+    VERSIONS ${OCX_TEST_CMAKE_VERSIONS}
+    OPTIONS
+      "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/tests/fixtures/foreign_toolchain/toolchain.cmake"
+  )
 endif()
 ocx_add_stale_lock_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_bootstrap_off_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
@@ -67,4 +76,5 @@ ocx_add_floating_fatal_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_memoize_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_script_mode_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_self_update_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+ocx_add_mirror_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_gate_canary_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})

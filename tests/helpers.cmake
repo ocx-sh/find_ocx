@@ -258,3 +258,22 @@ function(ocx_add_gate_canary_test)
     endforeach()
   endforeach()
 endfunction()
+
+# Mirror bootstrap: the CLI comes from a local file:// release mirror built
+# from OCX_EXECUTABLE (fully offline); a tampered archive is refused.
+function(ocx_add_mirror_test)
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  foreach(v IN LISTS arg_VERSIONS)
+    ocx_cmake_test_gate(gate ${v})
+    set(test_name mirror/${OCX_CMAKE_${v}_TEST_LABEL})
+    add_test(
+      NAME ${test_name}
+      COMMAND
+        ${OCX_CMAKE_${v}_RUN} cmake "-DFIXTURE_SRC=${CMAKE_SOURCE_DIR}/tests/fixtures/mirror"
+        "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/mirror-cmake${v}"
+        "-DMODULE_PATH=${CMAKE_SOURCE_DIR}" "-DOCX_EXE=${OCX_EXECUTABLE}" "-DGATE=${gate}" -P
+        "${CMAKE_SOURCE_DIR}/tests/mirror_check.cmake"
+    )
+    __ocx_test_props(${test_name} SCRIPT)
+  endforeach()
+endfunction()
