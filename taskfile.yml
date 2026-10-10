@@ -87,7 +87,7 @@ tasks:
       - ocx exec -- pnpm run build
 
   site:check:
-    desc: Build the site, test the port script and check the layout and reference anchors
+    desc: Build the site, test the scripts, check layout, anchors, sidebar and casts, run the docs-quality gate
     deps: [site:build]
     dir: site
     cmds:

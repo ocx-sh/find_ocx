@@ -2,11 +2,11 @@
 // Directives stand alone on a line; one that cannot resolve (file, region, cast script) fails the run:
 //   <!-- snippet: <repo-path>[#<region>] [title="..."] -->  fenced code from a repo file or its marked region
 //   <!-- cast: <key> -->  <Terminal> for site/casts/<key, / as __>.sh; the page becomes .mdx
-//   <!-- cmake: commands|variables|findocx -->  reference body; `--8<-- "path" from=RE to=RE` is the legacy include
+//   <!-- cmake: commands|variables|findocx -->  reference body, converted from the modules' rst blocks
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, posix, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { entries, rstBlocks, toMarkdown } from './rst.mjs';
+import { entries, rstBlocks, slug, toMarkdown } from './rst.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const BASE = '/integrations/cmake/';
@@ -21,6 +21,8 @@ const EDIT_URLS = {
   'reference/variables.md': `${SOURCE}ocx.cmake`,
   'reference/findocx.md': `${SOURCE}Findocx.cmake`,
 };
+/** Pages whose body is generated from the modules: the docs gate ratchets these instead of failing on them. */
+export const GENERATED = Object.keys(EDIT_URLS);
 
 const LANGS = { '.cmake': 'cmake', '.toml': 'toml', '.lock': 'toml', '.yml': 'yaml', '.yaml': 'yaml', '.sh': 'bash', '.json': 'json', '.py': 'python', '.md': 'markdown', '.mjs': 'js', '.js': 'js', '.txt': 'text' };
 const langOf = (path) => (basename(path) === 'CMakeLists.txt' ? 'cmake' : (LANGS[extname(path)] ?? 'text'));
@@ -91,7 +93,7 @@ export function expander(src) {
     aliases: ALIASES,
     lang: 'cmake',
   };
-  const md = (lines) => toMarkdown(lines.join('\n'), ctx);
+  const md = (lines, extra) => toMarkdown(lines.join('\n'), { ...ctx, ...extra });
   const casts = new Set();
 
   const handlers = {
@@ -112,35 +114,19 @@ export function expander(src) {
       casts.add(key);
       return `<Terminal src="/casts/${key}.cast" ${jsxAttr('title', meta.title)} />`;
     },
-    include(arg) {
-      const [path, ...rest] = arg.split(/\s+/);
-      const a = attrs(rest.join(' '));
-      let lines = src.rd(path).split('\n');
-      while (lines.at(-1) === '') lines.pop();
-      if (a.from) {
-        const at = lines.findIndex((l) => new RegExp(a.from).test(l));
-        if (at < 0) throw new Error(`include ${path}: from=${a.from} not found`);
-        lines = lines.slice(at);
-      }
-      if (a.to) {
-        const at = lines.findIndex((l) => new RegExp(a.to).test(l));
-        if (at < 0) throw new Error(`include ${path}: to=${a.to} not found`);
-        lines = lines.slice(0, at + 1);
-      }
-      const min = Math.min(...lines.filter((l) => l.trim()).map((l) => l.match(/^ */)[0].length));
-      return fenced(a.lang ?? langOf(path), a.title ?? path, lines.map((l) => l.slice(min)));
-    },
     cmake(arg) {
       // Drop the `Title` + `-----` heading lines a module block opens with.
       const body = (lines) => (/^[-=]{3,}$/.test(lines[1] ?? '') ? lines.slice(2) : lines);
-      if (arg === 'commands') return src.commands.map((c) => `## ${c.name}\n\n${md(c.lines)}`).join('\n\n');
+      // Explicit ids (DOC-NAV-07): pages link to these headings by name.
+      const head = (name) => `## ${name} {#${slug(name)}}`;
+      if (arg === 'commands') return src.commands.map((c) => `${head(c.name)}\n\n${md(c.lines, { scope: c.name })}`).join('\n\n');
       if (arg === 'variables') {
         // First block of ocx.cmake: overview text, the variables, then the passthrough/credentials text.
         return entries(src.modules[0].blocks[0])
-          .map((e, i) => (e.kind === 'variable' ? `## ${e.name}\n\n${md(e.lines)}` : i === 0 ? md(body(e.lines)) : `## Passthrough and credentials\n\n${md(e.lines)}`))
+          .map((e, i) => (e.kind === 'variable' ? `${head(e.name)}\n\n${md(e.lines, { scope: e.name })}` : i === 0 ? md(body(e.lines), { depth: 1 }) : `${head('Passthrough and credentials')}\n\n${md(e.lines)}`))
           .join('\n\n');
       }
-      if (arg === 'findocx') return entries(src.modules[1].blocks[0]).map((e) => md(body(e.lines))).join('\n\n');
+      if (arg === 'findocx') return entries(src.modules[1].blocks[0]).map((e) => md(body(e.lines), { depth: 1 })).join('\n\n');
       throw new Error(`cmake: unknown part ${arg}`);
     },
   };
@@ -148,9 +134,9 @@ export function expander(src) {
   /** Expands every directive line; `mdx` is true when the page now needs MDX (a <Terminal>). */
   const expand = (text, file) => {
     casts.clear();
-    const out = text.replace(/^(?:<!-- (snippet|cast|cmake): (.*?) -->|--8<-- "([^"]+)"(.*))$/gm, (_m, kind, arg, path, rest) => {
+    const out = text.replace(/^<!-- (snippet|cast|cmake): (.*?) -->$/gm, (_m, kind, arg) => {
       try {
-        return kind ? handlers[kind](arg) : handlers.include(`${path}${rest}`);
+        return handlers[kind](arg);
       } catch (e) {
         throw new Error(`${file}: ${e.message}`);
       }
@@ -189,6 +175,15 @@ const siteUrl = (rel, target) => {
 };
 const rewriteLinks = (rel, text) => text.replace(/\]\((?![a-z]+:)([^)#]+\.md)(#[^)]*)?\)/g, (_m, target, hash = '') => `](${siteUrl(rel, target)}${hash})`);
 
+/** Starlight renders the title itself: a first heading that repeats it (after the declaration comments) goes. */
+function dropTitleH1(body, title) {
+  const lines = body.split('\n');
+  const at = lines.findIndex((l) => l.trim() && !/^(?:<!--.*-->|\{\/\*.*\*\/\})$/.test(l.trim()));
+  if (at < 0 || lines[at].trim() !== `# ${title}`) return body;
+  lines.splice(at, lines[at + 1] === '' ? 2 : 1);
+  return lines.join('\n');
+}
+
 export function frontMatter(text, rel) {
   const editUrl = EDIT_URLS[rel] ?? `${SOURCE}site/pages/${rel}`;
   if (text.startsWith('---\n')) {
@@ -196,7 +191,8 @@ export function frontMatter(text, rel) {
     if (end < 0) throw new Error(`${rel}: front matter is not closed`);
     const head = text.slice(4, end);
     for (const key of ['title', 'description']) if (!new RegExp(`^${key}:\\s*\\S`, 'm').test(head)) throw new Error(`${rel}: front matter needs ${key}`);
-    return `---\n${head}\neditUrl: ${editUrl}\n---\n${text.slice(end + 5).replace(/^\n+/, '')}`;
+    const title = head.match(/^title:\s*(.+?)\s*$/m)[1].replace(/^(["'])(.*)\1$/, '$2');
+    return `---\n${head}\neditUrl: ${editUrl}\n---\n${dropTitleH1(text.slice(end + 5).replace(/^\n+/, ''), title)}`;
   }
   const h1 = text.match(/^# (.+)\n+/m);
   const description = text.match(/^<!-- description: (.+) -->$/m)?.[1];
@@ -233,11 +229,20 @@ export function buildPage(expand, rel, raw) {
   return { dest: mdx ? rel.replace(/\.md$/, '.mdx') : rel, text: mdx ? toMdx(page) : page, casts };
 }
 
+/** Cast scripts (`{ file, doc }`) that no page cites. A recorded cast nobody embeds is dead weight at build time. */
+export const uncitedCasts = (built, scripts) => {
+  const cited = new Set(built.flatMap((b) => b.casts));
+  return scripts.filter((s) => s.doc && !cited.has(s.doc));
+};
+
+// `--check-dir DIR` writes the expanded pages for the docs gate instead of the site: same text, minus the MDX Terminal
+// import (the prose checks would read it as a sentence).
 function main() {
+  const checkDir = process.argv[2] === '--check-dir' ? process.argv[3] : '';
   const src = load();
   const { expand } = expander(src);
   const pagesDir = join(ROOT, 'site/pages');
-  const out = join(ROOT, 'site/src/content/docs');
+  const out = checkDir ? join(process.cwd(), checkDir) : join(ROOT, 'site/src/content/docs');
   rmSync(out, { recursive: true, force: true });
   const built = [];
   for (const file of walk(pagesDir).filter((f) => f.endsWith('.md'))) {
@@ -246,18 +251,16 @@ function main() {
   }
   for (const { dest, text } of built) {
     mkdirSync(dirname(join(out, dest)), { recursive: true });
-    writeFileSync(join(out, dest), text);
+    writeFileSync(join(out, dest), checkDir ? text.replace(`\n${IMPORT_TERMINAL}\n`, '').replace(/\n{3,}/g, '\n\n') : text);
   }
-  // A recorded cast nobody embeds is dead weight at build time; say so, the cast is still a ctest.
-  // TODO(after the D3 page writers merge): throw instead of warn (S2 plan, point 3). Warn only while the D1 stack is open:
-  // tutorial__first-configure.sh is uncited until the D3 tutorial page cites it.
-  const cited = new Set(built.flatMap((b) => b.casts));
   const scriptsDir = join(ROOT, 'site/casts');
-  for (const f of existsSync(scriptsDir) ? readdirSync(scriptsDir).filter((n) => n.endsWith('.sh')) : []) {
-    const doc = readFileSync(join(scriptsDir, f), 'utf8').match(/^# doc: (.+)$/m)?.[1];
-    if (doc && !cited.has(doc)) console.warn(`port-docs: cast ${doc} (site/casts/${f}) is cited by no page`);
-  }
-  console.log(`ported ${built.length} pages (${src.commands.length} commands, ${src.variables.length} variables, ${cited.size} casts)`);
+  const scripts = (existsSync(scriptsDir) ? readdirSync(scriptsDir).filter((n) => n.endsWith('.sh')) : []).map((file) => ({
+    file,
+    doc: readFileSync(join(scriptsDir, file), 'utf8').match(/^# doc: (.+)$/m)?.[1],
+  }));
+  const dead = uncitedCasts(built, scripts);
+  if (dead.length) throw new Error(`port-docs: cast script cited by no page: ${dead.map((d) => `${d.doc} (site/casts/${d.file})`).join(', ')}`);
+  console.log(`ported ${built.length} pages (${src.commands.length} commands, ${src.variables.length} variables, ${built.flatMap((b) => b.casts).length} casts)`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

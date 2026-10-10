@@ -9,7 +9,8 @@ In this tutorial you add find_ocx to an empty CMake project and run `jq` from a 
 The build prints the `jq` version it ran.
 You never install `jq`, and anyone who clones the project gets the same version.
 
-You need CMake 3.25 or later, network access to the OCX registry or a mirror, and the `ocx` CLI 0.6 or later ([install it](https://ocx.sh/install/)), once, to write the lock.
+You need CMake 3.25 or later and network access to the OCX registry or a mirror.
+You also need the `ocx` CLI 0.6 or later ([install it](https://ocx.sh/install/)), once, to write the lock.
 
 ## Vendor the two files {#vendor-the-module}
 

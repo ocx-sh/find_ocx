@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "site/**"
+      - ".claude/rules/docs-quality/**"
       - "examples/**"
       - "tests/**"
       - "README.md"

@@ -67,12 +67,14 @@ A package from `ocx.sh` is fetched from two hosts, so the map names both.
 Naming `ocx.sh` has no effect, because `ocx.sh` is only the alias that resolves to these hosts.
 
 <!-- doc-norun: the host names are placeholders for your own mirror -->
+
 ```sh
 export OCX_MIRRORS='{
   "ghcr.io": "https://mirror.corp/ghcr-remote",
   "index.ocx.sh": {"index": "https://mirror.corp/ocx-index"}
 }'
 ```
+
 <!-- /doc-norun -->
 
 The `ghcr.io` entry serves the package blobs, for example from an Artifactory remote repository in front of GitHub's container registry.
@@ -84,7 +86,8 @@ Run one configure and read the mirror's access log.
 A request that went to any other host names one more key for the map.
 
 To mirror only the pulls and keep the public index out of the picture, the config file offers a `[mirrors]` entry for `ocx.sh`.
-That turns `ocx.sh` into a plain registry on your mirror, drops the index with a warning, and so gives up the index's digest verification and yank gate.
+That turns `ocx.sh` into a plain registry on your mirror and drops the index with a warning.
+You give up the index's digest verification and yank gate.
 [Apply organisation-wide download rules](policy-and-config.md#config) shows the file.
 `OCX_MIRRORS` cannot suppress the index, so the environment variable does not offer that route.
 
@@ -105,10 +108,12 @@ In `<REGISTRY>`, every character of the host name that is not a letter or a digi
 The host `mirror.corp` becomes `mirror_corp`.
 
 <!-- doc-norun: the token is a secret that only exists on your machine -->
+
 ```sh
 export OCX_AUTH_mirror_corp_TYPE=bearer
 export OCX_AUTH_mirror_corp_TOKEN="<token>"
 ```
+
 <!-- /doc-norun -->
 
 find_ocx never stores these variables in `CMakeCache.txt`.

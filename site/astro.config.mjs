@@ -5,6 +5,7 @@ import { satteri } from '@astrojs/markdown-satteri';
 import starlight from '@astrojs/starlight';
 import ocxTheme from '@ocx-sh/theme/starlight';
 import { defineConfig } from 'astro/config';
+import { GROUPS } from './sidebar.mjs';
 
 const DOCS = new URL('./src/content/docs/', import.meta.url);
 const built = (link) => {
@@ -12,57 +13,10 @@ const built = (link) => {
   return ['.md', '.mdx', '/index.md', '/index.mdx'].some((ext) => existsSync(new URL(`${slug || 'index'}${ext}`, DOCS)));
 };
 
-// Six groups per docs/discovery/ia-plan.md. A page nobody has written yet is left out (and named in the build log)
-// instead of leaving a dead link in every page's sidebar.
-const GROUPS = [
-  { label: 'Get started', items: [['Overview', '/'], ['Tutorial: run jq in a build', '/tutorial/']] },
-  {
-    label: 'Everyday',
-    items: [
-      ['Everyday guides', '/guides/'],
-      ['Add a tool and fix a stale lock', '/guides/add-a-tool/'],
-      ['Pin and freeze tag resolution', '/guides/pin-and-freeze/'],
-      ['Use find_package with find_ocx', '/guides/find-package/'],
-      ['Use an ocx you already have', '/guides/use-system-ocx/'],
-      ['Update the vendored files', '/guides/update-vendored/'],
-      ['Migrate from 0.3', '/guides/migrate-04/'],
-    ],
-  },
-  {
-    label: 'Integrate',
-    items: [
-      ['Reproduce the build in CI', '/guides/ci/'],
-      ['Build behind a mirror or offline', '/guides/mirror/'],
-      ['Cross-build with foreign content', '/guides/cross-build/'],
-      ['Organisation policy and config', '/guides/policy-and-config/'],
-    ],
-  },
-  {
-    label: 'Concepts',
-    items: [
-      ['How find_ocx works', '/concepts/how-it-works/'],
-      ['Two entry points', '/concepts/entry-points/'],
-      ['Reproducible first', '/concepts/reproducible-first/'],
-      ['Lazy versus eager', '/concepts/lazy-vs-eager/'],
-      ['Environment and config', '/concepts/env-and-config/'],
-    ],
-  },
-  {
-    label: 'Troubleshooting',
-    items: [['Configure errors', '/troubleshooting/configure-errors/'], ['Exit codes', '/troubleshooting/exit-codes/']],
-  },
-  {
-    label: 'Reference',
-    items: [['Commands', '/reference/commands/'], ['Variables', '/reference/variables/'], ['Findocx.cmake', '/reference/findocx/']],
-  },
-];
-
-const missing = [];
-const sidebar = GROUPS.map(({ label, items }) => ({
-  label,
-  items: items.filter(([, link]) => built(link) || (missing.push(link), false)).map(([label, link]) => ({ label, link })),
-})).filter((g) => g.items.length);
-if (missing.length) console.warn(`sidebar: no page yet for ${missing.join(', ')}`);
+// A sidebar entry with no page is a dead link in every page: fail instead of dropping it.
+const dangling = GROUPS.flatMap((g) => g.items.map(([, link]) => link)).filter((link) => !built(link));
+if (dangling.length) throw new Error(`sidebar: no page for ${dangling.join(', ')}`);
+const sidebar = GROUPS.map(({ label, items }) => ({ label, items: items.map(([label, link]) => ({ label, link })) }));
 
 export default defineConfig({
   base: '/integrations/cmake/',
@@ -77,7 +31,7 @@ export default defineConfig({
       description: 'CMake support for OCX: pinned, sha256-verified tools in a CMake build.',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ocx-sh/find_ocx' }],
       plugins: [ocxTheme()],
-      expressiveCode: { shiki: { langAlias: { 'bash-run': 'bash', 'cmake-run': 'cmake' } } },
+      expressiveCode: { shiki: { langAlias: { 'bash-run': 'bash', 'cmake-run': 'cmake', 'bash-norun': 'bash', 'cmake-norun': 'cmake', 'console-norun': 'console' } } },
       sidebar,
     }),
   ],

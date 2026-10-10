@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
-import { buildPage, castScript, expander, frontMatter, load, snippetLines, toMdx } from './port-docs.mjs';
+import { buildPage, castScript, expander, frontMatter, load, snippetLines, toMdx, uncitedCasts } from './port-docs.mjs';
 import { toMarkdown } from './rst.mjs';
 
 const src = load();
@@ -28,10 +28,10 @@ test('module blocks yield 6 commands and 14 variables', () => {
 
 test('reference pages convert and keep every entry as a heading', () => {
   const cmds = expand('<!-- cmake: commands -->', 't').text;
-  for (const c of src.commands) assert.match(cmds, new RegExp(`^## ${c.name}$`, 'm'));
-  assert.match(cmds, /^### FIND$/m);
+  for (const c of src.commands) assert.match(cmds, new RegExp(`^## ${c.name} \\{#${c.name}\\}$`, 'm'));
+  assert.match(cmds, /^### FIND \{#ocx_\w+-find\}$/m);
   const vars = expand('<!-- cmake: variables -->', 't').text;
-  for (const v of src.variables) assert.match(vars, new RegExp(`^## ${v.name}$`, 'm'));
+  for (const v of src.variables) assert.match(vars, new RegExp(`^## ${v.name} \\{#${v.name.toLowerCase()}\\}$`, 'm'));
   assert.doesNotMatch(expand('<!-- cmake: findocx -->', 't').text, /^Findocx$/m);
 });
 
@@ -44,8 +44,7 @@ test('rst constructs', () => {
 test('unknown directives, roles and targets fail loudly', () => {
   assert.throws(() => toMarkdown('.. frobnicate:: x\n\n   y', ctx), /unknown directive/);
   assert.throws(() => toMarkdown(':ref:`x`', ctx), /unknown role/);
-  assert.throws(() => toMarkdown(':command:`nope`', ctx), /no \.\. command:: block/);
-  assert.throws(() => expand('--8<-- "examples/none.cmake"', 't'), /ENOENT/);
+  assert.throws(() => toMarkdown(':command:`ocx_nope`', ctx), /no \.\. command:: block/);
 });
 
 test('snippet: whole file, region with markers stripped and indent removed, language from extension', () => {
@@ -101,4 +100,26 @@ test('page without a cast stays .md; legacy header form still converts; retired 
   assert.match(page.text, /\/integrations\/cmake\/guides\/ci\/#x/);
   assert.throws(() => buildPage(ex, 'a.md', '<!-- port: index.rst "X" -->\n# T\n'), /retired directive/);
   assert.throws(() => frontMatter('---\ntitle: T\n---\nx', 'a.md'), /needs description/);
+});
+
+test('the legacy --8<-- include is gone: a page using it fails the build', () => {
+  const { expand: ex } = fake({});
+  assert.throws(() => buildPage(ex, 'a.md', '---\ntitle: T\ndescription: D\n---\n--8<-- "x.cmake"\n'), /retired directive/);
+});
+
+test('front matter: a first heading equal to the title goes, after the declaration comments; another heading stays', () => {
+  const page = (h1) => frontMatter(`---\ntitle: "Run jq"\ndescription: D\n---\n<!-- doc_type: tutorial -->\n\n# ${h1}\n\nBody\n`, 'a.md');
+  assert.doesNotMatch(page('Run jq'), /^# /m);
+  assert.match(page('Run jq'), /<!-- doc_type: tutorial -->\n\nBody/);
+  assert.match(page('Another'), /^# Another$/m);
+});
+
+test('snippet: a cast fixture under site/casts/fixtures resolves like any repo file', () => {
+  const out = expand('<!-- snippet: site/casts/fixtures/guides-add-a-tool__bins-typo/ocx.toml -->', 'p').text;
+  assert.match(out, /^```toml title="ocx\.toml"\n\[tools\]/);
+});
+
+test('an uncited cast script is reported', () => {
+  const built = [{ casts: ['a/b'] }];
+  assert.deepEqual(uncitedCasts(built, [{ file: 'a__b.sh', doc: 'a/b' }, { file: 'c__d.sh', doc: 'c/d' }, { file: 'x.sh' }]), [{ file: 'c__d.sh', doc: 'c/d' }]);
 });
