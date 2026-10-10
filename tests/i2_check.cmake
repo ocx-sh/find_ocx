@@ -79,6 +79,35 @@ run_case(managed_unsynced FAIL
     -DOCX_OFFLINE=1
   ENV OCX_NO_CONFIG=1)
 
+# ocx_bootstrap with an existing OCX_EXECUTABLE runs 'ocx version', which must
+# not freeze policy: a later ocx_policy is still allowed.
+run_case(bootstrap_then_policy OK
+  DEFS "-DOCX_EXECUTABLE=${OCX_EXE}")
+
+# A config file that exists at configure time is a regeneration dependency.
+file(WRITE "${SCRATCH}/watched.toml" "")
+set(watch_bin "${SCRATCH}/watch_build")
+execute_process(
+  COMMAND "${CMAKE_COMMAND}" -E env "OCX_CONFIG=${SCRATCH}/watched.toml"
+    "${CMAKE_COMMAND}" -S "${MODULE_DIR}/tests/fixtures/runtime_core/watch"
+    -B "${watch_bin}" "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
+    "-DOCX_EXECUTABLE=${shim}" -DOCX_FROZEN=
+  RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+if(NOT rc EQUAL 0)
+  message(FATAL_ERROR "i2_check: watch configure failed:\n${out}${err}")
+endif()
+file(GLOB_RECURSE generated "${watch_bin}/*")
+set(watched FALSE)
+foreach(file IN LISTS generated)
+  file(READ "${file}" body LIMIT 1000000)
+  if(body MATCHES "watched\\.toml")
+    set(watched TRUE)
+  endif()
+endforeach()
+if(NOT watched)
+  message(FATAL_ERROR "i2_check: an existing OCX_CONFIG file is not a configure dependency")
+endif()
+
 # Retry policy against the fake ocx: exit 75 is retried, anything else is not.
 function(run_shim state_name fail_rc fail_count expect)
   set(state "${SCRATCH}/${state_name}.count")

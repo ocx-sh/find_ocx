@@ -34,6 +34,11 @@ elseif(CASE STREQUAL "policy_late")
   __ocx_env_prefix(prefix)
   ocx_policy(ALLOW_YANKED)
 
+elseif(CASE STREQUAL "bootstrap_then_policy")
+  ocx_bootstrap()
+  ocx_policy(ALLOW_YANKED)
+  message(STATUS "case ${CASE}: ok")
+
 elseif(CASE STREQUAL "policy_relative_root")
   ocx_policy(SIGSTORE_TRUSTED_ROOT relative/root.json)
 
@@ -93,6 +98,11 @@ elseif(CASE STREQUAL "error_message")
   endif()
   __ocx_error_message(msg "2026-10-10T17:06:40.092928Z ERROR gone: gone\n2026-10-10T17:06:40Z WARN noise\n")
   if(NOT msg STREQUAL "gone")
+    message(FATAL_ERROR "case ${CASE}: got '${msg}'")
+  endif()
+  # Unbalanced brackets (TOML errors) must not glue lines together.
+  __ocx_error_message(msg "error: bad toml: invalid [managed\nerror: expected ']'\n")
+  if(NOT msg STREQUAL "bad toml: invalid [managed\nexpected ']'")
     message(FATAL_ERROR "case ${CASE}: got '${msg}'")
   endif()
   __ocx_error_message(msg "no marker here\n")

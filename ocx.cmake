@@ -551,6 +551,14 @@ endfunction()
 # empty OCX_INDEX makes ocx write to the current directory). Freezes policy.
 function(__ocx_env_prefix out_var)
   set_property(GLOBAL PROPERTY __OCX_POLICY_FROZEN TRUE)
+  __ocx_env_entries(entries ${ARGN})
+  set(${out_var} "${CMAKE_COMMAND}" -E env ${entries} PARENT_SCOPE)
+endfunction()
+
+# __ocx_env_entries(<out> [<extra env entries>...])
+# The env assignments behind __ocx_env_prefix, without freezing policy: for
+# calls that ocx_policy cannot affect (ocx version).
+function(__ocx_env_entries out_var)
   get_property(pinned GLOBAL PROPERTY __OCX_ENV_PINNED)
   get_property(site GLOBAL PROPERTY __OCX_ENV_SITE)
   get_property(explicit GLOBAL PROPERTY __OCX_ENV_EXPLICIT)
@@ -570,7 +578,7 @@ function(__ocx_env_prefix out_var)
   endforeach()
   __ocx_policy_env(policy)
   __ocx_env_merge(entries ${policy} ${ARGN})
-  set(${out_var} "${CMAKE_COMMAND}" -E env ${entries} PARENT_SCOPE)
+  set(${out_var} "${entries}" PARENT_SCOPE)
 endfunction()
 
 # Default hint per ocx exit code (sysexits plus the ocx-specific 79-87).
@@ -619,7 +627,10 @@ endfunction()
 function(__ocx_error_message out_var stderr)
   set(marker "(error:|[0-9][-0-9T:.Z+]* ERROR)")
   string(REPLACE "\r" "" text "${stderr}")
+  # ';' and unbalanced '[' / ']' (TOML errors) would corrupt the list below.
   string(REPLACE ";" "@OCX_SEMI@" text "${text}")
+  string(REPLACE "[" "@OCX_LB@" text "${text}")
+  string(REPLACE "]" "@OCX_RB@" text "${text}")
   string(REGEX MATCHALL "(^|\n)${marker} [^\n]*" lines "${text}")
   if(NOT lines)
     string(STRIP "${text}" reason)
@@ -637,6 +648,8 @@ function(__ocx_error_message out_var stderr)
     list(JOIN messages "\n" reason)
   endif()
   string(REPLACE "@OCX_SEMI@" ";" reason "${reason}")
+  string(REPLACE "@OCX_LB@" "[" reason "${reason}")
+  string(REPLACE "@OCX_RB@" "]" reason "${reason}")
   set(${out_var} "${reason}" PARENT_SCOPE)
 endfunction()
 
@@ -772,10 +785,11 @@ function(__ocx_cli_version out_var)
     set(${out_var} "${cached}" PARENT_SCOPE)
     return()
   endif()
-  # Through the env prefix: an ambient OCX_QUIET=1 would blank the output.
-  __ocx_env_prefix(prefix)
+  # Through the pinned env: an ambient OCX_QUIET=1 would blank the output.
+  # Not __ocx_env_prefix: 'ocx version' ignores policy, so it must not freeze it.
+  __ocx_env_entries(entries)
   execute_process(
-    COMMAND ${prefix} "${OCX_EXECUTABLE}" version
+    COMMAND "${CMAKE_COMMAND}" -E env ${entries} "${OCX_EXECUTABLE}" version
     RESULT_VARIABLE rc
     OUTPUT_VARIABLE out
     ERROR_VARIABLE err
