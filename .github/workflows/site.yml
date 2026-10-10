@@ -35,7 +35,7 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       - name: Build the site and check it
         run: ocx exec -- task site:check
 
@@ -52,7 +52,7 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       # Lighthouse drives Playwright's Chromium; install its system libraries first (the task fetches only the browser).
       - name: Install Chromium system libraries
         run: ocx exec -- pnpm --dir site exec playwright-core install-deps chromium

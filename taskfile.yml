@@ -96,15 +96,20 @@ tasks:
       - ocx exec -- pnpm run dev
 
   dist:update:
-    desc: Refresh the dist.json snapshot embedded in ocx.cmake
+    desc: Bump ocx - embedded dist.json snapshot, __OCX_PIN_VERSION and the setup-ocx CI pins, in lockstep
     cmds:
       - python3 scripts/update_dist.py
       - task: dist:check
 
   dist:check:
-    desc: Snapshot sanity — pinned version present for all 8 targets
+    desc: Snapshot sanity - every row guarded, pinned version on all 8 targets, CI pins equal the pin
     cmds:
       - python3 scripts/update_dist.py --check
+
+  dist:test:
+    desc: Unit tests of the dist guards in scripts/update_dist.py
+    cmds:
+      - python3 -I -m unittest discover -s scripts -p update_dist_test.py
 
   index:update:
     desc: Refresh the committed index snapshots (review the diff, commit)

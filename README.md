@@ -39,7 +39,7 @@ configure (per-machine cache, manifest sha256 enforced). The classic find
 module works too — `find_package(ocx REQUIRED)`, with `-DOCX_BOOTSTRAP=ON`
 for the same zero-setup behavior.
 
-Requires CMake **3.19** (`Findocx.cmake` alone works on 3.15). Script mode
+Requires CMake **3.25** (`Findocx.cmake` alone works on 3.15). Script mode
 (`cmake -P`) is fully supported.
 
 ## Documentation

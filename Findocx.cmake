@@ -24,7 +24,7 @@ Hints: set ``OCX_EXECUTABLE`` (e.g. via :command:`ocx_bootstrap` from the
 sibling ``ocx.cmake``) to use a specific binary. With ``OCX_BOOTSTRAP=ON``
 this module bootstraps the pinned ocx itself when none is found, and with
 ``OCX_BOOTSTRAP=ALWAYS`` it skips the ``PATH`` search and always uses the
-pin (both require CMake 3.19 and ``ocx.cmake`` next to this file)::
+pin (both require CMake 3.25 and ``ocx.cmake`` next to this file)::
 
   find_package(ocx REQUIRED)   # -DOCX_BOOTSTRAP=ON => zero-setup corporate UX
 
@@ -43,9 +43,9 @@ if(NOT OCX_EXECUTABLE AND NOT "${OCX_BOOTSTRAP}" STREQUAL "ALWAYS")
 endif()
 
 if(NOT OCX_EXECUTABLE AND OCX_BOOTSTRAP)
-  if(CMAKE_VERSION VERSION_LESS 3.19)
+  if(CMAKE_VERSION VERSION_LESS 3.25)
     message(WARNING
-      "find_ocx: OCX_BOOTSTRAP requires CMake >= 3.19 (this is "
+      "find_ocx: OCX_BOOTSTRAP requires CMake >= 3.25 (this is "
       "${CMAKE_VERSION}) - install ocx on PATH or set OCX_EXECUTABLE")
   elseif(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/ocx.cmake")
     message(WARNING

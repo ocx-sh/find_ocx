@@ -20,8 +20,7 @@ Vendor this file together with ``Findocx.cmake`` into your project (e.g.
   ocx_project()                    # toolchain from ./ocx.toml + ./ocx.lock
   ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest)   # frozen via ./.ocx snapshot
 
-Requires CMake 3.19 (``string(JSON)``, ``file(ARCHIVE_EXTRACT)``).
-Include after ``project()``.
+Requires CMake 3.25 or newer. Include after ``project()``.
 
 Resolution is reproducible-first: a floating tag resolves through a
 committed index snapshot (the nearest ``.ocx/`` directory, discovered
@@ -39,6 +38,25 @@ machine runs the identical pinned binary); ``OCX_BOOTSTRAP=OFF`` forbids
 the implicit download entirely. An explicit :command:`ocx_bootstrap` call
 always provisions the pin.
 
+**Trust root.** The ``sha256`` column of the dist.json snapshot embedded in
+this file makes a downloaded ocx CLI trustworthy: every archive is checked
+against its row before extraction, whichever URL served the bytes. When
+``DIST_MANIFEST`` or ``OCX_INSTALL_DIST_URL`` replaces the snapshot, that
+manifest's ``sha256`` column is the trust root instead, and it is trusted as
+far as its transport. The exception is a manifest file named
+``<sha256>.json``: the name carries its own digest, and the fetch is verified
+against it. The repository script ``scripts/update_dist.py`` only ever adds
+rows to the embedded snapshot.
+
+The ``SHA256SUMS`` file of a find_ocx release is the trust root of
+:command:`ocx_self_update`. The GitHub releases API only names the latest
+tag. Every download verifies TLS and is bounded by a timeout.
+
+**Anonymous read.** ``OCX_INSTALL_DIST_URL``, ``OCX_INSTALL_MIRROR_URL`` and
+``OCX_SELF_UPDATE_URL`` are fetched without credentials, so a mirror must
+allow anonymous read. A mirror locked down later fails the download, and the
+failure looks like a network error.
+
 Corporate mirrors and behavior knobs are plain ``OCX_*`` variables. Each one
 follows the snapshot pattern: if the CMake variable is unset but the
 environment variable is set at the *first* configure, the value is
@@ -55,7 +73,10 @@ snapshotted into the cache and stays sticky for the build directory
 .. variable:: OCX_INSTALL_DIST_URL
 
   Fetch the ocx release manifest (dist.json) from a mirror instead of the
-  snapshot embedded in this file.
+  snapshot embedded in this file. A manifest named ``<sha256>.json`` is
+  verified against that digest; any other name is fetched unverified.
+  Takes precedence over the ``DIST_MANIFEST`` keyword of
+  :command:`ocx_bootstrap`.
 
 .. variable:: OCX_INSTALL_MIRROR_URL
 
@@ -103,9 +124,9 @@ snapshotted into the cache and stays sticky for the build directory
 
   Reproducibility escape hatch. By default a floating tag with no index
   snapshot in effect and no digest pin is a hard configure error — ocx is
-  reproducible-first. ``ON`` downgrades that to the pre-0.3 behavior
-  (live resolution, drift warning); useful transiently to print the
-  digests that seed ``PINS``.
+  reproducible-first. ``ON`` downgrades that to live resolution with a
+  drift warning; useful transiently to print the digests that seed
+  ``PINS``.
 
 .. variable:: OCX_BOOTSTRAP_CACHE
 
@@ -133,8 +154,8 @@ snapshotted into the cache and stays sticky for the build directory
 
   find_ocx release tag to self-update the vendored ``ocx.cmake`` and
   ``Findocx.cmake`` to (``vX.Y.Z``; the ``v`` is optional). Default: the
-  latest release, discovered via the GitHub releases API. Script mode
-  only::
+  latest release, discovered via the GitHub releases API. Read by
+  :command:`ocx_self_update`, which runs in script mode only::
 
     cmake [-DOCX_SELF_UPDATE_VERSION=v0.3.0] -P cmake/ocx.cmake
 
@@ -165,10 +186,9 @@ test harnesses) inherits the outer resolution mode unless it is given
 reconfigure after changing them.
 #]=]
 
-if(CMAKE_VERSION VERSION_LESS 3.19)
+if(CMAKE_VERSION VERSION_LESS 3.25)
   message(FATAL_ERROR
-    "find_ocx: ocx.cmake requires CMake >= 3.19 "
-    "(string(JSON), file(ARCHIVE_EXTRACT)); this is CMake ${CMAKE_VERSION}")
+    "find_ocx: ocx.cmake requires CMake >= 3.25; this is CMake ${CMAKE_VERSION}")
 endif()
 
 include_guard(GLOBAL)
@@ -176,24 +196,177 @@ include_guard(GLOBAL)
 # Function definitions capture the policy settings of their definition
 # point: pin them to this module's baseline so includers that never ran
 # cmake_minimum_required (script mode, exotic embeddings) get identical
-# behavior. Balanced by cmake_policy(POP) at the end of this file.
+# behavior. Balanced by cmake_policy(POP) after the last definition.
 cmake_policy(PUSH)
-cmake_policy(VERSION 3.19)
+cmake_policy(VERSION 3.25...4.4)
 
 set(__OCX_MODULE_VERSION "0.3.0")
+
+# include_guard(GLOBAL) is keyed on the file path, so a second vendored copy
+# would run in full and silently win. Record the first copy; a second copy
+# at another path with another version is a configure error.
+get_filename_component(__ocx_this_file "${CMAKE_CURRENT_LIST_FILE}" REALPATH)
+get_property(__ocx_loaded GLOBAL PROPERTY __OCX_MODULE_FILE SET)
+if(__ocx_loaded)
+  get_property(__ocx_loaded_file GLOBAL PROPERTY __OCX_MODULE_FILE)
+  get_property(__ocx_loaded_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
+  if(NOT __ocx_loaded_file STREQUAL __ocx_this_file
+      AND NOT __ocx_loaded_version STREQUAL __OCX_MODULE_VERSION)
+    message(FATAL_ERROR
+      "find_ocx: two copies of ocx.cmake with different versions are loaded: "
+      "${__ocx_loaded_version} from ${__ocx_loaded_file} and "
+      "${__OCX_MODULE_VERSION} from ${__ocx_this_file}\n"
+      "hint: vendor one copy and point CMAKE_MODULE_PATH at it")
+  endif()
+else()
+  set_property(GLOBAL PROPERTY __OCX_MODULE_FILE "${__ocx_this_file}")
+  set_property(GLOBAL PROPERTY __OCX_MODULE_VERSION "${__OCX_MODULE_VERSION}")
+endif()
+unset(__ocx_this_file)
+unset(__ocx_loaded)
+unset(__ocx_loaded_file)
+unset(__ocx_loaded_version)
 
 # The ocx CLI declares no stability for its command-line surface across
 # versions; find_ocx therefore pins an exact version and is tested against
 # exactly that version. Bump deliberately, together with the dist snapshot.
-set(__OCX_PIN_VERSION "0.3.11")
+set(__OCX_PIN_VERSION "0.6.5")
 
 # --- BEGIN OCX DIST SNAPSHOT (generated by scripts/update_dist.py - do not edit) ---
 set(__OCX_DIST_JSON [=[
 {
   "schema": 1,
-  "latest": {"version":"0.4.2","channel":"stable"},
+  "latest": {"version":"0.6.5","channel":"stable"},
   "latest_next": null,
   "releases": [
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"270634b7d62067abbfed35331c29ee7b62db6b76e8f307bf5cd14b24c2297ce1","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"f36ea85695e9a546484fc1da5a7cc15b7ab7229fe4f5873b70381fee05901bcd","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"51d71a0465f699a3d2c7da6ef95d77314f77c16c35b978135de7e2a66a7c80e4","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"9b68d825a5e212877bda7f09f8987cbdced2f5e8361e84eebeb90ea541fb3f25","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"29e83c3b328acfcc78804517043778802ba2bcbf5b6ea6e8cd060f63adc0dda9","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"4cacead7e411929b0a3e655e150ca66323748674ba4d8546745e6638197d3e0a","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"f8b30fbfb1adec2c9281ed40960d562fcd9d51d39b06b8f65775b9de29505d14","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.5","channel":"stable","tag":"v0.6.5","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"bb4d306debca428fdc326ec587047c7efc3f3a2262b06eacfdaca46fa75a4dac","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.5/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"3e02302384813fb83158a148b3a441e6c9b8962ac281b6bd0f992b0cfd619109","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"cad09738310fa03238400c15a92922b1ad57129051c58fd155975f65798961cc","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"830b36177ebfd178cc9d71fe2c9fe12cd59f4b7cf45022677c27d6833eddd1d1","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"049a4df4a19c3f96d43fd797bd7b2fb3e056b43d9792d82078c34d8cbcedf606","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"81d33fa07aeb81a94d066fab026eeb74150727f998f61563151b1d4765ee90de","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"5ca96a1a697847fa4a5c04627d493b599dcf5d502118962d34b7cd09076a328e","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"5d82d97fac63a51896f32039c142dd2f1f99e00435c2ef526430b359acdd210e","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.4","channel":"stable","tag":"v0.6.4","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"b1499a9484f4ef3a156afe9fd0cd06c0eafc16bc16e483f4d9fb160b619369ad","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.4/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"c81ad35e4de88215ff2cc2439f5d10a24ed7ff9e24f7e65e640e8a5251a8ee62","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"e5788818f534496cdb325b0f93bbcf02179d757b38be44592c349998ba3589e1","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"dac7a578865a1659b6c8040bd79322bd30bce6577b23f9973dec9fc6022d5dda","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"ed3bea53f040e774d6b526852171f519c9a9553581e5839cb632ac66e0a29d89","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"69f28ee872da2b1bb606118bf5ba327fc4a613cc29830af5ce919c768141fd19","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"8fc92d97a4090a5a4b990e10019008c70b5dd09eb8eb9e99bad5deedb3750278","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"85ff0ea3046128f793344a1c4fde57b4444459844f28cd34651d0ddab17f7692","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.3","channel":"stable","tag":"v0.6.3","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"fa44d6b0f272e082ba166e30c3a9958f47a8510149c988e68dfa06b6d2acc70c","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.3/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"7fd1dbcd62bbe301bd5fb9e2daaa8aee42c3a2233ca706fe679398aef7d92ca0","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"caf932dad7c08549df48093400391544cbf72220209a57014da438a7eb95f989","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"5a180faec59c3ddbd29ec5b6683d495298dfde8121b44e880d6b6a5fd422850d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"8b84c746b341d1d97b6ffd5ccdd9fb70d2c0bffc06101b0727faa5e028091aa7","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"9b906851f2fa310728325c6987520aa75a49921a18f8d5da5e5180dbdc304b32","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"05379915bd5b10d39ec15ec253f600809d222c472d13e7e2b231711448040324","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"cbef6c1e44d9ef7b1a74e4d5dc8a5613296ac11ebdfeac32d2251b0d32c084b2","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.2","channel":"stable","tag":"v0.6.2","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"33ffef16272bbae6a4d96f4163524f38a549d920b6e6d0a67e2d8a21714ef164","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.2/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"359674f32c57ccafc0856901e0fa6ae9ce39af09aab9aa29f4b981034f8d7261","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"929d76cfe78d6dc33519cc17f3569fce99fc1f8fc443c54062e5a6e05277d567","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"3d41fcd46bf03f5d1018b01da2fb81338682d29ff4b3070e2b5cedb6f73f1ebe","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"dc54556c26d762fcf3933989c165cc051c14355302253fab17464a54e0fe3c0d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"8ac83edb722ed8fd36d7223896fd9999e8d5208fa155f5cc056b836ff24dcc0a","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"00a1e3fda8ffcce748db45a593072a97714e75477497e262fb355e30b70114cc","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"dac58e7ceb87c9f4c8c0880d39adca9e866ab4edea99de29fb4ea338cb859f97","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.1","channel":"stable","tag":"v0.6.1","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"b970173d7705583bee63b35f32470d56be0199dfac0cccae1f5258c436ccf991","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.1/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"e48ad96a09762943abfb0fa66f388ac62eef8071f70c55654f3e7c9735580eae","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"635d48eee02085e039f199ae28ad8573de9dcb7d2e27c99a1d10fcc0611ae7e6","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"0805a218fee7ad060bc5ffa8bcc20e9bff87881c686b1b42873c302586c51a94","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"e8e4d7da3672a635fbd65b74c26af70856f1f444159603898cb90d95ddd33c5c","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"8d587b04f4628519ef95111a92cdf757918aa54218b7be68b781ee85fa8313f8","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"d21d11180f294b3e2127864d0d5c2eaf7d2ef023c0ac47577b1c94f2ba86f87b","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"852b31caf71a07e2e84397c05c1016b3fed9388bae5da7b9c4651f7f41e7a3f4","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.6.0","channel":"stable","tag":"v0.6.0","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"b23eeec96e8ed1f057e24c2d6acb5eac07b0c25427349beb8582204b1b37f0ca","url":"https://github.com/ocx-sh/ocx/releases/download/v0.6.0/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"584c5aeaeeec22acfa8143eb341edbe2f110007c931036badb86d0472a2ebf81","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"48ec2e5fb65148641fa2c021e26956e92f8ddfa20ee6411f90e8780f2e1a6774","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"2e6cc2ab4b740d70a9e62c179a41b6e9436cffddc3449e80ea191103cb884071","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"5a7a3e8c600d81d930f377d6f195c1ec59a451f27a7e2c3826bfe8a2c00ab63d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"f354984a7346c7b718619ef85248e44d1c87fdfcc334303f6a188be0c892193c","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"47c360a0531de99a7f0df7baf63cfd9e0c58b52f664e7303f522edb9a489c096","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"55f3a3ed63703e0f5edf4e73e4715fbe73808bf0396d1d69e08e7af83eb5b059","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.8","channel":"stable","tag":"v0.5.8","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"240c7d21945c5de53c84197f2eed325eb4751e5eecdf73a977a612ee1f8e52f8","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.8/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"277f0ddd6a32ce239fc7586ce7882f2d2e814687cb9ed3254450f612378630c9","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"38a70cf6eb6b4f7e42e8342afe097e76eaf3dbfbbb80b3940d0264ec7c2cb6c9","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"f55b99339f9420b2a31a882787fb901a9850bd7ec571d57926ff45d2efa27981","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"e34e3b496dad35c1c098764650bfc927c98bcbeb23d95a955f02f0b0201bd96b","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"e13c2acf57c8369c9697295ab22398e193b7cdfdcdab93e9ee6b875b8ff05132","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"ce623da3b04103f037a618190cc762b1a541741954f0ee9a0c11e8e71c61c620","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"13267ea53db9e228c179269773ecd238efdb059a65e969fa51f3f7011308b24d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.7","channel":"stable","tag":"v0.5.7","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"9db306ae2ae7a1641fd41bb42f149ba0d3b8a1b02d485f2dace11755f829f88a","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.7/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"97816072f5313354413e46a96fc5f2d179630fa46fed5f52abf92f05a5e5d69b","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"60707e409984039ac7ec8d441b315c66b31b264b1628f8a0a65d8d98d1b5cc03","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"6d49020c5dd130e7cf4e9506441a3e27b3a6ffe79a7cb77a59e9acd6af47ea3e","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"4c216f41661edbb7d67f93d075d99b8510f3b820861fb42635dc64e961c95dce","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"1c723532a322372fa55c0b5ac6e2894fdff3c1222c2f0370d7e77eaa4f3bb2f0","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"6af777ac0195959e88fe0539c1439fa3f7b506d2f472023c8b35c4ba4a7a2e30","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"f87c83ddcc78807bf629ce3d4a02e2e815672483765c1469a4345a30a84bfbfa","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.6","channel":"stable","tag":"v0.5.6","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"0e2f930e25a041d16c080a40387d455bfe7da0e5d8c54db42b4793fe5dd9ad34","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.6/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"69e9ea7423186e87ef6d5597d05661da0b548fe99742e5dfec4aa5515aa3345c","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"4442e6475e8c47ef936a040a223dd0671e5ba6df023f1e3d475286c80131ba07","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"3acb44c57b5e00291af46b96240557acc0f88c51343de3af50719eab2f9a8ade","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"5d8b3c141dab4eb0e4e0e259f9bdd9ce950ae775a3d83c4541f20f07069783ec","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"1d8cbbea55d180b49b98e526cc1252de84bfd867e782d9de2f64005e481474b6","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"5affef0f4cea70de94cb4e6bcd6e26600cd1458cc36ddc369c13d6cc8f97e185","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"10d9b4262f56003ab24c56b998069394f02d6a52c7e251dc7491b781a5a2778f","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.5","channel":"stable","tag":"v0.5.5","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"f0c5538c18fbb8c8d3e8c7149325420651fd5da65dd9c7cc1f552883b598d0cd","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.5/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"bdad6a3f596da5bad915e3c2de3b9d4d16c02fbff8864c3aac78f05c0f806d65","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"cdeb933c57db2c669d47a178ffce9c6db8ffef5edb941df802e0d552f6e754b5","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"d240d9ee0b8618225ca1641badc42b342fc3f5ddd2afb1c9739f3483312c089d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"7fdae5d8f5ea1ceb5f935e30f9ea6c1aaf2e2168cecc2781ec81a0e76fe05329","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"89a34f517ffbfe24b1db273691d9359470ed41a463c21d6d0c7f2914cb408552","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"da31fe2a733902abe92c2e2abd0b2090054ad938914d526674920c23d8eee14d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"807756334c00117637250bbfefaa8762f7a14b3f080f70e1ba027fb7b191caed","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.4","channel":"stable","tag":"v0.5.4","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"f0698cef846cfd4c95a058fe1971eee59ec384a785178844992dcb11a8a02149","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.4/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"449ba9f3451b61b8fad40c31c93f3bdbac660f3bf0e4001cbd71497be49a296f","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"310c491be8295be2d1dcd9488ce50db0cbb9cc0ef8dd294ad0b59581edfbe778","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"cd0abebe71f521f0665974d6b90badc0cc556c550942bc338b4c06ce620280d4","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"c6841281d6b26de57a5e6775d9cf610e4bbb691e362ee112b87b4505ce6c1a8d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"33d2ac6224aff4e917fad0c042f7977ee643732acc3f543114f2cdfc65dd35ca","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"992733a4d1d6d7bafb0183d1afe2803c10439cdddca78eaa710e33fdb6a7a029","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"ae3f9e4a42960b50caf15427bf396876646e93b0b7772135e950dcb4192bc971","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.3","channel":"stable","tag":"v0.5.3","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"f3679ebb1257ac8d4e3fefe9ac171c4ea27561b59bac305a6d30460815460683","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.3/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"dd912b61bbf66fc15be130a64efd69e7f75a739ac94d26eec557a171badce720","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"69c9da4c61a2a8aea4246b1ae2cc00d31bf4d606599dacb9de0c918ddf9e4494","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"3cda34fd009b040743867fadba967fe0a50bb98f5b0cb3b8b707d314594f464b","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"c46e64d93de932309ef225f59ee099754afda333e11e6b8761cb1f62be120329","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"700c9e96d7ba31e3ba9ced85f50ce54478c983dc636a2353fcd2bf7b942d11c7","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"4b77098cc4d72c0ccb5cac20985087f51075335f5b766c53fc1585d4f0d4afc3","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"a903042ce878bf4453f807550f62ec5e94cd1ba2795e8b5c0f6e8ea881d355c9","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.2","channel":"stable","tag":"v0.5.2","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"d89deb20843efb0acad266f102f50f8b375a36ec675919d96e6b593719b79b55","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.2/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"ccb0c3026dfa516ce12d353a2b048ab072328b1600b447e1b2544de97c0d8542","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"ed864a2c90aaa461954eb259fbfdb5dff9bbba42bd3e955c510ac09b10ab36fc","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"270b7bf22ab7b6be1f4069a809bf785eb0195782a1c594a8243013c386d2749d","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"caa548b391abf5f024313becff945749c373bb9a2ed3594f83023a5249fda719","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"aa9bc3965e43044ebba5203a94b4aca93df733cbb023aef7641507a5f52bf2b3","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"1de15df94b158e13d038048d15f541af22acda9c027b3260bdaf0131cc1e6dc3","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"f426bfcf6b6a52622a593eb41e869d11b45bceffafec5f17193c0921b8ca472b","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.1","channel":"stable","tag":"v0.5.1","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"927364fe4a986ef4fb9de872e383dc242bc8085cfc56c219d73fc89f968e19bc","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.1/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"dd3870dca0291a5f8b8938a809b61326de39c3c457f83e1f290a6d65e633ab65","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"812b9e45048ab8e0413c500d3b97bf653f5058a158a9e4c607d1a208967759f7","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"f0b3101da192365f568acfa7c4bf01fa4ead2625c67181b2af9c996ae23d64b2","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"ec6fd104c8d95047ffd7fba81e5e7db552239948f12030ce1ef77247651a7e9c","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"3133a8c82b9c7aab1984f4ea617e06f5bf6a6c662ef3eb4a8613f60e6d35e508","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"49ca03278afc9bb79ea52104c1a35bf0f4fc9900ea8e9b8b2ccd2c73c4d73884","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"949b76a0f4765131bc5ea135ceb8ce48fdc52b7fc59a48a10fb61faaef9df3cc","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.5.0","channel":"stable","tag":"v0.5.0","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"a233e07c9f24d3393495c948878fe3f7eab723007ded66f4638788554b3a8133","url":"https://github.com/ocx-sh/ocx/releases/download/v0.5.0/ocx-x86_64-unknown-linux-musl.tar.gz"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.gz","sha256":"472ee017adcd82f09562aec042f72e8c4bd58b99543db751a28cfa9b3d5ebcfe","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-aarch64-apple-darwin.tar.gz"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"743445a6af87c31644b3534f0fa38a04c5c222493eb4200979cb2745e17a3534","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-aarch64-pc-windows-msvc.zip"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.gz","sha256":"3daa14d3b594895a2416dc7757ac91d83983862b64268c99cafcc09cc1b3d9e0","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-aarch64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"aarch64-unknown-linux-musl","filename":"ocx-aarch64-unknown-linux-musl.tar.gz","sha256":"8086b1df8916c9dbea100e7f9468b64c7523c8dbe83a134317fb8f2489c1caf6","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-aarch64-unknown-linux-musl.tar.gz"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"x86_64-apple-darwin","filename":"ocx-x86_64-apple-darwin.tar.gz","sha256":"c4173d36225e1e0ab10d82e196f97f0381e304f79bec2b3d90bc90d4c16f25c6","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-x86_64-apple-darwin.tar.gz"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"x86_64-pc-windows-msvc","filename":"ocx-x86_64-pc-windows-msvc.zip","sha256":"c566e5c0ef2539aae6f032dfccbd819abf55156be1618c7748da29554e5410ce","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-x86_64-pc-windows-msvc.zip"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"x86_64-unknown-linux-gnu","filename":"ocx-x86_64-unknown-linux-gnu.tar.gz","sha256":"48c0df49d9eb2ebc4d711a2a3a2278bce1f857c7e208c3763db7e54ad0b19310","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-x86_64-unknown-linux-gnu.tar.gz"},
+    {"version":"0.4.3","channel":"stable","tag":"v0.4.3","target":"x86_64-unknown-linux-musl","filename":"ocx-x86_64-unknown-linux-musl.tar.gz","sha256":"cfdf9c7a90af9d8706ce1cf3a80bc1147caf6371cff26a39b8216654b57b61ac","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.3/ocx-x86_64-unknown-linux-musl.tar.gz"},
     {"version":"0.4.2","channel":"stable","tag":"v0.4.2","target":"aarch64-apple-darwin","filename":"ocx-aarch64-apple-darwin.tar.xz","sha256":"88128f8dd68d21e6de171d89ba21a19b4819787a5233431cb786c778f7a6d897","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.2/ocx-aarch64-apple-darwin.tar.xz"},
     {"version":"0.4.2","channel":"stable","tag":"v0.4.2","target":"aarch64-pc-windows-msvc","filename":"ocx-aarch64-pc-windows-msvc.zip","sha256":"8b281d6e6d05c7a7fbf61ef6a947fd9b42dc066143e2bd6fa58070f77d25170c","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.2/ocx-aarch64-pc-windows-msvc.zip"},
     {"version":"0.4.2","channel":"stable","tag":"v0.4.2","target":"aarch64-unknown-linux-gnu","filename":"ocx-aarch64-unknown-linux-gnu.tar.xz","sha256":"0bdfc279c9f13bb5408d5a46cbe8364850b747b4b9d8d8493dd66e7d422f3944","url":"https://github.com/ocx-sh/ocx/releases/download/v0.4.2/ocx-aarch64-unknown-linux-gnu.tar.xz"},
@@ -988,25 +1161,56 @@ endfunction()
 # ocx_bootstrap
 # ---------------------------------------------------------------------------
 
+# Digest named by a dist manifest URL whose last path segment is
+# <sha256>.json (the form the setup.ocx.sh installers write), else "". The
+# name is the manifest's own digest, so the fetch can enforce it.
+function(__ocx_manifest_sha256 url out_var)
+  set(${out_var} "" PARENT_SCOPE)
+  string(REGEX REPLACE "[#?].*$" "" clean "${url}")
+  # CMake regexes have no {64}: match the hex run, then count it.
+  if(clean MATCHES "(^|/)([0-9a-f]+)\\.json$")
+    set(digest "${CMAKE_MATCH_2}")
+    string(LENGTH "${digest}" len)
+    if(len EQUAL 64)
+      set(${out_var} "${digest}" PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()
+
 #[=[.rst:
 .. command:: ocx_bootstrap
 
   Downloads a pinned ocx CLI release for the host and sets
   ``OCX_EXECUTABLE``::
 
-    ocx_bootstrap([VERSION <version>] [TRIPLE <target-triple>])
+    ocx_bootstrap([VERSION <version>] [TRIPLE <target-triple>]
+                  [DIST_MANIFEST <dist.json>])
 
   No-op when ``OCX_EXECUTABLE`` already points at a binary of the requested
   version. The release row (URL + sha256) comes from the dist.json snapshot
-  embedded in this file; ``OCX_INSTALL_DIST_URL`` fetches a mirrored
-  manifest instead, ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact
-  download to ``<mirror>/<tag>/<filename>``. The manifest sha256 is
-  enforced either way. Binaries land in the per-machine
-  ``OCX_BOOTSTRAP_CACHE`` (downloaded once per machine, shared by all build
-  trees).
+  embedded in this file. ``DIST_MANIFEST`` names a local dist.json file to
+  use instead, and ``OCX_INSTALL_DIST_URL`` fetches a mirrored manifest
+  instead of both. ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact download
+  to ``<mirror>/<tag>/<filename>``. The archive is verified against the
+  sha256 of its manifest row before extraction, whichever manifest or URL
+  served it, and the extracted binary must report the requested version.
+  Binaries land in the per-machine ``OCX_BOOTSTRAP_CACHE`` (downloaded once
+  per machine, shared by all build trees).
+
+  A relative ``DIST_MANIFEST`` path is resolved against the calling file's
+  directory. In a project configure the file is watched, so editing it
+  reconfigures; in script mode it is read once.
 #]=]
 function(ocx_bootstrap)
-  cmake_parse_arguments(arg "" "VERSION;TRIPLE" "" ${ARGN})
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "VERSION;TRIPLE;DIST_MANIFEST" "")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR
+      "find_ocx: ocx_bootstrap: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(arg_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR
+      "find_ocx: ocx_bootstrap: missing value for ${arg_KEYWORDS_MISSING_VALUES}")
+  endif()
 
   set(version "${__OCX_PIN_VERSION}")
   if(DEFINED OCX_INSTALL_VERSION AND NOT "${OCX_INSTALL_VERSION}" STREQUAL "")
@@ -1049,23 +1253,61 @@ function(ocx_bootstrap)
 
   # Warm machine cache: no manifest work, no network - not even the
   # OCX_INSTALL_DIST_URL fetch (air-gapped reconfigures stay offline).
+  set(fresh FALSE)
   if(NOT EXISTS "${binary}")
+    set(fresh TRUE)
     if(DEFINED OCX_INSTALL_DIST_URL AND NOT "${OCX_INSTALL_DIST_URL}" STREQUAL "")
       set(dist_file "${CMAKE_BINARY_DIR}/_ocx/dist.json")
-      file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}" STATUS status)
+      # A <sha256>.json name is the manifest's own digest: enforce it.
+      # Any other name is fetched unverified (documented trust boundary).
+      __ocx_manifest_sha256("${OCX_INSTALL_DIST_URL}" manifest_sha)
+      set(manifest_hash "")
+      if(NOT manifest_sha STREQUAL "")
+        set(manifest_hash EXPECTED_HASH "SHA256=${manifest_sha}")
+      endif()
+      file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}"
+        ${manifest_hash}
+        TLS_VERIFY ON
+        TIMEOUT 120
+        INACTIVITY_TIMEOUT 30
+        STATUS status)
       list(GET status 0 status_code)
       if(NOT status_code EQUAL 0)
         list(GET status 1 status_msg)
         message(FATAL_ERROR
           "find_ocx: failed to fetch the dist manifest from "
-          "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}")
+          "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}\n"
+          "hint: the mirror must allow anonymous read; a manifest named "
+          "<sha256>.json must match that digest")
       endif()
       file(READ "${dist_file}" manifest)
+    elseif(arg_DIST_MANIFEST)
+      cmake_path(ABSOLUTE_PATH arg_DIST_MANIFEST BASE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+        NORMALIZE OUTPUT_VARIABLE dist_manifest)
+      if(NOT EXISTS "${dist_manifest}")
+        message(FATAL_ERROR
+          "find_ocx: ocx_bootstrap: DIST_MANIFEST '${arg_DIST_MANIFEST}' does not exist "
+          "(looked for ${dist_manifest})")
+      endif()
+      if(NOT CMAKE_SCRIPT_MODE_FILE)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${dist_manifest}")
+      endif()
+      file(READ "${dist_manifest}" manifest)
     else()
       set(manifest "${__OCX_DIST_JSON}")
     endif()
 
     __ocx_select_release("${manifest}" "${version}" "${triple}" url sha tag filename)
+
+    # tag and filename become path segments (the mirror url, the scratch
+    # archive): a custom manifest must not walk out of either directory.
+    foreach(field IN ITEMS tag filename)
+      if(NOT "${${field}}" MATCHES "^[A-Za-z0-9._+-]+$" OR "${${field}}" MATCHES "^\\.\\.?$")
+        message(FATAL_ERROR
+          "find_ocx: dist manifest row for ocx ${version} (${triple}) has an unusable "
+          "${field} '${${field}}' - not a single path segment")
+      endif()
+    endforeach()
 
     if(DEFINED OCX_INSTALL_MIRROR_URL AND NOT "${OCX_INSTALL_MIRROR_URL}" STREQUAL "")
       string(REGEX REPLACE "/+$" "" mirror "${OCX_INSTALL_MIRROR_URL}")
@@ -1079,18 +1321,25 @@ function(ocx_bootstrap)
       "find_ocx:   version knob: OCX_INSTALL_VERSION (pin: "
       "${__OCX_PIN_VERSION}); cache: ${cache_root}; opt out: "
       "OCX_BOOTSTRAP=OFF + OCX_EXECUTABLE")
-    file(DOWNLOAD "${url}" "${archive}" EXPECTED_HASH SHA256=${sha} STATUS status)
+    file(DOWNLOAD "${url}" "${archive}"
+      EXPECTED_HASH SHA256=${sha}
+      TLS_VERIFY ON
+      TIMEOUT 900
+      INACTIVITY_TIMEOUT 60
+      STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
       message(FATAL_ERROR
         "find_ocx: download of ${url} failed: ${status_msg}\n"
         "hint: corporate networks - set OCX_INSTALL_MIRROR_URL (artifacts) "
-        "and/or OCX_INSTALL_DIST_URL (manifest)")
+        "and/or OCX_INSTALL_DIST_URL (manifest); mirrors must allow anonymous read")
     endif()
     set(extract_dir "${scratch}/extract-${version}-${triple}")
     file(REMOVE_RECURSE "${extract_dir}")
     file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${extract_dir}")
+    # 0.6 ships ocx-<triple>/ocx inside .tar.gz and a flat ocx.exe inside
+    # .zip; either layout is accepted.
     set(nested "${extract_dir}/ocx-${triple}/ocx${exe_ext}")
     set(flat "${extract_dir}/ocx${exe_ext}")
     if(EXISTS "${nested}")
@@ -1108,7 +1357,20 @@ function(ocx_bootstrap)
 
   set(OCX_EXECUTABLE "${binary}" CACHE FILEPATH "Path to the ocx CLI" FORCE)
   set_property(GLOBAL PROPERTY __OCX_CLI_VERSION "")
-  message(STATUS "find_ocx: using bootstrapped ocx ${version} (${binary})")
+  set(reported "${version}")
+  # A fresh binary must report the version the manifest row promised: a
+  # mirrored manifest can pair a valid hash with the wrong release. A foreign
+  # TRIPLE cannot run here, so it is not probed.
+  if(fresh AND triple STREQUAL host_triple)
+    __ocx_cli_version(reported)
+    if(NOT reported VERSION_EQUAL version)
+      file(REMOVE "${binary}")
+      message(FATAL_ERROR
+        "find_ocx: the bootstrapped ocx reports version ${reported}, expected ${version} "
+        "(removed ${binary}) - check OCX_INSTALL_DIST_URL / DIST_MANIFEST")
+    endif()
+  endif()
+  message(STATUS "find_ocx: using bootstrapped ocx ${reported} (${binary})")
 endfunction()
 
 # ---------------------------------------------------------------------------
@@ -2144,18 +2406,42 @@ function(ocx_index op)
   endif()
 endfunction()
 
-cmake_policy(POP)
-
 # ---------------------------------------------------------------------------
-# Self-update (script mode)
+# ocx_self_update (script mode)
 # ---------------------------------------------------------------------------
 
-# Replaces this file (and a sibling Findocx.cmake when present) with a
-# released version, verified against the release SHA256SUMS. Only reachable
-# via `cmake -P ocx.cmake` (guard below) - never during a configure. Knobs:
-# OCX_SELF_UPDATE_VERSION (tag; default: latest via the GitHub API) and
-# OCX_SELF_UPDATE_URL (mirror base; requires an explicit version).
-function(__ocx_self_update)
+#[=[.rst:
+.. command:: ocx_self_update
+
+  Replaces the vendored ``ocx.cmake`` (and a sibling ``Findocx.cmake`` when
+  present) with a released find_ocx version::
+
+    ocx_self_update()
+
+  Script mode only (``cmake -P``): a configure fails with an error, because
+  the command rewrites files in the source tree. ``cmake -P ocx.cmake`` calls
+  it, or call it after ``include(ocx)`` from your own script. The release
+  is named by :variable:`OCX_SELF_UPDATE_VERSION` (default: the latest, via
+  the GitHub releases API) and fetched from GitHub or from
+  :variable:`OCX_SELF_UPDATE_URL`. The release ``SHA256SUMS`` is the trust
+  root: both files are downloaded and verified against it before either
+  one replaces the vendored copy.
+#]=]
+function(ocx_self_update)
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR
+      "find_ocx: ocx_self_update: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(NOT CMAKE_SCRIPT_MODE_FILE)
+    message(FATAL_ERROR
+      "find_ocx: ocx_self_update rewrites the vendored files and runs in script "
+      "mode only\nhint: cmake [-DOCX_SELF_UPDATE_VERSION=vX.Y.Z] -P <dir>/ocx.cmake")
+  endif()
+  get_property(module_file GLOBAL PROPERTY __OCX_MODULE_FILE)
+  get_property(module_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
+  get_filename_component(module_dir "${module_file}" DIRECTORY)
+
   set(tag "")
   if(DEFINED OCX_SELF_UPDATE_VERSION AND NOT "${OCX_SELF_UPDATE_VERSION}" STREQUAL "")
     set(tag "${OCX_SELF_UPDATE_VERSION}")
@@ -2170,12 +2456,17 @@ function(__ocx_self_update)
   endif()
 
   # Sibling temp dir: same filesystem, so the final file(RENAME) is atomic.
-  set(tmp "${CMAKE_CURRENT_LIST_DIR}/.ocx-self-update-tmp")
+  set(tmp "${module_dir}/.ocx-self-update-tmp")
   file(REMOVE_RECURSE "${tmp}")
 
   if(tag STREQUAL "")
+    # The API only names the tag; SHA256SUMS below is what is trusted.
     file(DOWNLOAD "https://api.github.com/repos/ocx-sh/find_ocx/releases/latest"
-      "${tmp}/latest.json" STATUS status)
+      "${tmp}/latest.json"
+      TLS_VERIFY ON
+      TIMEOUT 60
+      INACTIVITY_TIMEOUT 30
+      STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
@@ -2189,19 +2480,30 @@ function(__ocx_self_update)
     file(READ "${tmp}/latest.json" api_json)
     string(JSON tag GET "${api_json}" tag_name)
   endif()
+  # The tag becomes a URL path segment.
+  if(NOT tag MATCHES "^v[0-9][A-Za-z0-9._+-]*$")
+    file(REMOVE_RECURSE "${tmp}")
+    message(FATAL_ERROR "find_ocx: '${tag}' is not a find_ocx release tag (vX.Y.Z)")
+  endif()
 
   set(base "https://github.com/ocx-sh/find_ocx/releases/download")
   if(DEFINED OCX_SELF_UPDATE_URL AND NOT "${OCX_SELF_UPDATE_URL}" STREQUAL "")
     string(REGEX REPLACE "/+$" "" base "${OCX_SELF_UPDATE_URL}")
   endif()
 
-  file(DOWNLOAD "${base}/${tag}/SHA256SUMS" "${tmp}/SHA256SUMS" STATUS status)
+  # Trust root of the update: its hashes gate both files below.
+  file(DOWNLOAD "${base}/${tag}/SHA256SUMS" "${tmp}/SHA256SUMS"
+    TLS_VERIFY ON
+    TIMEOUT 60
+    INACTIVITY_TIMEOUT 30
+    STATUS status)
   list(GET status 0 status_code)
   if(NOT status_code EQUAL 0)
     list(GET status 1 status_msg)
     file(REMOVE_RECURSE "${tmp}")
     message(FATAL_ERROR
-      "find_ocx: failed to fetch ${base}/${tag}/SHA256SUMS: ${status_msg}")
+      "find_ocx: failed to fetch ${base}/${tag}/SHA256SUMS: ${status_msg}\n"
+      "hint: a mirror must allow anonymous read")
   endif()
 
   file(READ "${tmp}/SHA256SUMS" sums)
@@ -2229,7 +2531,11 @@ function(__ocx_self_update)
   set(shas "${module_sha}" "${find_sha}")
   foreach(name sha IN ZIP_LISTS names shas)
     file(DOWNLOAD "${base}/${tag}/${name}" "${tmp}/${name}"
-      EXPECTED_HASH SHA256=${sha} STATUS status)
+      EXPECTED_HASH SHA256=${sha}
+      TLS_VERIFY ON
+      TIMEOUT 120
+      INACTIVITY_TIMEOUT 30
+      STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
@@ -2246,12 +2552,12 @@ function(__ocx_self_update)
   endif()
   # No downgrade refusal: an explicit version is the operator's choice
   # (rollbacks are legitimate); the direction is visible in this line.
-  message(STATUS "find_ocx: ${__OCX_MODULE_VERSION} -> ${new_version} (${tag})")
+  message(STATUS "find_ocx: ${module_version} -> ${new_version} (${tag})")
 
   # Replacing the running script is safe: CMake parses the whole listfile
   # before executing it.
-  file(RENAME "${tmp}/ocx.cmake" "${CMAKE_CURRENT_LIST_FILE}")
-  set(findocx "${CMAKE_CURRENT_LIST_DIR}/Findocx.cmake")
+  file(RENAME "${tmp}/ocx.cmake" "${module_file}")
+  set(findocx "${module_dir}/Findocx.cmake")
   if(EXISTS "${findocx}")
     file(RENAME "${tmp}/Findocx.cmake" "${findocx}")
   else()
@@ -2262,9 +2568,11 @@ function(__ocx_self_update)
   file(REMOVE_RECURSE "${tmp}")
 endfunction()
 
+cmake_policy(POP)
+
 # `cmake -P ocx.cmake` runs the self-update; `include(ocx)` from another
 # script keeps CMAKE_SCRIPT_MODE_FILE pointing at the outer script, so a
 # plain include never triggers it.
 if(CMAKE_SCRIPT_MODE_FILE AND CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
-  __ocx_self_update()
+  ocx_self_update()
 endif()
