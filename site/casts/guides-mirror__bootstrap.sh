@@ -38,7 +38,7 @@ set -e
 
 # Verification: the bootstrap failed with status 1 and the mirror hint, then succeeded through the mirror.
 test -f build/CMakeCache.txt
-grep -q 'ocx-.*\.tar\.xz\|ocx-.*\.zip' "$CAST_TMP/mirror.log"
+grep -q 'ocx-.*\.\(tar\.gz\|tar\.xz\|zip\)' "$CAST_TMP/mirror.log"
 rm -rf "$HOME/.cache" check
 rc=0
 out=$(env -u OCX_INSTALL_DIST_URL -u OCX_INSTALL_MIRROR_URL cmake -S . -B check 2>&1) || rc=$?
