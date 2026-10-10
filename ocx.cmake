@@ -497,7 +497,7 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
 
   Path of a PEM CA bundle that the CLI download trusts instead of the system store.
   Use it for a mirror behind a TLS-intercepting proxy.
-  A path that is not a file is a configure error.
+  A path that is not a file is a configure error, checked on every configure that provisions the CLI.
 
   The module passes the bundle as ``TLS_CAINFO`` to the manifest and archive downloads of :command:`ocx_bootstrap` and to :command:`ocx_self_update`.
   Every ocx call also receives it as ``OCX_EXTRA_CA_CERTS``, unless ``OCX_EXTRA_CA_CERTS`` is set.
@@ -518,7 +518,7 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
   The values are:
 
   ``ON``
-    The default, also when the variable is unset.
+    The default, also when the variable is unset or empty.
     Use an ``ocx`` found on ``PATH`` and bootstrap the pinned CLI when there is none.
 
   ``ALWAYS``
@@ -867,6 +867,7 @@ function(__ocx_env_entries out_var)
   # www-setup hands OCX_INSTALL_CA_BUNDLE to ocx the same way: one corporate CA
   # covers the bootstrap download and every ocx call, unless the operator set
   # OCX_EXTRA_CA_CERTS (also empty, which removes it) themselves.
+  __ocx_tls_cainfo(ca_unused)
   if(NOT DEFINED OCX_EXTRA_CA_CERTS AND NOT "${OCX_INSTALL_CA_BUNDLE}" STREQUAL "")
     list(APPEND entries "OCX_EXTRA_CA_CERTS=${OCX_INSTALL_CA_BUNDLE}")
   endif()
@@ -905,7 +906,7 @@ function(__ocx_default_hint code out_var)
   elseif(code EQUAL 75)
     set(
       hint
-      "transient failure that outlasted the retries (a PULL download is retried twice): rerun later, or route the registry through OCX_MIRRORS"
+      "transient failure, retried twice where a retry is safe: rerun later, or route the registry through OCX_MIRRORS"
     )
   elseif(code EQUAL 77)
     set(
@@ -930,7 +931,7 @@ function(__ocx_default_hint code out_var)
   elseif(code EQUAL 81)
     set(
       hint
-      "blocked by policy - OCX_FROZEN or OCX_OFFLINE refused an unpinned tag or a download: add the tag to the snapshot with ocx_index(UPDATE_COMMAND), pin a digest, or drop the flag; a nested configure passes -DOCX_FROZEN= -DOCX_INDEX="
+      "blocked by policy - OCX_FROZEN or OCX_OFFLINE refused an unpinned tag or a download: add the tag to the snapshot with ocx_index(UPDATE_COMMAND), pin a digest, or drop the flag; OCX_OFFLINE with nothing cached needs one online configure with -DOCX_PULL=ON first; a nested configure passes -DOCX_FROZEN= -DOCX_INDEX="
     )
   elseif(code EQUAL 83)
     set(
@@ -1053,7 +1054,7 @@ endfunction()
 
 # TLS_CAINFO arguments for a file(DOWNLOAD) when OCX_INSTALL_CA_BUNDLE names a
 # CA bundle; empty otherwise. A path that is not a file fails here, not as an
-# opaque TLS error from the download.
+# opaque TLS error from the download or from an ocx call.
 function(__ocx_tls_cainfo out_var)
   set(${out_var} "" PARENT_SCOPE)
   if("${OCX_INSTALL_CA_BUNDLE}" STREQUAL "")
@@ -1193,7 +1194,7 @@ function(__ocx_require_cli)
         "find_ocx: using ocx from PATH (${OCX_EXECUTABLE}) - "
         "OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead"
       )
-    elseif(DEFINED OCX_BOOTSTRAP AND NOT OCX_BOOTSTRAP)
+    elseif(NOT "${OCX_BOOTSTRAP}" STREQUAL "" AND NOT OCX_BOOTSTRAP)
       message(
         FATAL_ERROR
         "find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit "
@@ -1516,10 +1517,11 @@ function(ocx_bootstrap)
 
   # Warm machine cache: no manifest work, no network - not even the
   # OCX_INSTALL_DIST_URL fetch (air-gapped reconfigures stay offline).
+  # The bundle path is validated on every configure, not only on a cold download.
+  __ocx_tls_cainfo(ca_args)
   set(fresh FALSE)
   if(NOT EXISTS "${binary}")
     set(fresh TRUE)
-    __ocx_tls_cainfo(ca_args)
     if(arg_DIST_MANIFEST)
       cmake_path(
         ABSOLUTE_PATH arg_DIST_MANIFEST
@@ -2413,7 +2415,7 @@ endfunction()
     Maps ocx platform keys to per-platform manifest digests, as ``ocx package install -p <platform>`` reports them.
     The entry for the effective platform installs ``registry/repo@<digest>``.
     The effective platform is ``PLATFORM``, else the host.
-    An entry of another shape is an error.
+    An entry of another shape is an error, and so is a list without an entry for the effective platform.
 
   ``INDEX <dir>``
     Index snapshot directory that freezes tag resolution for this package.
@@ -2631,6 +2633,8 @@ function(ocx_package)
 
   # Apply the per-platform manifest pin: replace everything after '@'.
   set(ref "${arg_PACKAGE}")
+  set(pin_keys "")
+  set(pin_matched FALSE)
   foreach(entry IN LISTS arg_PINS)
     if(NOT entry MATCHES "^([^=]+)=(sha256:[0-9a-f]+)$")
       message(
@@ -2639,12 +2643,24 @@ function(ocx_package)
         "'<platform>=sha256:<digest>'"
       )
     endif()
+    list(APPEND pin_keys "${CMAKE_MATCH_1}")
     if(CMAKE_MATCH_1 STREQUAL "${pin_platform}")
+      set(pin_matched TRUE)
       set(digest "${CMAKE_MATCH_2}") # the REPLACE below clobbers CMAKE_MATCH_*
       string(REGEX REPLACE "@.*$" "" ref "${ref}")
       set(ref "${ref}@${digest}")
     endif()
   endforeach()
+  # A PINS list that skips the effective platform would silently leave a floating ref.
+  if(arg_PINS AND NOT pin_matched)
+    list(JOIN pin_keys ", " pin_keys_text)
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_package ${arg_NAME}: PINS has no entry for the effective platform "
+      "'${pin_platform}' (PINS keys: ${pin_keys_text})\n"
+      "hint: add '${pin_platform}=sha256:<digest>' to PINS or set PLATFORM to one of the keys"
+    )
+  endif()
 
   # Index resolution ladder: explicit INDEX, else the OCX_INDEX knob, else
   # the nearest committed `.ocx/` snapshot; NO_INDEX skips all three. An
@@ -2781,12 +2797,7 @@ function(ocx_package)
     )
     # {"<ref>": {"path": "<package root>", "kind": "package"}}
     string(JSON member MEMBER "${which_json}" 0)
-    string(JSON which_type TYPE "${which_json}" "${member}")
-    if(which_type STREQUAL "OBJECT")
-      string(JSON store_root GET "${which_json}" "${member}" path)
-    else()
-      string(JSON store_root GET "${which_json}" "${member}") # older CLIs print the bare path
-    endif()
+    string(JSON store_root GET "${which_json}" "${member}" path)
     # ocx prints native paths: backslashes on Windows. The cache holds CMake paths, as <name>_ROOT does.
     cmake_path(SET content NORMALIZE "${store_root}/content")
     __ocx_set_result(OCX_${name}_CONTENT "${content}")

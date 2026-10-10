@@ -164,6 +164,28 @@ function(ocx_add_bootstrap_off_test)
   endforeach()
 endfunction()
 
+# Negative test: an empty -DOCX_BOOTSTRAP= is "unset", so the default ON applies:
+# the cold bootstrap runs (and fails on the unreachable manifest) instead of
+# the OFF policy error.
+function(ocx_add_bootstrap_empty_test)
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  foreach(v IN LISTS arg_VERSIONS)
+    ocx_add_negative_test(
+      bootstrap_empty
+      ${v}
+      REGEX "failed to fetch the dist manifest"
+      ARGS
+        "-DCMAKE_MODULE_PATH=${CMAKE_SOURCE_DIR}"
+        -DOCX_BOOTSTRAP=
+        -DOCX_EXECUTABLE=
+        "-DOCX_BOOTSTRAP_CACHE=${CMAKE_BINARY_DIR}/fixtures/bootstrap_empty-cmake${v}-cache"
+        "-DOCX_INSTALL_DIST_URL=file:///no/such/ocx-dist.json"
+        -P
+        "${CMAKE_SOURCE_DIR}/tests/fixtures/bootstrap_off.cmake"
+    )
+  endforeach()
+endfunction()
+
 # Negative test: a floating tag with no index in effect and no digest pin
 # must fail the configure (reproducible-first gate).
 function(ocx_add_floating_fatal_test)

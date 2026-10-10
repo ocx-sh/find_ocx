@@ -229,6 +229,13 @@ i1_case(
   DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/ca.pem"
   ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
 )
+# The path check runs on a warm cache too, not only before a download.
+file(COPY "${SCRATCH}/cache-ca_bundle_file/" DESTINATION "${SCRATCH}/cache-ca_bundle_missing_warm")
+i1_case(
+  ca_bundle_missing_warm
+  DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/no-such-ca.pem"
+  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*no-such-ca\\.pem' is not a readable file"
+)
 # A <sha256>.json manifest whose name is its digest is verified and accepted...
 i1_file_url("${SCRATCH}/${manifest_sha}.json" named_url)
 i1_case(dist_url_sha_named DEFINES "-DOCX_INSTALL_DIST_URL=${named_url}")

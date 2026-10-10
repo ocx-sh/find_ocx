@@ -32,7 +32,7 @@ tasks:
       - task: site:check
 
   lint:
-    desc: gersemi + actionlint + license headers + links
+    desc: gersemi + actionlint + license headers + links (repo docs, site pages, changelog)
     cmds:
       # Tracked listfiles only: gersemi would descend into build trees.
       # foreign_platform waits for its rewrite - re-enable it once formatted.
@@ -43,9 +43,8 @@ tasks:
       - ocx exec -- actionlint
       - ocx exec -- actionlint examples/ci/github-actions.yml
       - ocx exec -- hawkeye check
-      # The ocx.sh/integrations/cmake/ link 404s until the site's first deploy and the edge flip;
-      # drop the exclude then.
-      - ocx exec -- lychee --no-progress --exclude '^https://ocx\.sh/integrations/cmake/' README.md CONTRIBUTING.md SECURITY.md
+      # Config and the not-yet-deployed ocx.sh/integrations/cmake/ exclude: lychee.toml.
+      - ocx exec -- lychee README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md 'site/pages/**/*.md'
 
   test:
     desc: Harness — dogfooded CMake-version matrix via CTest

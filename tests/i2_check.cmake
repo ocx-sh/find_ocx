@@ -164,7 +164,7 @@ run_shim(
   9
   FAIL
   REGEX
-  "exit 75.*shim failure 3.*transient failure that outlasted the retries"
+  "exit 75.*shim failure 3.*transient failure, retried twice where a retry is safe"
 )
 if(NOT calls EQUAL 3)
   message(FATAL_ERROR "i2_check: RETRIES 2 must stop after 3 calls, got ${calls}")

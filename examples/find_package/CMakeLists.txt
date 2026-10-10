@@ -4,7 +4,7 @@
 # Example: classic discovery via the find module. find_package(ocx) honors
 # an ocx already on PATH or an explicit -DOCX_EXECUTABLE; with
 # -DOCX_BOOTSTRAP=ON it falls back to bootstrapping the pinned CLI when
-# none is found (zero-setup; needs CMake 3.19 and ocx.cmake next to
+# none is found (zero-setup; needs CMake 3.25 and ocx.cmake next to
 # Findocx.cmake). This is the entry point for projects that want the
 # system ocx to win.
 #

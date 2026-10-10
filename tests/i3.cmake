@@ -86,6 +86,14 @@ ocx_i3_add_test(
   EXPECT_FAIL "PLATFORM is incompatible with BINS"
 )
 ocx_i3_add_test(
+  pins_no_match
+  cases
+  VERSIONS ${i3_versions}
+  CASE pins_no_match
+  EXPECT_FAIL
+    "PINS has no entry for the effective platform 'linux/arm64' \\(PINS keys: linux/s390x, linux/ppc64le\\)"
+)
+ocx_i3_add_test(
   unknown_keyword
   cases
   VERSIONS ${i3_versions}

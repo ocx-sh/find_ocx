@@ -25,9 +25,11 @@ jobs:
       OCX_HOME: ${{ github.workspace }}/.cache/ocx-home
       OCX_BOOTSTRAP_CACHE: ${{ github.workspace }}/.cache/ocx-bootstrap
     steps:
-      - uses: actions/checkout@v5
+      # Pinned to exact version tags. Pin a commit SHA instead where supply-chain
+      # policy allows: a tag can move, a SHA cannot.
+      - uses: actions/checkout@v5.1.0
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v4.3.0
         with:
           path: .cache
           key: ocx-${{ runner.os }}-${{ hashFiles('ocx.lock') }}

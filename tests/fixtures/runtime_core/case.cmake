@@ -99,6 +99,7 @@ elseif(CASE STREQUAL "ca_bundle_forward")
   # OCX_INSTALL_CA_BUNDLE reaches ocx as OCX_EXTRA_CA_CERTS only while
   # OCX_EXTRA_CA_CERTS itself is not set; an empty -DOCX_EXTRA_CA_CERTS= removes it.
   set(OCX_INSTALL_CA_BUNDLE "${SCRATCH}/ca.pem")
+  file(WRITE "${OCX_INSTALL_CA_BUNDLE}" "") # every ocx call validates the path
   if(CA_CASE STREQUAL "unset")
     __ocx_env_prefix(prefix)
     expect_contains("prefix" "${prefix}" "OCX_EXTRA_CA_CERTS=${SCRATCH}/ca.pem")
