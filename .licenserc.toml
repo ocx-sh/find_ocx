@@ -11,6 +11,5 @@ includes = [
     "tests/**/CMakeLists.txt",
     "examples/**/CMakeLists.txt",
     "scripts/**/*.py",
-    "docs/conf.py",
 ]
-excludes = ["build/**", "docs/_build/**"]
+excludes = ["build/**"]

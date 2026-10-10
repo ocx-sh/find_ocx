@@ -1,5 +1,4 @@
 <!-- doc_type: reference -->
-<!-- doc_tier: everyday -->
 <!-- description: Signatures and behavior of ocx_bootstrap, ocx_project, ocx_package and ocx_index. -->
 # Commands
 

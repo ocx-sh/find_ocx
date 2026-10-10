@@ -4,9 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "docs/**"
-      - "ocx.cmake"
-      - "Findocx.cmake"
+      - "site/scripts/stubs.mjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -33,10 +31,9 @@ jobs:
         with:
           version: "0.6.5"
 
-      # Sphinx + the CMake domain, extracted from the .rst blocks in the
-      # module sources (see docs/reference.rst).
-      - name: Build docs
-        run: ocx exec -- task docs
+      # The docs live at https://ocx.sh/integrations/cmake/; this site only forwards the old URLs.
+      - name: Write the forwarding stubs
+        run: ocx exec -- node site/scripts/stubs.mjs stubs
 
       - uses: actions/configure-pages@v5
         with:
@@ -44,7 +41,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/_build/html
+          path: stubs
 
       - id: deployment
         uses: actions/deploy-pages@v4
