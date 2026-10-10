@@ -54,6 +54,6 @@ Update every vendored copy in the same change, because a configure that loads tw
 
 ## Next steps {#next-steps}
 
-- [Move from 0.3 to 0.4](migrate-0.4.md) lists the lines a major update breaks.
+- [Move from 0.3 to 0.4](migrate-04.md) lists the lines a major update breaks.
 - [Build behind a mirror or offline](mirror.md) covers the other mirror settings.
 - [`OCX_SELF_UPDATE_VERSION`](../reference/variables.md#ocx_self_update_version) and [`OCX_SELF_UPDATE_URL`](../reference/variables.md#ocx_self_update_url) are the two knobs.

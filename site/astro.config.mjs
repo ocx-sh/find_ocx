@@ -25,7 +25,7 @@ const GROUPS = [
       ['Use find_package with find_ocx', '/guides/find-package/'],
       ['Use an ocx you already have', '/guides/use-system-ocx/'],
       ['Update the vendored files', '/guides/update-vendored/'],
-      ['Migrate from 0.3', '/guides/migrate-0.4/'],
+      ['Migrate from 0.3', '/guides/migrate-04/'],
     ],
   },
   {

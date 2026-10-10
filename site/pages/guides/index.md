@@ -17,7 +17,7 @@ These guides are for a CMake project that already runs a pinned tool and needs t
 
 - [Use an installed ocx](use-system-ocx.md): prefer the `ocx` on `PATH` and tell which binary a configure runs
 - [Update the vendored files](update-vendored.md): move `ocx.cmake` and `Findocx.cmake` to another release
-- [Move from 0.3 to 0.4](migrate-0.4.md): find every build line the new release breaks
+- [Move from 0.3 to 0.4](migrate-04.md): find every build line the new release breaks
 
 ## When a configure surprises you {#when-a-configure-surprises-you}
 

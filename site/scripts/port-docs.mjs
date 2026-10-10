@@ -184,8 +184,8 @@ function outsideFences(text, fn) {
 // (declaration comments, `<!-- description: ... -->`, `# Title`). Starlight renders the title itself, so the H1 moves
 // into the front matter.
 const siteUrl = (rel, target) => {
-  const path = posix.normalize(posix.join(posix.dirname(rel), target)).replace(/\.md$/, '');
-  return path === 'index' ? BASE : `${BASE}${path}/`;
+  const path = posix.normalize(posix.join(posix.dirname(rel), target)).replace(/\.md$/, '').replace(/(^|\/)index$/, '');
+  return path === '' ? BASE : `${BASE}${path}/`;
 };
 const rewriteLinks = (rel, text) => text.replace(/\]\((?![a-z]+:)([^)#]+\.md)(#[^)]*)?\)/g, (_m, target, hash = '') => `](${siteUrl(rel, target)}${hash})`);
 
