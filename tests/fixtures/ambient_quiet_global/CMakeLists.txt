@@ -4,7 +4,7 @@
 # Fixture: ambient OCX_QUIET=1 (blank JSON output) and OCX_GLOBAL=1 (rejects
 # --project) must not break the configure - find_ocx pins both.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_ambient_quiet_global LANGUAGES NONE)
 
 set(ENV{OCX_QUIET} 1)

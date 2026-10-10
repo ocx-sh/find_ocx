@@ -217,6 +217,118 @@ ocx_i3_add_test(
   EXPECT_FAIL "ocx_project: empty argument in"
 )
 
+# Empty values are rejected by every command that takes arguments.
+ocx_i3_add_test(
+  bootstrap_empty_value
+  cases
+  VERSIONS ${i3_versions}
+  CASE bootstrap_empty_value
+  EXPECT_FAIL "ocx_bootstrap: empty argument in"
+)
+ocx_i3_add_test(
+  policy_empty_value
+  cases
+  VERSIONS ${i3_versions}
+  CASE policy_empty_value
+  EXPECT_FAIL "ocx_policy: empty argument in"
+)
+
+# A value that is a CMake false constant is still a value.
+ocx_i3_add_test(
+  bins_false_constant_platform
+  cases
+  VERSIONS ${i3_versions}
+  CASE bins_false_constant_platform
+  EXPECT_FAIL "PLATFORM is incompatible with BINS"
+)
+ocx_i3_add_test(
+  bins_false_constant_checked
+  cases
+  VERSIONS ${i3_versions}
+  CASE bins_false_constant_checked
+  EXPECT_FAIL "BINS n: not a declared binary or entrypoint"
+)
+
+# A ';' would split the command lists, so it stops the configure up front.
+ocx_i3_add_test(
+  project_toml_semicolon
+  cases
+  VERSIONS ${i3_versions}
+  CASE project_toml_semicolon
+  EXPECT_FAIL "ocx_project TOML contains ';'"
+)
+ocx_i3_add_test(
+  package_index_semicolon
+  cases
+  VERSIONS ${i3_versions}
+  CASE package_index_semicolon
+  EXPECT_FAIL "ocx_package INDEX contains ';'"
+)
+ocx_i3_add_test(
+  config_semicolon
+  cases
+  VERSIONS ${i3_versions}
+  CASE config_semicolon
+  EXPECT_FAIL "CONFIG contains ';'"
+)
+ocx_i3_add_test(
+  site_semicolon
+  cases
+  VERSIONS ${i3_versions}
+  CASE site_semicolon
+  EXPECT_FAIL "OCX_HOME contains ';'"
+)
+
+# OCX_BOOTSTRAP is validated, OCX_EXECUTABLE must exist.
+ocx_i3_add_test(
+  bootstrap_invalid
+  cases
+  VERSIONS ${i3_versions}
+  CASE bootstrap_invalid
+  EXPECT_FAIL "OCX_BOOTSTRAP='maybe' is not ON, OFF or ALWAYS"
+)
+ocx_i3_add_test(
+  executable_missing
+  cases
+  VERSIONS ${i3_versions}
+  CASE executable_missing
+  EXPECT_FAIL "OCX_EXECUTABLE='/typo/ocx' does not exist"
+)
+
+# ocx names the registry directory of a snapshot with ':' written '_', and the
+# module must watch that leaf.
+ocx_i3_add_test(index_port index_port VERSIONS ${i3_versions})
+
+# The find module treats a missing path, a failing binary and a typo as not found.
+ocx_i3_add_test(
+  find_empty_executable
+  find_module
+  VERSIONS ${i3_versions}
+  EXPECT_OK "Found ocx"
+  OPTIONS -DOCX_EXECUTABLE=
+)
+ocx_i3_add_test(
+  find_missing_executable
+  find_module
+  VERSIONS ${i3_versions}
+  EXPECT_FAIL "Could NOT find ocx \\(missing: OCX_EXECUTABLE\\)"
+  OPTIONS -DOCX_EXECUTABLE=/nonexistent/ocx
+)
+ocx_i3_add_test(
+  find_failing_executable
+  find_module
+  VERSIONS ${i3_versions}
+  EXPECT_FAIL "Could NOT find ocx \\(missing: OCX_VERSION_STRING\\)"
+  OPTIONS "-DOCX_EXECUTABLE=${CMAKE_COMMAND}"
+)
+ocx_i3_add_test(
+  find_bootstrap_typo
+  find_module
+  VERSIONS ${i3_versions}
+  EXPECT_FAIL "OCX_BOOTSTRAP='alwayz' is not ON, OFF or ALWAYS"
+  OPTIONS -DOCX_BOOTSTRAP=alwayz
+)
+
 # CONFIG reaches the CLI: a missing file is the CLI's own error.
 ocx_i3_add_test(
   config_missing

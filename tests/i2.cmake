@@ -13,15 +13,14 @@ ocx_add_cmake_version_test(ambient_no_config VERSIONS ${OCX_TEST_CMAKE_VERSIONS}
 # Env prefix, policy, hint table, managed-config gate and retry policy
 # against a fake ocx (tests/i2_check.cmake).
 foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
+  ocx_cmake_test_gate(gate ${v})
   add_test(
     NAME runtime_core/${OCX_CMAKE_${v}_TEST_LABEL}
     COMMAND
       ${OCX_CMAKE_${v}_RUN} cmake "-DMODULE_DIR=${CMAKE_SOURCE_DIR}"
       "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/runtime_core-cmake${v}" "-DOCX_EXE=${OCX_EXECUTABLE}"
-      -P "${CMAKE_SOURCE_DIR}/tests/i2_check.cmake"
+      "-DGATE=${gate}" -P "${CMAKE_SOURCE_DIR}/tests/i2_check.cmake"
   )
-  set_tests_properties(
-    runtime_core/${OCX_CMAKE_${v}_TEST_LABEL}
-    PROPERTIES TIMEOUT 120 FIXTURES_REQUIRED ocx_fixtures
-  )
+  __ocx_test_props(runtime_core/${OCX_CMAKE_${v}_TEST_LABEL} SCRIPT)
+  set_tests_properties(runtime_core/${OCX_CMAKE_${v}_TEST_LABEL} PROPERTIES TIMEOUT 120)
 endforeach()

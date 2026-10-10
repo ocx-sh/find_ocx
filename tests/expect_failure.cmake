@@ -16,6 +16,13 @@ if(NOT DEFINED EXPECT_EXIT)
   set(EXPECT_EXIT 1)
 endif()
 
+# The gate does nothing under -P below 4.4, where the warning check below
+# stands in for it; from 4.4 the script run is gated like a configure.
+list(FIND EXPECT_ARGS -P script_flag)
+if(NOT script_flag EQUAL -1 AND CMAKE_VERSION VERSION_GREATER_EQUAL 4.4)
+  list(PREPEND EXPECT_ARGS -Werror=author)
+endif()
+
 execute_process(
   COMMAND "${CMAKE_COMMAND}" ${EXPECT_ARGS}
   RESULT_VARIABLE rc
@@ -40,6 +47,6 @@ if(
     "expect_failure: no 'CMake Error ... (message):' carrying /${EXPECT_REGEX}/\n${report}"
   )
 endif()
-if("${flat}" MATCHES "CMake Deprecation Warning")
-  message(FATAL_ERROR "expect_failure: deprecation warning in the output\n${report}")
+if("${flat}" MATCHES "CMake (Deprecation )?Warning")
+  message(FATAL_ERROR "expect_failure: warning in the output\n${report}")
 endif()

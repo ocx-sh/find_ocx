@@ -14,6 +14,7 @@ if(NOT CMAKE_SCRIPT_MODE_FILE)
       "-DPAGE_FILE=${CMAKE_SOURCE_DIR}/site/pages/troubleshooting/exit-codes.md" -P
       "${CMAKE_CURRENT_LIST_FILE}"
   )
+  __ocx_test_props(hint_table SCRIPT)
   set_tests_properties(hint_table PROPERTIES TIMEOUT 30)
   return()
 endif()

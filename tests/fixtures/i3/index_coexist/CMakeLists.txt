@@ -4,7 +4,7 @@
 # Fixture: a .ocx/ holding both the rendered toolchain and an index snapshot
 # is still found as the index; the toolchain alone is not (see cases).
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_i3_index_coexist LANGUAGES NONE)
 
 include(ocx)

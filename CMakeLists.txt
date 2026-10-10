@@ -75,6 +75,7 @@ ocx_add_memoize_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_script_mode_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_self_update_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_mirror_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+ocx_add_executable_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_gate_canary_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 
 include(tests/i2.cmake)
@@ -90,6 +91,7 @@ add_test(
     ${CMAKE_COMMAND} -DROOT=${CMAKE_CURRENT_SOURCE_DIR} -P
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/readme_check.cmake
 )
+__ocx_test_props(readme_check SCRIPT)
 set_tests_properties(readme_check PROPERTIES TIMEOUT 30)
 
 # Docs check: the exit-code table on the troubleshooting page matches the hint table (no ocx needed).

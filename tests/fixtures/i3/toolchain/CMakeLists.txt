@@ -4,7 +4,7 @@
 # Fixture: provisioning from a CMAKE_TOOLCHAIN_FILE (see toolchain.cmake).
 # Configure with -DCMAKE_TOOLCHAIN_FILE=<this directory>/toolchain.cmake.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_i3_toolchain LANGUAGES NONE)
 
 if(NOT CMAKE_TOOLCHAIN_FILE MATCHES "toolchain\\.cmake$")

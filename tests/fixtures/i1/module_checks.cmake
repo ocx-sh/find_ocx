@@ -8,7 +8,7 @@
 # file(DOWNLOAD) verifies TLS and is bounded, and the floor is 3.25.
 #   cmake -DMODULE_DIR=<repo> -DSCRATCH=<dir> -P module_checks.cmake
 
-foreach(var MODULE_DIR SCRATCH)
+foreach(var MODULE_DIR SCRATCH GATE)
   if(NOT DEFINED ${var})
     message(FATAL_ERROR "module_checks: -D${var}=... is required")
   endif()
@@ -32,6 +32,9 @@ function(i1_run name expect)
     ERROR_VARIABLE err
     ENCODING UTF-8
   )
+  if("${out}${err}" MATCHES "CMake (Deprecation )?Warning")
+    message(FATAL_ERROR "module_checks[${name}]: a CMake warning in the output:\n${out}\n${err}")
+  endif()
   if(expect STREQUAL "OK")
     if(NOT rc EQUAL 0)
       message(FATAL_ERROR "module_checks[${name}]: exit ${rc}\n${out}\n${err}")
@@ -107,6 +110,7 @@ i1_run(
   self_update_configure
   "runs in script mode only"
   "${CMAKE_COMMAND}"
+  ${GATE}
   -S
   "${fixtures}/configure_self_update"
   -B

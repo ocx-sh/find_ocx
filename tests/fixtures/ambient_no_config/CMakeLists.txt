@@ -4,7 +4,7 @@
 # Fixture: an ambient OCX_NO_CONFIG=1 (translucent, inherited) configures
 # green.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_ambient_no_config LANGUAGES NONE)
 
 set(ENV{OCX_NO_CONFIG} 1)

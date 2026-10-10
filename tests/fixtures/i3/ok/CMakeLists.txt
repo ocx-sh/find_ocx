@@ -6,7 +6,7 @@
 # closure, identical re-entry, a single-path <name>_ROOT and the CONFIG
 # keywords reaching the exported launcher.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_i3_ok LANGUAGES NONE)
 
 include(ocx)

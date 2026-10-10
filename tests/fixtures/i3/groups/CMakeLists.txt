@@ -5,7 +5,7 @@
 # [group.lint]). I3_CASE selects a failing BINS check; without it the project
 # configures with both groups and the RUN commands execute at build time.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_i3_groups LANGUAGES NONE)
 
 include(ocx)

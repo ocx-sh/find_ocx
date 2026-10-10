@@ -55,6 +55,9 @@ endfunction()
 # (the gate does nothing under -P on 4.3 and older).
 function(__ocx_test_props name)
   cmake_parse_arguments(PARSE_ARGV 1 arg "SCRIPT" "" "")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "__ocx_test_props: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   set_tests_properties(
     ${name}
     PROPERTIES TIMEOUT ${OCX_TEST_TIMEOUT} FIXTURES_REQUIRED ocx_fixtures
@@ -72,6 +75,9 @@ endfunction()
 # self-assert at configure/build time.
 function(ocx_add_cmake_version_test fixture)
   cmake_parse_arguments(PARSE_ARGV 1 arg "NO_EXECUTABLE" "" "VERSIONS;OPTIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_cmake_version_test: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   # Fixtures run under the harness's frozen launcher (OCX_CMAKE_<v>_RUN
   # exports OCX_FROZEN/OCX_INDEX into children): clear both so fixtures
   # resolve independently of the outer index.
@@ -106,6 +112,9 @@ endfunction()
 # <regex> must match the flattened message text after the severity header.
 function(ocx_add_negative_test test v)
   cmake_parse_arguments(PARSE_ARGV 2 arg "" "REGEX;EXIT" "ARGS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_negative_test: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   if(NOT DEFINED arg_REGEX OR NOT DEFINED arg_ARGS)
     message(FATAL_ERROR "ocx_add_negative_test: REGEX and ARGS are required")
   endif()
@@ -119,13 +128,16 @@ function(ocx_add_negative_test test v)
       ${OCX_CMAKE_${v}_RUN} cmake "-DEXPECT_ARGS=${arg_ARGS}" "-DEXPECT_REGEX=${arg_REGEX}"
       -DEXPECT_EXIT=${arg_EXIT} -P "${CMAKE_SOURCE_DIR}/tests/expect_failure.cmake"
   )
-  __ocx_test_props(${test_name})
+  __ocx_test_props(${test_name} SCRIPT)
 endfunction()
 
 # Negative test: a doctored ocx.lock must fail the configure with the
 # actionable hint.
 function(ocx_add_stale_lock_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_stale_lock_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_cmake_test_gate(gate ${v})
     ocx_add_negative_test(
@@ -150,6 +162,12 @@ endfunction()
 # hard error when no OCX_EXECUTABLE is provided.
 function(ocx_add_bootstrap_off_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(
+      FATAL_ERROR
+      "ocx_add_bootstrap_off_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'"
+    )
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_add_negative_test(
       bootstrap_off
@@ -169,6 +187,12 @@ endfunction()
 # the OFF policy error.
 function(ocx_add_bootstrap_empty_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(
+      FATAL_ERROR
+      "ocx_add_bootstrap_empty_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'"
+    )
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_add_negative_test(
       bootstrap_empty
@@ -190,6 +214,12 @@ endfunction()
 # must fail the configure (reproducible-first gate).
 function(ocx_add_floating_fatal_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(
+      FATAL_ERROR
+      "ocx_add_floating_fatal_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'"
+    )
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_add_negative_test(
       floating_fatal
@@ -210,6 +240,9 @@ endfunction()
 # generator, no persistent cache).
 function(ocx_add_script_mode_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_script_mode_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     set(test_name script_mode/${OCX_CMAKE_${v}_TEST_LABEL})
     add_test(
@@ -227,6 +260,9 @@ endfunction()
 # replace the vendored ocx.cmake/Findocx.cmake in place (fully offline).
 function(ocx_add_self_update_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_self_update_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     set(test_name self_update/${OCX_CMAKE_${v}_TEST_LABEL})
     add_test(
@@ -245,6 +281,9 @@ endfunction()
 # (re-stored, hit again). See tests/reconfigure_check.cmake.
 function(ocx_add_memoize_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_memoize_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_cmake_test_gate(gate ${v})
     set(test_name memoize/${OCX_CMAKE_${v}_TEST_LABEL})
@@ -264,6 +303,9 @@ endfunction()
 # configure under the leg's gate. A green result means the gate is live.
 function(ocx_add_gate_canary_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_gate_canary_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_cmake_test_gate(gate ${v})
     foreach(canary IN ITEMS author deprecation)
@@ -287,6 +329,9 @@ endfunction()
 # from OCX_EXECUTABLE (fully offline); a tampered archive is refused.
 function(ocx_add_mirror_test)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_mirror_test): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
   foreach(v IN LISTS arg_VERSIONS)
     ocx_cmake_test_gate(gate ${v})
     set(test_name mirror/${OCX_CMAKE_${v}_TEST_LABEL})
@@ -297,6 +342,29 @@ function(ocx_add_mirror_test)
         "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/mirror-cmake${v}"
         "-DMODULE_PATH=${CMAKE_SOURCE_DIR}" "-DOCX_EXE=${OCX_EXECUTABLE}" "-DGATE=${gate}" -P
         "${CMAKE_SOURCE_DIR}/tests/mirror_check.cmake"
+    )
+    __ocx_test_props(${test_name} SCRIPT)
+  endforeach()
+endfunction()
+
+# Which ocx a build directory settles on across reconfigures (PATH, the pin
+# from a file:// mirror, a mistyped path). See tests/executable_check.cmake.
+function(ocx_add_executable_test)
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "VERSIONS")
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "ocx_add_executable_test: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
+  foreach(v IN LISTS arg_VERSIONS)
+    ocx_cmake_test_gate(gate ${v})
+    set(test_name executable/${OCX_CMAKE_${v}_TEST_LABEL})
+    add_test(
+      NAME ${test_name}
+      COMMAND
+        ${OCX_CMAKE_${v}_RUN} cmake "-DFIXTURE_SRC=${CMAKE_SOURCE_DIR}/tests/fixtures/provenance"
+        "-DMIRROR_FIXTURE=${CMAKE_SOURCE_DIR}/tests/fixtures/mirror"
+        "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/executable-cmake${v}"
+        "-DMODULE_PATH=${CMAKE_SOURCE_DIR}" "-DOCX_EXE=${OCX_EXECUTABLE}" "-DGATE=${gate}" -P
+        "${CMAKE_SOURCE_DIR}/tests/executable_check.cmake"
     )
     __ocx_test_props(${test_name} SCRIPT)
   endforeach()

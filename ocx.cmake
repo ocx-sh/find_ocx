@@ -455,6 +455,12 @@ set(__OCX_DIST_JSON [=[
 # --- END OCX DIST SNAPSHOT ---
 # gersemi: on
 
+# The plain variables above live in the scope that included this file: a
+# function that includes it, or a subdirectory, takes them away again. The
+# commands read these GLOBAL copies instead.
+set_property(GLOBAL PROPERTY __OCX_PIN_VERSION "${__OCX_PIN_VERSION}")
+set_property(GLOBAL PROPERTY __OCX_DIST_JSON "${__OCX_DIST_JSON}")
+
 # ---------------------------------------------------------------------------
 # Environment classes
 # ---------------------------------------------------------------------------
@@ -477,7 +483,16 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
   Path of the ocx CLI that runs every command.
   The environment value is snapshotted like every other variable, so CI needs no ``-D``.
   ``export OCX_EXECUTABLE=$(which ocx)`` is enough.
-  When the variable is unset, the first provisioning call bootstraps the pinned CLI.
+  A path that does not exist is a configure error, and it never falls back to ``PATH``.
+  An empty value, as in ``-DOCX_EXECUTABLE=``, counts as unset.
+
+  When the variable is unset, the first provisioning call looks on ``PATH`` and then bootstraps the pinned CLI.
+  The module remembers a path that it chose itself and chooses again on every configure.
+  A changed :variable:`OCX_INSTALL_VERSION`, a newer pin or ``OCX_BOOTSTRAP=ALWAYS`` therefore reaches an existing build directory.
+  A path that you set stays as it is.
+  An explicit :command:`ocx_bootstrap` call is the one command that replaces a path of another version.
+
+  The value must not contain ``;``, which a CMake list cannot carry.
 
 .. variable:: OCX_INSTALL_DIST_URL
 
@@ -497,7 +512,8 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
 
   Path of a PEM CA bundle that the CLI download trusts instead of the system store.
   Use it for a mirror behind a TLS-intercepting proxy.
-  A path that is not a file is a configure error, checked on every configure that provisions the CLI.
+  A relative path resolves against the top-level source directory.
+  A path that is not a file is a configure error, checked on every configure that provisions or runs the CLI.
 
   The module passes the bundle as ``TLS_CAINFO`` to the manifest and archive downloads of :command:`ocx_bootstrap` and to :command:`ocx_self_update`.
   Every ocx call also receives it as ``OCX_EXTRA_CA_CERTS``, unless ``OCX_EXTRA_CA_CERTS`` is set.
@@ -515,7 +531,8 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
 .. variable:: OCX_BOOTSTRAP
 
   Policy for the implicit bootstrap of the first provisioning call when ``OCX_EXECUTABLE`` is not set.
-  The values are:
+  The values are the following, in any case.
+  The CMake booleans count as ``ON`` and ``OFF``, and any other value is a configure error.
 
   ``ON``
     The default, also when the variable is unset or empty.
@@ -531,6 +548,7 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
     Use it where configure-time downloads are forbidden.
 
   Inside ``Findocx.cmake`` the same variable opts in to the bootstrap fallback, because find modules discover by default.
+  An empty value counts as unset there too, which means ``OFF``.
 
 .. variable:: OCX_DEFAULT_PLATFORM
 
@@ -558,9 +576,12 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
 .. variable:: OCX_BOOTSTRAP_CACHE
 
   Cache directory for bootstrapped ocx binaries.
+  A relative path resolves against the top-level source directory.
   The default is per machine: ``%LOCALAPPDATA%/find_ocx`` on Windows, else ``$XDG_CACHE_HOME/find_ocx``, else ``~/.cache/find_ocx``.
   Without a home directory the module falls back to ``<build>/_ocx/cache``.
   Point the variable into the workspace on CI runners where the home directory is unreliable, and restore it with the CI cache.
+  The module copies a binary into place atomically and runs a cached one once per configure.
+  A binary that does not run or reports another version is removed and downloaded again.
 
 .. variable:: OCX_PROJECT_FILE
 
@@ -626,6 +647,8 @@ pinned       ``OCX_PROJECT`` ``OCX_GLOBAL``    Forced to a fixed value on every
 ===========  ================================  =========================================
 
 The configure-time calls and the exported ``OCX_<NAME>_RUN`` command lists carry the same environment.
+A value, a path or a site variable must not contain ``;``, which a CMake list cannot carry, and the module stops the configure when one does.
+The ambient value and the file content of the translucent variables are part of the reconfigure fingerprint, so changing ``OCX_CONFIG`` or a config file runs ocx again.
 ocx launchers export ``OCX_FROZEN`` and ``OCX_INDEX`` into child processes.
 Launchers are ``ocx exec`` and the frozen ``package exec``, including the ``OCX_<NAME>_RUN`` lists.
 A find_ocx configure nested inside one, such as an ExternalProject or a test harness, inherits the outer resolution mode.
@@ -714,14 +737,11 @@ endforeach()
 unset(__ocx_var)
 unset(__ocx_site)
 
-# Registers the config.toml tiers that exist right now, so editing one
-# re-runs the configure; a file created later needs a manual reconfigure.
-# Not watched: Windows /etc/ocx (drive-relative) and the Windows user tier
+# The config.toml tiers that ocx reads, as paths (they may not exist), plus
+# the files OCX_CONFIG, OCX_PATCH_SNAPSHOT and OCX_SIGSTORE_TRUSTED_ROOT name.
+# Not listed: Windows /etc/ocx (drive-relative) and the Windows user tier
 # (location undocumented).
-function(__ocx_watch_config)
-  if(CMAKE_SCRIPT_MODE_FILE)
-    return()
-  endif()
+function(__ocx_config_files out_var)
   set(files "")
   if(NOT CMAKE_HOST_WIN32)
     list(APPEND files "/etc/ocx/config.toml")
@@ -748,7 +768,19 @@ function(__ocx_watch_config)
     "${home}/state/managed-config/snapshot.json"
     "${home}/state/managed-config/config.toml"
     "$ENV{OCX_CONFIG}"
+    "$ENV{OCX_PATCH_SNAPSHOT}"
+    "$ENV{OCX_SIGSTORE_TRUSTED_ROOT}"
   )
+  set(${out_var} "${files}" PARENT_SCOPE)
+endfunction()
+
+# Registers the config.toml tiers that exist right now, so editing one
+# re-runs the configure; a file created later needs a manual reconfigure.
+function(__ocx_watch_config)
+  if(CMAKE_SCRIPT_MODE_FILE)
+    return()
+  endif()
+  __ocx_config_files(files)
   foreach(file IN LISTS files)
     if(IS_ABSOLUTE "${file}" AND EXISTS "${file}" AND NOT IS_DIRECTORY "${file}")
       set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${file}")
@@ -757,9 +789,44 @@ function(__ocx_watch_config)
 endfunction()
 __ocx_watch_config()
 
+# Fingerprint of what the ambient configuration contributes to an ocx call:
+# the translucent variables as the environment holds them, the content of the
+# config files the tiers name, and the ocx_policy trust root. A change to any
+# of them must not hit the memo.
+function(__ocx_ambient_fingerprint out_var)
+  set(fingerprint "")
+  get_property(translucent GLOBAL PROPERTY __OCX_ENV_TRANSLUCENT)
+  foreach(var IN LISTS translucent)
+    string(APPEND fingerprint "${var}=$ENV{${var}};")
+  endforeach()
+  __ocx_config_files(files)
+  get_property(root GLOBAL PROPERTY __OCX_POLICY_ROOT)
+  list(APPEND files "${root}")
+  foreach(file IN LISTS files)
+    if(IS_ABSOLUTE "${file}" AND EXISTS "${file}" AND NOT IS_DIRECTORY "${file}")
+      file(SHA256 "${file}" sha)
+      string(APPEND fingerprint "${file}:${sha};")
+    endif()
+  endforeach()
+  set(${out_var} "${fingerprint}" PARENT_SCOPE)
+endfunction()
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+# A ';' in a path or in a site value would split the command lists this module
+# builds (env entries, the exported OCX_<NAME>_RUN) into extra arguments, and
+# the break would show up at build time as an unrelated ocx usage error.
+function(__ocx_reject_semicolon what value)
+  if("${value}" MATCHES ";")
+    message(
+      FATAL_ERROR
+      "find_ocx: ${what} contains ';' ('${value}'), which a CMake list cannot carry\n"
+      "hint: use a path without a semicolon, or a symlink to it"
+    )
+  endif()
+endfunction()
 
 # Appends env entries ("VAR=value" or "--unset=VAR") to the list named
 # <list_var>; a later entry for a VAR replaces the earlier one.
@@ -803,7 +870,7 @@ endfunction()
 # blanks the ambient config, patch snapshot and OCX_PATCHES unless named.
 function(__ocx_translucent_env out_var)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "CONFIG;NO_CONFIG;PATCH_SNAPSHOT" "")
-  if(arg_UNPARSED_ARGUMENTS OR arg_KEYWORDS_MISSING_VALUES)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}" STREQUAL "")
     message(
       FATAL_ERROR
       "find_ocx: __ocx_translucent_env: bad arguments "
@@ -858,6 +925,7 @@ function(__ocx_env_entries out_var)
     if(NOT DEFINED ${var})
       continue()
     endif()
+    __ocx_reject_semicolon("${var}" "${${var}}")
     if("${${var}}" STREQUAL "")
       list(APPEND entries "--unset=${var}")
     else()
@@ -867,9 +935,9 @@ function(__ocx_env_entries out_var)
   # www-setup hands OCX_INSTALL_CA_BUNDLE to ocx the same way: one corporate CA
   # covers the bootstrap download and every ocx call, unless the operator set
   # OCX_EXTRA_CA_CERTS (also empty, which removes it) themselves.
-  __ocx_tls_cainfo(ca_unused)
-  if(NOT DEFINED OCX_EXTRA_CA_CERTS AND NOT "${OCX_INSTALL_CA_BUNDLE}" STREQUAL "")
-    list(APPEND entries "OCX_EXTRA_CA_CERTS=${OCX_INSTALL_CA_BUNDLE}")
+  __ocx_tls_cainfo(ca_unused ca_bundle)
+  if(NOT DEFINED OCX_EXTRA_CA_CERTS AND NOT "${ca_bundle}" STREQUAL "")
+    list(APPEND entries "OCX_EXTRA_CA_CERTS=${ca_bundle}")
   endif()
   foreach(var IN LISTS explicit)
     list(APPEND entries "--unset=${var}")
@@ -1003,7 +1071,7 @@ endfunction()
 # any other failure ends the configure with ocx's message and a hint.
 function(__ocx_run)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "WHAT;OUTPUT_VARIABLE;RETRIES" "COMMAND;ENV;HINTS")
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(FATAL_ERROR "find_ocx: __ocx_run: unexpected arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
   __ocx_env_prefix(prefix ${arg_ENV})
@@ -1053,21 +1121,33 @@ function(__ocx_run)
 endfunction()
 
 # TLS_CAINFO arguments for a file(DOWNLOAD) when OCX_INSTALL_CA_BUNDLE names a
-# CA bundle; empty otherwise. A path that is not a file fails here, not as an
-# opaque TLS error from the download or from an ocx call.
+# CA bundle; empty otherwise. <out_path> (optional) receives the bundle as an
+# absolute path: a relative one resolves against the top-level source
+# directory, because the ocx calls run from another directory. A path that is
+# not a file fails here, not as an opaque TLS error from the download or from
+# an ocx call.
 function(__ocx_tls_cainfo out_var)
   set(${out_var} "" PARENT_SCOPE)
+  if(ARGC GREATER 1)
+    set(${ARGV1} "" PARENT_SCOPE)
+  endif()
   if("${OCX_INSTALL_CA_BUNDLE}" STREQUAL "")
     return()
   endif()
-  if(NOT EXISTS "${OCX_INSTALL_CA_BUNDLE}" OR IS_DIRECTORY "${OCX_INSTALL_CA_BUNDLE}")
+  set(bundle "${OCX_INSTALL_CA_BUNDLE}")
+  cmake_path(ABSOLUTE_PATH bundle BASE_DIRECTORY "${CMAKE_SOURCE_DIR}" NORMALIZE)
+  if(NOT EXISTS "${bundle}" OR IS_DIRECTORY "${bundle}")
     message(
       FATAL_ERROR
       "find_ocx: OCX_INSTALL_CA_BUNDLE='${OCX_INSTALL_CA_BUNDLE}' is not a readable file\n"
       "hint: point it at a PEM bundle, or clear it with -DOCX_INSTALL_CA_BUNDLE="
     )
   endif()
-  set(${out_var} TLS_CAINFO "${OCX_INSTALL_CA_BUNDLE}" PARENT_SCOPE)
+  __ocx_reject_semicolon("OCX_INSTALL_CA_BUNDLE" "${bundle}")
+  set(${out_var} TLS_CAINFO "${bundle}" PARENT_SCOPE)
+  if(ARGC GREATER 1)
+    set(${ARGV1} "${bundle}" PARENT_SCOPE)
+  endif()
 endfunction()
 
 # Host detection -> cargo-dist release triple, ocx platform key, exe suffix.
@@ -1180,21 +1260,69 @@ function(__ocx_cli_version out_var)
   set(${out_var} "${out}" PARENT_SCOPE)
 endfunction()
 
+# OCX_BOOTSTRAP as ON, OFF or ALWAYS. Empty or unset is <default> (the entry
+# points differ in it); the CMake boolean spellings map to ON and OFF, in any
+# case. Any other value is an error: a typo such as 'always' would otherwise
+# mean ON silently.
+function(__ocx_bootstrap_mode out_var default)
+  set(mode "${default}")
+  if(DEFINED OCX_BOOTSTRAP AND NOT "${OCX_BOOTSTRAP}" STREQUAL "")
+    string(TOUPPER "${OCX_BOOTSTRAP}" value)
+    if(value STREQUAL "ALWAYS")
+      set(mode ALWAYS)
+    elseif(value MATCHES "^(ON|TRUE|YES|Y|1)$")
+      set(mode ON)
+    elseif(value MATCHES "^(OFF|FALSE|NO|N|0)$")
+      set(mode OFF)
+    else()
+      message(
+        FATAL_ERROR
+        "find_ocx: OCX_BOOTSTRAP='${OCX_BOOTSTRAP}' is not ON, OFF or ALWAYS\n"
+        "hint: ON bootstraps when no ocx is found, ALWAYS skips the PATH search, "
+        "OFF forbids the download"
+      )
+    endif()
+  endif()
+  set(${out_var} "${mode}" PARENT_SCOPE)
+endfunction()
+
 # Ensures OCX_EXECUTABLE is usable: explicit setting, else PATH, else the
 # pinned bootstrap (OCX_BOOTSTRAP: ALWAYS skips PATH, OFF forbids the
 # download).
+# A path this module chose itself (PATH hit or bootstrap) is remembered in
+# __OCX_AUTO_EXECUTABLE and chosen again on every configure, so a changed
+# OCX_INSTALL_VERSION, a new pin or OCX_BOOTSTRAP=ALWAYS reaches an existing
+# build directory. Anything else in OCX_EXECUTABLE is the user's: it must
+# exist, and it is never replaced. An empty value, a mistyped path of an
+# earlier find_program and find_program's own NOTFOUND are not settings,
+# and find_program skips a variable that is already set, so they are unset first.
 function(__ocx_require_cli)
-  if(NOT DEFINED OCX_EXECUTABLE OR NOT EXISTS "${OCX_EXECUTABLE}")
-    if(NOT "${OCX_BOOTSTRAP}" STREQUAL "ALWAYS")
+  __ocx_bootstrap_mode(mode ON)
+  set(given "${OCX_EXECUTABLE}")
+  if(given MATCHES "-NOTFOUND$" OR given STREQUAL "$CACHE{__OCX_AUTO_EXECUTABLE}")
+    set(given "")
+  endif()
+  if(NOT given STREQUAL "")
+    if(NOT EXISTS "${given}")
+      message(
+        FATAL_ERROR
+        "find_ocx: OCX_EXECUTABLE='${given}' does not exist\n"
+        "hint: fix the path, or clear it with -DOCX_EXECUTABLE= to search PATH"
+      )
+    endif()
+  else()
+    unset(OCX_EXECUTABLE CACHE)
+    unset(OCX_EXECUTABLE)
+    if(NOT mode STREQUAL "ALWAYS")
       find_program(OCX_EXECUTABLE NAMES ocx DOC "Path to the ocx CLI")
     endif()
-    if(OCX_EXECUTABLE AND EXISTS "${OCX_EXECUTABLE}")
+    if(OCX_EXECUTABLE)
       message(
         STATUS
         "find_ocx: using ocx from PATH (${OCX_EXECUTABLE}) - "
         "OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead"
       )
-    elseif(NOT "${OCX_BOOTSTRAP}" STREQUAL "" AND NOT OCX_BOOTSTRAP)
+    elseif(mode STREQUAL "OFF")
       message(
         FATAL_ERROR
         "find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit "
@@ -1204,7 +1332,15 @@ function(__ocx_require_cli)
     else()
       ocx_bootstrap()
     endif()
+    set(OCX_EXECUTABLE "${OCX_EXECUTABLE}" PARENT_SCOPE)
+    set(
+      __OCX_AUTO_EXECUTABLE
+      "${OCX_EXECUTABLE}"
+      CACHE INTERNAL
+      "find_ocx: ocx chosen by the module"
+    )
   endif()
+  __ocx_reject_semicolon("OCX_EXECUTABLE" "${OCX_EXECUTABLE}")
 endfunction()
 
 # Registers a provisioning NAME; duplicate names across the whole configure
@@ -1219,6 +1355,20 @@ endfunction()
 
 function(__ocx_set_result var)
   set(${var} "${ARGN}" CACHE INTERNAL "find_ocx result (recomputed each configure)")
+endfunction()
+
+# Drops every result variable of NAME before a call recomputes them: a BINS
+# entry or a PLATFORM that a later configure drops would otherwise survive in
+# the cache, and add_test(COMMAND ${OCX_<NAME>_RUN_<BIN>}) would keep working.
+# ponytail: a NAME that extends another with _RUN or _ENV_ shares its prefix; the
+# result-variable scheme cannot tell them apart.
+function(__ocx_clear_results name)
+  get_cmake_property(cached CACHE_VARIABLES)
+  foreach(var IN LISTS cached)
+    if(var MATCHES "^OCX_${name}_(RUN|RUN_.+|PATHS|CONTENT|ENV_.+)$")
+      unset(${var} CACHE)
+    endif()
+  endforeach()
 endfunction()
 
 # Reconfigure memoization: returns TRUE in out_var when the stored
@@ -1299,6 +1449,7 @@ endfunction()
     An ``OCX_NO_VERIFY`` or ``OCX_ALLOW_YANKED`` in the environment is removed from every ocx call.
     An inherited variable can therefore never weaken a build silently.
     Nothing is cached, so state the policy in the project listfile on every configure.
+    An empty argument value is an error, because it usually means that a variable is unset.
 
     Call the command before the first :command:`ocx_project` or :command:`ocx_package`.
     A repeated call with identical arguments is a no-op.
@@ -1331,21 +1482,26 @@ endfunction()
     ocx_policy(ALLOW_YANKED)
 #]=]
 function(ocx_policy)
+  __ocx_reject_empty_args("ocx_policy" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 0 arg "ALLOW_UNVERIFIED;ALLOW_YANKED" "SIGSTORE_TRUSTED_ROOT" "")
-  if(arg_UNPARSED_ARGUMENTS OR arg_KEYWORDS_MISSING_VALUES)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}" STREQUAL "")
     message(
       FATAL_ERROR
       "find_ocx: ocx_policy: bad arguments "
       "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'"
     )
   endif()
-  if(arg_SIGSTORE_TRUSTED_ROOT AND NOT IS_ABSOLUTE "${arg_SIGSTORE_TRUSTED_ROOT}")
+  if(
+    NOT "${arg_SIGSTORE_TRUSTED_ROOT}" STREQUAL ""
+    AND NOT IS_ABSOLUTE "${arg_SIGSTORE_TRUSTED_ROOT}"
+  )
     message(
       FATAL_ERROR
       "find_ocx: ocx_policy: SIGSTORE_TRUSTED_ROOT must be an absolute path, "
       "got '${arg_SIGSTORE_TRUSTED_ROOT}'"
     )
   endif()
+  __ocx_reject_semicolon("ocx_policy SIGSTORE_TRUSTED_ROOT" "${arg_SIGSTORE_TRUSTED_ROOT}")
   set(unverified 0)
   set(yanked 0)
   if(arg_ALLOW_UNVERIFIED)
@@ -1429,6 +1585,8 @@ endfunction()
     .. versionchanged:: 0.4
       Downloads verify TLS and are bounded by a timeout.
       The module probes the version of a fresh binary.
+      A binary is copied into the cache atomically, and a cached binary that does not run is downloaded again.
+      An empty argument value is an error, because it usually means that a variable is unset.
 
   Options
   ^^^^^^^
@@ -1469,19 +1627,20 @@ endfunction()
     find_package(ocx REQUIRED)
 #]=]
 function(ocx_bootstrap)
+  __ocx_reject_empty_args("ocx_bootstrap" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "VERSION;TRIPLE;DIST_MANIFEST" "")
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(FATAL_ERROR "find_ocx: ocx_bootstrap: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
   if(arg_KEYWORDS_MISSING_VALUES)
     message(FATAL_ERROR "find_ocx: ocx_bootstrap: missing value for ${arg_KEYWORDS_MISSING_VALUES}")
   endif()
 
-  set(version "${__OCX_PIN_VERSION}")
+  get_property(version GLOBAL PROPERTY __OCX_PIN_VERSION)
   if(DEFINED OCX_INSTALL_VERSION AND NOT "${OCX_INSTALL_VERSION}" STREQUAL "")
     set(version "${OCX_INSTALL_VERSION}")
   endif()
-  if(arg_VERSION)
+  if(NOT "${arg_VERSION}" STREQUAL "")
     set(version "${arg_VERSION}")
   endif()
 
@@ -1496,7 +1655,7 @@ function(ocx_bootstrap)
 
   __ocx_host_info(host_triple host_platform exe_ext)
   set(triple "${host_triple}")
-  if(arg_TRIPLE)
+  if(NOT "${arg_TRIPLE}" STREQUAL "")
     set(triple "${arg_TRIPLE}")
   endif()
 
@@ -1513,16 +1672,41 @@ function(ocx_bootstrap)
     # correctness over sharing.
     set(cache_root "${CMAKE_BINARY_DIR}/_ocx/cache")
   endif()
+  # A relative root would split the binary between the build directory (where
+  # file(COPY) writes) and the directory the ocx calls run in.
+  cmake_path(ABSOLUTE_PATH cache_root BASE_DIRECTORY "${CMAKE_SOURCE_DIR}" NORMALIZE)
   set(binary "${cache_root}/${version}/${triple}/ocx${exe_ext}")
 
   # Warm machine cache: no manifest work, no network - not even the
   # OCX_INSTALL_DIST_URL fetch (air-gapped reconfigures stay offline).
   # The bundle path is validated on every configure, not only on a cold download.
   __ocx_tls_cainfo(ca_args)
+  # A cached binary must still run and report the version it is filed under: an
+  # interrupted copy or a full disk leaves a file that exists and cannot run.
+  # A foreign TRIPLE cannot run here, so it is trusted as it is.
+  if(EXISTS "${binary}" AND triple STREQUAL host_triple)
+    __ocx_env_entries(probe_env)
+    execute_process(
+      COMMAND "${CMAKE_COMMAND}" -E env ${probe_env} "${binary}" version
+      RESULT_VARIABLE probe_rc
+      OUTPUT_VARIABLE probe_out
+      ERROR_QUIET
+      ENCODING UTF-8
+    )
+    string(STRIP "${probe_out}" probe_out)
+    if(NOT probe_rc EQUAL 0 OR NOT probe_out VERSION_EQUAL version)
+      message(
+        STATUS
+        "find_ocx: the cached ${binary} does not report ocx ${version} "
+        "(exit ${probe_rc}) - downloading it again"
+      )
+      file(REMOVE "${binary}")
+    endif()
+  endif()
   set(fresh FALSE)
   if(NOT EXISTS "${binary}")
     set(fresh TRUE)
-    if(arg_DIST_MANIFEST)
+    if(NOT "${arg_DIST_MANIFEST}" STREQUAL "")
       cmake_path(
         ABSOLUTE_PATH arg_DIST_MANIFEST
         BASE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
@@ -1548,6 +1732,12 @@ function(ocx_bootstrap)
       set(manifest_hash "")
       if(NOT manifest_sha STREQUAL "")
         set(manifest_hash EXPECTED_HASH "SHA256=${manifest_sha}")
+      else()
+        message(
+          STATUS
+          "find_ocx: OCX_INSTALL_DIST_URL is not named <sha256>.json - its manifest is "
+          "fetched unverified, so that host decides which archive hashes are trusted"
+        )
       endif()
       file(
         DOWNLOAD "${OCX_INSTALL_DIST_URL}"
@@ -1572,7 +1762,7 @@ function(ocx_bootstrap)
       endif()
       file(READ "${dist_file}" manifest)
     else()
-      set(manifest "${__OCX_DIST_JSON}")
+      get_property(manifest GLOBAL PROPERTY __OCX_DIST_JSON)
     endif()
 
     __ocx_select_release("${manifest}" "${version}" "${triple}" url sha tag filename)
@@ -1597,10 +1787,11 @@ function(ocx_bootstrap)
     set(scratch "${CMAKE_BINARY_DIR}/_ocx")
     set(archive "${scratch}/${filename}")
     message(STATUS "find_ocx: downloading ocx ${version} (${triple}) from ${url}")
+    get_property(pin GLOBAL PROPERTY __OCX_PIN_VERSION)
     message(
       STATUS
       "find_ocx:   version knob: OCX_INSTALL_VERSION (pin: "
-      "${__OCX_PIN_VERSION}); cache: ${cache_root}; opt out: "
+      "${pin}); cache: ${cache_root}; opt out: "
       "OCX_BOOTSTRAP=OFF + OCX_EXECUTABLE"
     )
     file(
@@ -1640,12 +1831,28 @@ function(ocx_bootstrap)
         "find_ocx: 'ocx${exe_ext}' not found in the extracted archive from ${url}"
       )
     endif()
-    file(COPY "${source}" DESTINATION "${cache_root}/${version}/${triple}")
+    # Copy beside the target and rename into place: the cache is shared by all
+    # build trees, and a copy that stops half way must never be taken for the
+    # binary. The rename is atomic on one file system.
+    string(RANDOM LENGTH 8 ALPHABET 0123456789abcdef stage_id)
+    set(stage "${cache_root}/${version}/${triple}/.stage-${stage_id}")
+    file(COPY "${source}" DESTINATION "${stage}")
+    file(RENAME "${stage}/ocx${exe_ext}" "${binary}")
+    file(REMOVE_RECURSE "${stage}")
     file(REMOVE_RECURSE "${extract_dir}")
     file(REMOVE "${archive}")
   endif()
 
+  # ocx_bootstrap is the one writer of OCX_EXECUTABLE besides the user: a
+  # binary that does not match the requested version was replaced above, and
+  # this call is the sanctioned exception to "never FORCE a user knob". The
+  # plain copies keep a normal variable of the same name from shadowing the
+  # cache entry here and in the caller. A direct call is user intent, so it
+  # also withdraws the module's own mark (see __ocx_require_cli).
   set(OCX_EXECUTABLE "${binary}" CACHE FILEPATH "Path to the ocx CLI" FORCE)
+  set(OCX_EXECUTABLE "${binary}")
+  set(OCX_EXECUTABLE "${binary}" PARENT_SCOPE)
+  unset(__OCX_AUTO_EXECUTABLE CACHE)
   set_property(GLOBAL PROPERTY __OCX_CLI_VERSION "")
   set(reported "${version}")
   # A fresh binary must report the version the manifest row promised: a
@@ -1736,6 +1943,7 @@ function(
     string(TOLOWER "${keyword}" var)
     if(NOT "${${var}}" STREQUAL "")
       get_filename_component(path "${${var}}" ABSOLUTE)
+      __ocx_reject_semicolon("${keyword}" "${path}")
       list(APPEND translucent_args ${keyword} "${path}")
       if(EXISTS "${path}" AND NOT IS_DIRECTORY "${path}")
         file(SHA256 "${path}" sha)
@@ -1752,7 +1960,8 @@ function(
     list(APPEND translucent_args NO_CONFIG TRUE)
   endif()
   __ocx_translucent_env(env ${translucent_args})
-  string(APPEND fingerprint "NO_CONFIG=${no_config};ENV=${env}")
+  __ocx_ambient_fingerprint(ambient)
+  string(APPEND fingerprint "NO_CONFIG=${no_config};ENV=${env};AMBIENT=${ambient}")
   set(${out_env} "${env}" PARENT_SCOPE)
   set(${out_fingerprint} "${fingerprint}" PARENT_SCOPE)
 endfunction()
@@ -1762,7 +1971,7 @@ endfunction()
 function(__ocx_probe out_rc out_stdout)
   # gersemi: hints { COMMAND: command_line }
   cmake_parse_arguments(PARSE_ARGV 2 arg "" "" "COMMAND;ENV")
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(FATAL_ERROR "find_ocx: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
   __ocx_env_prefix(prefix ${arg_ENV})
@@ -1835,7 +2044,7 @@ function(__ocx_validate_bins)
     "WHAT;WIDER_HINT"
     "BINS;COMMAND;WIDER_COMMAND;ENV;HINTS"
   )
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(FATAL_ERROR "find_ocx: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
 
@@ -1873,7 +2082,7 @@ function(__ocx_validate_bins)
       list(APPEND missing "${bin}")
     endif()
   endforeach()
-  if(NOT missing)
+  if("${missing}" STREQUAL "")
     return()
   endif()
   if(NOT complete)
@@ -1895,7 +2104,7 @@ function(__ocx_validate_bins)
           list(APPEND elsewhere "${bin}")
         endif()
       endforeach()
-      if(elsewhere)
+      if(NOT "${elsewhere}" STREQUAL "")
         message(
           FATAL_ERROR
           "find_ocx: ${arg_WHAT}: BINS ${elsewhere}: declared only in a "
@@ -2043,6 +2252,7 @@ endfunction()
   ^^^^^^^^^^^^^^^^
 
   The call exports these variables as global cache-internal values, usable from any directory.
+  Each run of a changed call removes the variables of the same ``NAME`` that an earlier configure exported, so a dropped ``BINS`` entry no longer leaves its command behind.
 
   ``OCX_<NAME>_RUN``
     Command-list prefix that composes the project environment and runs any tool on it.
@@ -2108,9 +2318,9 @@ function(ocx_project)
     "NAME;TOML;LOCK;PLATFORM;CONFIG;PATCH_SNAPSHOT"
     "GROUPS;BINS"
   )
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     set(hint "")
-    if(arg_PLATFORM)
+    if(NOT "${arg_PLATFORM}" STREQUAL "")
       set(hint " (PLATFORM takes a single ocx platform)")
     endif()
     message(
@@ -2148,25 +2358,27 @@ function(ocx_project)
     return()
   endif()
 
-  if(arg_TOML)
+  if(NOT "${arg_TOML}" STREQUAL "")
     set(toml "${arg_TOML}")
   else()
     __ocx_default_toml(toml)
   endif()
   get_filename_component(toml "${toml}" ABSOLUTE)
+  __ocx_reject_semicolon("ocx_project TOML" "${toml}")
   if(NOT EXISTS "${toml}")
     message(FATAL_ERROR "find_ocx: ocx_project: '${toml}' does not exist")
   endif()
-  if(arg_LOCK)
+  if(NOT "${arg_LOCK}" STREQUAL "")
     set(lock "${arg_LOCK}")
     get_filename_component(lock "${lock}" ABSOLUTE)
   else()
     get_filename_component(lock_dir "${toml}" DIRECTORY)
     set(lock "${lock_dir}/ocx.lock")
   endif()
+  __ocx_reject_semicolon("ocx_project LOCK" "${lock}")
 
   __ocx_single_platform(platform "ocx_project" "${arg_PLATFORM}")
-  if(platform AND arg_BINS)
+  if(NOT "${platform}" STREQUAL "" AND NOT "${arg_BINS}" STREQUAL "")
     message(
       FATAL_ERROR
       "find_ocx: ocx_project: PLATFORM is incompatible with BINS - foreign "
@@ -2175,7 +2387,7 @@ function(ocx_project)
   endif()
 
   set(pull ${arg_PULL})
-  if(OCX_PULL OR platform)
+  if(OCX_PULL OR NOT "${platform}" STREQUAL "")
     set(pull TRUE) # foreign platforms: the pulled content IS the product
   endif()
 
@@ -2199,6 +2411,7 @@ function(ocx_project)
   )
 
   __ocx_cli_version(cli_version)
+  get_property(module_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
   file(SHA256 "${toml}" toml_sha)
   set(lock_sha "missing")
   if(EXISTS "${lock}")
@@ -2207,22 +2420,23 @@ function(ocx_project)
   __ocx_env_prefix(prefix ${config_env})
   string(
     SHA256 fingerprint
-    "project|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${toml}|${toml_sha}|${lock_sha}|${arg_GROUPS}|${arg_BINS}|${platform}|${pull}|${prefix}|${config_fingerprint}"
+    "project|${module_version}|${cli_version}|${OCX_EXECUTABLE}|${toml}|${toml_sha}|${lock_sha}|${arg_GROUPS}|${arg_BINS}|${platform}|${pull}|${prefix}|${config_fingerprint}"
   )
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
   if(hit)
     message(STATUS "find_ocx: ${name} up to date (memoized)")
     return()
   endif()
+  __ocx_clear_results("${name}")
 
   set(groups_args "")
   set(groups_csv "")
-  if(arg_GROUPS)
+  if(NOT "${arg_GROUPS}" STREQUAL "")
     list(JOIN arg_GROUPS "," groups_csv)
     set(groups_args -g "${groups_csv}")
   endif()
   set(platform_args "")
-  if(platform)
+  if(NOT "${platform}" STREQUAL "")
     set(platform_args -p "${platform}")
   endif()
 
@@ -2247,7 +2461,7 @@ function(ocx_project)
   endif()
 
   set(guard_paths "")
-  if(platform)
+  if(NOT "${platform}" STREQUAL "")
     # --pinned: digest paths. The default link paths point at whichever
     # platform pull/exec/env rendered last, so a later host exec would
     # silently turn them into host binaries.
@@ -2293,7 +2507,7 @@ function(ocx_project)
     endforeach()
   endif()
 
-  if(arg_BINS)
+  if(NOT "${arg_BINS}" STREQUAL "")
     set(wider_command "")
     if(NOT "${groups_csv}" MATCHES "(^|,)all(,|$)")
       set(
@@ -2492,6 +2706,7 @@ endfunction()
   ^^^^^^^^^^^^^^^^
 
   The call exports these variables as global cache-internal values.
+  Each run of a changed call removes the variables of the same ``NAME`` that an earlier configure exported, ``<name>_ROOT`` included.
 
   ``OCX_<NAME>_RUN``, ``OCX_<NAME>_RUN_<BIN>``
     The command lists described for :command:`ocx_project`.
@@ -2566,9 +2781,9 @@ function(ocx_package)
     "NAME;PACKAGE;INDEX;PLATFORM;CONFIG;PATCH_SNAPSHOT"
     "PINS;BINS"
   )
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     set(hint "")
-    if(arg_PLATFORM)
+    if(NOT "${arg_PLATFORM}" STREQUAL "")
       set(hint " (PLATFORM takes a single ocx platform)")
     endif()
     message(
@@ -2607,14 +2822,14 @@ function(ocx_package)
     return()
   endif()
 
-  if(arg_INDEX AND arg_NO_INDEX)
+  if(NOT "${arg_INDEX}" STREQUAL "" AND arg_NO_INDEX)
     message(
       FATAL_ERROR
       "find_ocx: ocx_package ${arg_NAME}: INDEX and NO_INDEX are mutually exclusive"
     )
   endif()
   __ocx_single_platform(platform "ocx_package" "${arg_PLATFORM}")
-  if(platform AND arg_BINS)
+  if(NOT "${platform}" STREQUAL "" AND NOT "${arg_BINS}" STREQUAL "")
     message(
       FATAL_ERROR
       "find_ocx: ocx_package: PLATFORM is incompatible with BINS - foreign "
@@ -2625,7 +2840,7 @@ function(ocx_package)
   __ocx_require_cli()
   __ocx_host_info(host_triple host_platform exe_ext)
   # The platform PINS are keyed on: the requested one, else the host.
-  if(platform)
+  if(NOT "${platform}" STREQUAL "")
     set(pin_platform "${platform}")
   else()
     set(pin_platform "${host_platform}")
@@ -2652,7 +2867,7 @@ function(ocx_package)
     endif()
   endforeach()
   # A PINS list that skips the effective platform would silently leave a floating ref.
-  if(arg_PINS AND NOT pin_matched)
+  if(NOT "${arg_PINS}" STREQUAL "" AND NOT pin_matched)
     list(JOIN pin_keys ", " pin_keys_text)
     message(
       FATAL_ERROR
@@ -2667,7 +2882,7 @@ function(ocx_package)
   # empty OCX_INDEX (-DOCX_INDEX=) neutralizes a launcher-inherited value
   # but does not veto the project's own committed snapshot.
   set(index_dir "")
-  if(arg_INDEX)
+  if(NOT "${arg_INDEX}" STREQUAL "")
     get_filename_component(index_dir "${arg_INDEX}" ABSOLUTE)
   elseif(NOT arg_NO_INDEX)
     if(DEFINED OCX_INDEX AND NOT "${OCX_INDEX}" STREQUAL "")
@@ -2676,6 +2891,8 @@ function(ocx_package)
       __ocx_find_index(index_dir)
     endif()
   endif()
+
+  __ocx_reject_semicolon("ocx_package INDEX" "${index_dir}")
 
   # Reproducible-first: a floating tag with no index in effect and no
   # digest pin would resolve differently over time - fail instead.
@@ -2717,7 +2934,9 @@ function(ocx_package)
       math(EXPR index_slash "${index_slash} + 1")
       string(SUBSTRING "${index_repo}" ${index_slash} -1 index_path)
     endif()
-    set(index_leaf "${index_dir}/${index_registry}/p/${index_path}.json")
+    # ocx names the registry directory with ':' written '_' (localhost:5001 -> localhost_5001).
+    string(REPLACE ":" "_" index_registry_dir "${index_registry}")
+    set(index_leaf "${index_dir}/${index_registry_dir}/p/${index_path}.json")
     if(EXISTS "${index_leaf}")
       file(SHA256 "${index_leaf}" index_leaf_sha)
       if(NOT CMAKE_SCRIPT_MODE_FILE)
@@ -2726,12 +2945,12 @@ function(ocx_package)
     endif()
   endif()
   set(platform_args "")
-  if(platform)
+  if(NOT "${platform}" STREQUAL "")
     set(platform_args -p "${platform}")
   endif()
 
   set(pull ${arg_PULL})
-  if(OCX_PULL OR platform)
+  if(OCX_PULL OR NOT "${platform}" STREQUAL "")
     set(pull TRUE)
   endif()
 
@@ -2744,15 +2963,27 @@ function(ocx_package)
   )
 
   __ocx_cli_version(cli_version)
+  get_property(module_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
   __ocx_env_prefix(prefix ${config_env})
   string(
     SHA256 fingerprint
-    "package|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}"
+    "package|${module_version}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}"
   )
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
   if(hit)
     message(STATUS "find_ocx: ${name} up to date (memoized)")
     return()
+  endif()
+  __ocx_clear_results("${name}")
+  # A root that an earlier configure exported stays only if this call exports it again.
+  if(NOT pull OR arg_NO_ROOT)
+    if(NOT "$CACHE{__OCX_R_${name}_ROOTVAR}" STREQUAL "")
+      set(old_root "$CACHE{__OCX_R_${name}_ROOTVAR}")
+      string(REGEX REPLACE "_ROOT$" "_DIR" old_dir "${old_root}")
+      unset(${old_root} CACHE)
+      unset(${old_dir} CACHE)
+      unset(__OCX_R_${name}_ROOTVAR CACHE)
+    endif()
   endif()
 
   if(index_dir)
@@ -2813,6 +3044,7 @@ function(ocx_package)
         "find_ocx: content root of ${ref} (CMP0074 search hint)"
         FORCE
       )
+      __ocx_set_result(__OCX_R_${name}_ROOTVAR "${arg_NAME}_ROOT")
     endif()
   elseif(NOT ref MATCHES "@sha256:" AND NOT index_dir)
     # only reachable with OCX_ALLOW_FLOATING (the gate above fails otherwise)
@@ -2824,7 +3056,7 @@ function(ocx_package)
     )
   endif()
 
-  if(platform)
+  if(NOT "${platform}" STREQUAL "")
     __ocx_run(
       WHAT "composing the ${platform} environment of ${ref}"
       ENV ${config_env}
@@ -2856,7 +3088,7 @@ function(ocx_package)
     endforeach()
   endif()
 
-  if(arg_BINS)
+  if(NOT "${arg_BINS}" STREQUAL "")
     __ocx_validate_bins(
       WHAT "ocx_package ${arg_NAME} (${ref})"
       ENV ${config_env}
@@ -2878,7 +3110,7 @@ endfunction()
 function(__ocx_index_find out_var)
   __ocx_reject_empty_args("ocx_index(FIND)" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 1 arg "REQUIRED" "" "")
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(FATAL_ERROR "find_ocx: ocx_index(FIND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
   set(${out_var} "" PARENT_SCOPE)
@@ -2910,7 +3142,7 @@ endfunction()
 function(__ocx_index_update_command out_var)
   __ocx_reject_empty_args("ocx_index(UPDATE_COMMAND)" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "INDEX" "PACKAGES")
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(
       FATAL_ERROR
       "find_ocx: ocx_index(UPDATE_COMMAND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'"
@@ -2923,7 +3155,7 @@ function(__ocx_index_update_command out_var)
     )
   endif()
 
-  if(arg_INDEX)
+  if(NOT "${arg_INDEX}" STREQUAL "")
     get_filename_component(dir "${arg_INDEX}" ABSOLUTE)
   elseif(DEFINED OCX_INDEX AND NOT "${OCX_INDEX}" STREQUAL "")
     get_filename_component(dir "${OCX_INDEX}" ABSOLUTE)
@@ -3083,7 +3315,17 @@ function(ocx_index op)
   if(ARGC GREATER first)
     math(EXPR last "${ARGC} - 1")
     foreach(i RANGE ${first} ${last})
-      string(APPEND quoted " [==[${ARGV${i}}]==]")
+      # A bracket argument ends at the first closing bracket of its own width:
+      # widen it until the value cannot contain it (a path may hold ']==]').
+      set(equals "==")
+      while(TRUE)
+        string(FIND "${ARGV${i}}" "]${equals}]" closing)
+        if(closing EQUAL -1)
+          break()
+        endif()
+        string(APPEND equals "=")
+      endwhile()
+      string(APPEND quoted " [${equals}[${ARGV${i}}]${equals}]")
     endforeach()
   endif()
   if(op STREQUAL "FIND")
@@ -3143,8 +3385,9 @@ endfunction()
     cmake -DOCX_SELF_UPDATE_VERSION=v0.4.0 -P cmake/ocx.cmake
 #]=]
 function(ocx_self_update)
+  __ocx_reject_empty_args("ocx_self_update" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "")
-  if(arg_UNPARSED_ARGUMENTS)
+  if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     message(
       FATAL_ERROR
       "find_ocx: ocx_self_update: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}"

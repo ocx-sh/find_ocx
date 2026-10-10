@@ -144,19 +144,26 @@ file(COPY_FILE "${SCRATCH}/direct.json" "${SCRATCH}/${zeros}.json")
 # succeeds and reports the pin, or exits nonzero with FAIL matching stderr:
 # status and diagnostic together, never one alone.
 function(i1_case name)
-  cmake_parse_arguments(PARSE_ARGV 1 arg "" "FAIL" "DEFINES;ARGS")
+  cmake_parse_arguments(PARSE_ARGV 1 arg "" "FAIL;CACHE_DEFINE;CACHE_AT" "DEFINES;ARGS")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "i1_case(${name}): unexpected arguments ${arg_UNPARSED_ARGUMENTS}")
   endif()
   set(cache "${SCRATCH}/cache-${name}")
   set(work "${SCRATCH}/work-${name}")
+  # CACHE_DEFINE is what OCX_BOOTSTRAP_CACHE holds (a relative path resolves
+  # against the work directory); CACHE_AT is where the binary must then land.
+  set(cache_define "${cache}")
+  if(DEFINED arg_CACHE_DEFINE)
+    set(cache_define "${arg_CACHE_DEFINE}")
+    set(cache "${arg_CACHE_AT}")
+  endif()
   file(MAKE_DIRECTORY "${work}")
   execute_process(
     COMMAND
       "${CMAKE_COMMAND}" -E env --unset=OCX_EXECUTABLE --unset=OCX_INSTALL_DIST_URL
       --unset=OCX_INSTALL_MIRROR_URL --unset=OCX_INSTALL_VERSION --unset=OCX_BOOTSTRAP_CACHE
       "${CMAKE_COMMAND}" -Werror=dev "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
-      "-DOCX_BOOTSTRAP_CACHE=${cache}" ${arg_DEFINES} "-DBOOT_ARGS=${arg_ARGS}" -P
+      "-DOCX_BOOTSTRAP_CACHE=${cache_define}" ${arg_DEFINES} "-DBOOT_ARGS=${arg_ARGS}" -P
       "${CMAKE_CURRENT_LIST_DIR}/bootstrap_child.cmake"
     WORKING_DIRECTORY "${work}"
     RESULT_VARIABLE rc
@@ -192,6 +199,11 @@ function(i1_case name)
       FATAL_ERROR
       "bootstrap_dist[${name}]: ${cache}/${pin}/${triple}/ocx${exe_ext} was not cached"
     )
+  endif()
+  # The copy goes through a staging directory beside the binary; none is left.
+  file(GLOB stages "${cache}/${pin}/${triple}/.stage-*")
+  if(stages)
+    message(FATAL_ERROR "bootstrap_dist[${name}]: staging left behind: ${stages}")
   endif()
 endfunction()
 
@@ -279,3 +291,22 @@ i1_case(
 )
 
 message(STATUS "bootstrap_dist: ok (ocx ${pin}, ${filename})")
+
+# A relative OCX_BOOTSTRAP_CACHE resolves against the top-level source directory
+# (the work directory of the child), so copy, probe and cache agree.
+i1_case(
+  relative_cache
+  CACHE_DEFINE relcache
+  CACHE_AT "${SCRATCH}/work-relative_cache/relcache"
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
+)
+# A binary that exists but does not run (an interrupted copy) is replaced, not
+# trusted: the next bootstrap downloads again.
+file(MAKE_DIRECTORY "${SCRATCH}/cache-truncated/${pin}/${triple}")
+file(WRITE "${SCRATCH}/cache-truncated/${pin}/${triple}/ocx${exe_ext}" "")
+i1_case(
+  truncated_cache
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
+  CACHE_DEFINE "${SCRATCH}/cache-truncated"
+  CACHE_AT "${SCRATCH}/cache-truncated"
+)

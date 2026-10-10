@@ -6,7 +6,7 @@
 # exit status and diagnostics for each.
 #   cmake -DMODULE_DIR=<repo> -DSCRATCH=<dir> -DOCX_EXE=<ocx> -P i2_check.cmake
 
-foreach(var MODULE_DIR SCRATCH OCX_EXE)
+foreach(var MODULE_DIR SCRATCH OCX_EXE GATE)
   if(NOT DEFINED ${var})
     message(FATAL_ERROR "i2_check: -D${var}=... is required")
   endif()
@@ -15,6 +15,12 @@ endforeach()
 file(REMOVE_RECURSE "${SCRATCH}")
 file(MAKE_DIRECTORY "${SCRATCH}")
 set(case_file "${MODULE_DIR}/tests/fixtures/runtime_core/case.cmake")
+# The gate does nothing under -P below 4.4, where the warning check of
+# run_case stands in for it.
+set(script_gate "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.4)
+  set(script_gate -Werror=author)
+endif()
 if(CMAKE_HOST_WIN32)
   set(shim "${MODULE_DIR}/tests/fixtures/runtime_core/fake_ocx.cmd")
 else()
@@ -27,16 +33,23 @@ endif()
 # exit; REGEX / REJECT match stdout+stderr. Sets <case>_OUT for the caller.
 function(run_case case expect)
   cmake_parse_arguments(PARSE_ARGV 2 c "" "REGEX;REJECT" "DEFS;ENV")
+  if(NOT "${c_UNPARSED_ARGUMENTS}" STREQUAL "")
+    message(FATAL_ERROR "run_case: unknown arguments '${c_UNPARSED_ARGUMENTS}'")
+  endif()
   execute_process(
     COMMAND
-      "${CMAKE_COMMAND}" -E env ${c_ENV} "${CMAKE_COMMAND}" "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
-      "-DCASE=${case}" "-DSCRATCH=${SCRATCH}" -DOCX_FROZEN= ${c_DEFS} -P "${case_file}"
+      "${CMAKE_COMMAND}" -E env ${c_ENV} "${CMAKE_COMMAND}" ${script_gate}
+      "-DCMAKE_MODULE_PATH=${MODULE_DIR}" "-DCASE=${case}" "-DSCRATCH=${SCRATCH}" -DOCX_FROZEN=
+      ${c_DEFS} -P "${case_file}"
     RESULT_VARIABLE rc
     OUTPUT_VARIABLE out
     ERROR_VARIABLE err
     ENCODING UTF-8
   )
   set(all "${out}${err}")
+  if(all MATCHES "CMake (Deprecation )?Warning")
+    message(FATAL_ERROR "i2_check: ${case}: a CMake warning in the output:\n${all}")
+  endif()
   if(expect STREQUAL "OK" AND NOT rc EQUAL 0)
     message(FATAL_ERROR "i2_check: ${case} must pass, exit ${rc}:\n${all}")
   elseif(expect STREQUAL "FAIL" AND rc EQUAL 0)
@@ -58,7 +71,7 @@ run_case(error_message OK)
 run_case(hints OK)
 
 # OCX_INSTALL_CA_BUNDLE -> OCX_EXTRA_CA_CERTS hand-off.
-foreach(ca_case IN ITEMS unset explicit cleared)
+foreach(ca_case IN ITEMS unset explicit cleared relative)
   run_case(ca_bundle_forward OK DEFS -DCA_CASE=${ca_case})
 endforeach()
 
@@ -117,7 +130,7 @@ file(WRITE "${SCRATCH}/watched.toml" "")
 set(watch_bin "${SCRATCH}/watch_build")
 execute_process(
   COMMAND
-    "${CMAKE_COMMAND}" -E env "OCX_CONFIG=${SCRATCH}/watched.toml" "${CMAKE_COMMAND}" -S
+    "${CMAKE_COMMAND}" -E env "OCX_CONFIG=${SCRATCH}/watched.toml" "${CMAKE_COMMAND}" ${GATE} -S
     "${MODULE_DIR}/tests/fixtures/runtime_core/watch" -B "${watch_bin}"
     "-DCMAKE_MODULE_PATH=${MODULE_DIR}" "-DOCX_EXECUTABLE=${shim}" -DOCX_FROZEN=
   RESULT_VARIABLE rc

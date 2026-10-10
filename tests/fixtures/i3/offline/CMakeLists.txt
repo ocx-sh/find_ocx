@@ -5,7 +5,7 @@
 # BINS check is skipped (ocx exits 79), so even a misspelled name configures.
 # Run with -DOCX_OFFLINE=1 and -DOCX_HOME=<empty directory>.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_i3_offline LANGUAGES NONE)
 
 include(ocx)

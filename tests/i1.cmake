@@ -28,6 +28,7 @@ add_test(
 set_tests_properties(dist_script dist_check PROPERTIES TIMEOUT 60)
 
 foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
+  ocx_cmake_test_gate(gate ${v})
   add_test(
     NAME bootstrap_dist/${OCX_CMAKE_${v}_TEST_LABEL}
     COMMAND
@@ -39,12 +40,11 @@ foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
     NAME module_checks/${OCX_CMAKE_${v}_TEST_LABEL}
     COMMAND
       ${OCX_CMAKE_${v}_RUN} cmake "-DMODULE_DIR=${CMAKE_SOURCE_DIR}"
-      "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/module_checks-cmake${v}" -P
+      "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/module_checks-cmake${v}" "-DGATE=${gate}" -P
       "${CMAKE_SOURCE_DIR}/tests/fixtures/i1/module_checks.cmake"
   )
-  set_tests_properties(
-    bootstrap_dist/${OCX_CMAKE_${v}_TEST_LABEL}
-    module_checks/${OCX_CMAKE_${v}_TEST_LABEL}
-    PROPERTIES TIMEOUT 300 FIXTURES_REQUIRED ocx_fixtures
-  )
+  foreach(test IN ITEMS bootstrap_dist module_checks)
+    __ocx_test_props(${test}/${OCX_CMAKE_${v}_TEST_LABEL} SCRIPT)
+    set_tests_properties(${test}/${OCX_CMAKE_${v}_TEST_LABEL} PROPERTIES TIMEOUT 300)
+  endforeach()
 endforeach()

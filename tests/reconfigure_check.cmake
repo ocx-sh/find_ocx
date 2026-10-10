@@ -89,4 +89,19 @@ assert_memo(changed "${out}" TRUE ${untouched})
 run_configure(restored out)
 assert_memo(restored "${out}" TRUE ${untouched} ${touched})
 
+# Ambient configuration: a file named by OCX_CONFIG is part of every
+# package's fingerprint, so naming one - and then editing it - re-runs all of
+# them, and an unchanged one hits again.
+set(ambient "${FIXTURE_BIN}-ambient.toml")
+file(WRITE "${ambient}" "# one\n")
+set(ENV{OCX_CONFIG} "${ambient}")
+run_configure(ambient out)
+assert_memo(ambient "${out}" FALSE ${untouched} ${touched})
+run_configure(ambient_repeat out)
+assert_memo(ambient_repeat "${out}" TRUE ${untouched} ${touched})
+file(WRITE "${ambient}" "# two\n")
+run_configure(ambient_edited out)
+assert_memo(ambient_edited "${out}" FALSE ${untouched} ${touched})
+unset(ENV{OCX_CONFIG})
+
 message(STATUS "reconfigure_check: ok")
