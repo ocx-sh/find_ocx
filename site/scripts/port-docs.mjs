@@ -119,11 +119,20 @@ export function expander(src) {
       const body = (lines) => (/^[-=]{3,}$/.test(lines[1] ?? '') ? lines.slice(2) : lines);
       // Explicit ids (DOC-NAV-07): pages link to these headings by name.
       const head = (name) => `## ${name} {#${slug(name)}}`;
-      if (arg === 'commands') return src.commands.map((c) => `${head(c.name)}\n\n${md(c.lines, { scope: c.name })}`).join('\n\n');
+      if (arg === 'commands') {
+        // The module overview (first block) and every command render with one target map, so the synopsis may reference any command.
+        const parts = [{ lines: body(entries(src.modules[0].blocks[0])[0].lines), extra: { depth: 1 } }, ...src.commands.map((c) => ({ lines: c.lines, extra: { scope: c.name }, name: c.name }))];
+        const targets = new Map(src.commands.map((c) => [c.name.toLowerCase(), slug(c.name)]));
+        const run = (p, extra) => md(p.lines, { ...p.extra, targets, ...extra });
+        for (const p of parts) run(p, { collect: true });
+        return parts.map((p) => (p.name ? `${head(p.name)}\n\n${run(p)}` : run(p))).join('\n\n');
+      }
       if (arg === 'variables') {
-        // First block of ocx.cmake: overview text, the variables, then the passthrough/credentials text.
-        return entries(src.modules[0].blocks[0])
-          .map((e, i) => (e.kind === 'variable' ? `${head(e.name)}\n\n${md(e.lines, { scope: e.name })}` : i === 0 ? md(body(e.lines), { depth: 1 }) : `${head('Passthrough and credentials')}\n\n${md(e.lines)}`))
+        // The blocks with `.. variable::` entries: opening text, the variables, then the closing text (each with its own headings).
+        const blocks = src.modules[0].blocks.filter((b) => /^\.\. variable:: /m.test(b));
+        return blocks
+          .flatMap((b) => entries(b))
+          .map((e, i) => (e.kind === 'variable' ? `${head(e.name)}\n\n${md(e.lines, { scope: e.name })}` : md(i === 0 ? body(e.lines) : e.lines, { depth: 1 })))
           .join('\n\n');
       }
       if (arg === 'findocx') return entries(src.modules[1].blocks[0]).map((e) => md(body(e.lines), { depth: 1 })).join('\n\n');

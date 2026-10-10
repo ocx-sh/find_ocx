@@ -27,8 +27,8 @@ const EXTERNAL = {
   policy: [/^CMP\d{4}$/, 'policy'],
 };
 
-/** The id a heading or signature target gets; unique per command through `ctx.scope`. */
-const idFor = (name, ctx) => (ctx.scope ? `${ctx.scope}-` : '') + slug(name);
+/** The id a heading or signature target gets; unique per command through `ctx.scope`. A target named like its scope is that scope's own heading. */
+const idFor = (name, ctx) => (ctx.scope && slug(name) !== slug(ctx.scope) ? `${ctx.scope}-` : '') + slug(name);
 const register = (name, ctx) => {
   const id = idFor(name, ctx);
   ctx.targets?.set(name.toLowerCase(), id);
@@ -136,7 +136,10 @@ function signature(arg, lines, ctx) {
   const targets = opts.target ? opts.target.split(/\s+/) : [sig[0].match(/\(([A-Z_]+)/)?.[1]];
   if (!targets[0]) throw new Error(`rst: signature without an operation or :target: ${sig[0]}`);
   const ids = targets.map((t) => register(t, ctx));
-  return [`${'#'.repeat((ctx.depth ?? 2) + 1)} ${targets[0]} {#${ids[0]}}`, '', ...fence('cmake', sig), ...render(at < 0 ? [] : trimBlank(lines.slice(at)), ctx)];
+  // A single-form command names itself: the page already has its heading, so only the fence follows.
+  const own = slug(targets[0]) === slug(ctx.scope ?? '');
+  const heading = own ? [] : [`${'#'.repeat((ctx.depth ?? 2) + 1)} ${targets[0]} {#${ids[0]}}`, ''];
+  return [...heading, ...fence('cmake', sig), ...render(at < 0 ? [] : trimBlank(lines.slice(at)), ctx)];
 }
 
 const VERSION = /^\d+(?:\.\d+)*$/;
@@ -246,11 +249,12 @@ export function render(lines, ctx) {
   return out;
 }
 
-/** Two passes: the first collects signature and heading targets, so a reference may precede its target. */
+/** Two passes: the first collects signature and heading targets, so a reference may precede its target. A caller may pass a shared `ctx.targets` map (references across texts) and `ctx.collect` to run the first pass only. */
 export function toMarkdown(text, ctx) {
   const lines = trimBlank(text.split('\n'));
-  const targets = new Map();
+  const targets = ctx.targets ?? new Map();
   render(lines, { ...ctx, targets, collect: true });
+  if (ctx.collect) return '';
   return render(lines, { ...ctx, targets }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 

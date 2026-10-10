@@ -5,223 +5,105 @@
 ocx
 ---
 
-CMake support for `OCX <https://ocx.sh>`_ — the OCI-backed package manager.
-Bootstraps the pinned ``ocx`` CLI (sha256-enforced, corporate-mirror aware)
-and provisions tools through it. find_ocx deliberately never re-implements
-OCX internals in CMake: all resolution goes through the ``ocx`` binary; the
-durable contracts are ``ocx.lock`` digests and the OCI manifests.
+Overview
+^^^^^^^^
 
-Vendor this file together with ``Findocx.cmake`` into your project (e.g.
-``cmake/``), then::
+CMake support for `OCX <https://ocx.sh>`_, the OCI-backed package manager.
+The module installs a pinned ``ocx`` CLI and provisions tools through it.
+It never re-implements OCX internals in CMake.
+All resolution goes through the ``ocx`` binary, so the durable contracts are the ``ocx.lock`` digests and the OCI manifests.
 
-  list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+Vendor ``ocx.cmake`` together with ``Findocx.cmake`` into your project, for example into ``cmake/``.
+Include the module after ``project()``.
+
+.. versionchanged:: 0.4
+  The module requires CMake 3.25 or later.
+  Release 0.3 accepted CMake 3.19.
+
+.. code-block:: cmake
+
+  cmake_minimum_required(VERSION 3.25...4.4)
+  project(hello_jq LANGUAGES NONE)
+
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
   include(ocx)
 
-  ocx_project()                    # toolchain from ./ocx.toml + ./ocx.lock
-  ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest)   # frozen via ./.ocx snapshot
+  ocx_project(NAME TOOLS BINS jq)
 
-Requires CMake 3.25 or newer. Include after ``project()``.
+  add_custom_target(show_jq ALL COMMAND ${OCX_TOOLS_RUN} jq --version VERBATIM)
 
-Resolution is reproducible-first: a floating tag resolves through a
-committed index snapshot (the nearest ``.ocx/`` directory, discovered
-like ``ocx.toml``; create it with ``ocx --index .ocx index update
-<package>``) or through digest pins — with neither, the configure fails
-(:variable:`OCX_ALLOW_FLOATING` is the explicit escape hatch).
+The project is ``examples/tutorial/CMakeLists.txt``, built by the ``tutorial/first-configure`` cast test.
 
-``include(ocx)`` itself is passive — it only defines commands and snapshots
-the ``OCX_*`` knobs. The first provisioning call (:command:`ocx_project`,
-:command:`ocx_package`, or an explicit :command:`ocx_bootstrap`) resolves
-the CLI: ``OCX_EXECUTABLE`` when set, else an ``ocx`` on ``PATH``, else it
-downloads the pinned, sha256-verified CLI into the per-machine cache.
-``OCX_BOOTSTRAP=ALWAYS`` skips the ``PATH`` search (hermeticity: every
-machine runs the identical pinned binary); ``OCX_BOOTSTRAP=OFF`` forbids
-the implicit download entirely. An explicit :command:`ocx_bootstrap` call
-always provisions the pin.
+Synopsis
+^^^^^^^^
 
-**Trust root.** The ``sha256`` column of the dist.json snapshot embedded in
-this file makes a downloaded ocx CLI trustworthy: every archive is checked
-against its row before extraction, whichever URL served the bytes. When
-``DIST_MANIFEST`` or ``OCX_INSTALL_DIST_URL`` replaces the snapshot, that
-manifest's ``sha256`` column is the trust root instead, and it is trusted as
-far as its transport. The exception is a manifest file named
-``<sha256>.json``: the name carries its own digest, and the fetch is verified
-against it. The repository script ``scripts/update_dist.py`` only ever adds
-rows to the embedded snapshot.
+.. parsed-literal::
 
-The ``SHA256SUMS`` file of a find_ocx release is the trust root of
-:command:`ocx_self_update`. The GitHub releases API only names the latest
-tag. Every download verifies TLS and is bounded by a timeout.
+  Install the CLI
+    `ocx_bootstrap`_([VERSION <version>] [TRIPLE <target-triple>] [DIST_MANIFEST <dist.json>])
+    `ocx_self_update`_()
 
-**Anonymous read.** ``OCX_INSTALL_DIST_URL``, ``OCX_INSTALL_MIRROR_URL`` and
-``OCX_SELF_UPDATE_URL`` are fetched without credentials, so a mirror must
-allow anonymous read. A mirror locked down later fails the download, and the
-failure looks like a network error.
+  Provision tools
+    `ocx_project`_([NAME <name>] [TOML <ocx.toml>] [LOCK <ocx.lock>] [GROUPS <group>...] [BINS <tool>...] [...])
+    `ocx_package`_(NAME <name> PACKAGE <package> [PINS <platform>=sha256:<digest> ...] [BINS <tool>...] [...])
 
-Corporate mirrors and behavior knobs are plain ``OCX_*`` variables. Each one
-follows the snapshot pattern: if the CMake variable is unset but the
-environment variable is set at the *first* configure, the value is
-snapshotted into the cache and stays sticky for the build directory
-(override with ``-DVAR=...``, clear with ``-DVAR=``).
+  Freeze tag resolution
+    `ocx_index`_(`FIND`_ [REQUIRED])
+    `ocx_index`_(`UPDATE_COMMAND`_ <out-var> [INDEX <dir>] [PACKAGES <ref>...])
 
-.. variable:: OCX_EXECUTABLE
+  Set the verification policy
+    `ocx_policy`_([ALLOW_UNVERIFIED] [ALLOW_YANKED] [SIGSTORE_TRUSTED_ROOT <file>])
 
-  Path to the ocx CLI to run everything through. Snapshotted from the
-  environment like every other knob (CI: ``export OCX_EXECUTABLE=$(which
-  ocx)`` needs no ``-D``); when unset, the first provisioning call
-  bootstraps the pin.
+Find the CLI
+^^^^^^^^^^^^
 
-.. variable:: OCX_INSTALL_DIST_URL
+``include(ocx)`` is passive.
+It only defines the commands and snapshots the ``OCX_*`` variables from the environment.
+The first provisioning call resolves the CLI.
+That call is :command:`ocx_project`, :command:`ocx_package` or an explicit :command:`ocx_bootstrap`.
 
-  Fetch the ocx release manifest (dist.json) from a mirror instead of the
-  snapshot embedded in this file. A manifest named ``<sha256>.json`` is
-  verified against that digest; any other name is fetched unverified.
-  The ``DIST_MANIFEST`` keyword of :command:`ocx_bootstrap` takes
-  precedence over it.
+The module takes ``OCX_EXECUTABLE`` when it is set, else an ``ocx`` on ``PATH``, else the pinned CLI.
+It downloads the pinned CLI, verified by sha256, into the per-machine cache.
 
-.. variable:: OCX_INSTALL_MIRROR_URL
+:variable:`OCX_BOOTSTRAP` changes this order.
+``ALWAYS`` skips the ``PATH`` search, so every machine runs the identical pinned binary.
+``OFF`` forbids the implicit download.
+An explicit :command:`ocx_bootstrap` call always provisions the pin.
 
-  Rewrite the ocx binary download to ``<mirror>/<tag>/<filename>``. The
-  manifest sha256 is still enforced — a mirror can move bytes, not change
-  them.
+Reproducible resolution
+^^^^^^^^^^^^^^^^^^^^^^^
 
-.. variable:: OCX_INSTALL_CA_BUNDLE
+Resolution is reproducible first.
+A floating tag resolves through a committed index snapshot or through digest pins.
+The snapshot is the nearest ``.ocx/`` directory, discovered the way ``ocx.toml`` is.
+Create it with ``ocx --index .ocx index update <package>``.
+With neither a snapshot nor a pin, the configure fails.
 
-  PEM CA bundle (a file path) that the CLI download trusts instead of the
-  system store, for a mirror behind a TLS-intercepting proxy: it is passed
-  as ``TLS_CAINFO`` to the manifest and archive downloads of
-  :command:`ocx_bootstrap` and to :command:`ocx_self_update`. A path that
-  is not a file is a configure error. Every ocx call also receives it as
-  ``OCX_EXTRA_CA_CERTS``, unless ``OCX_EXTRA_CA_CERTS`` is set (an empty
-  ``-DOCX_EXTRA_CA_CERTS=`` counts as set and removes it). Same knob as the
-  setup.ocx.sh installer.
+:variable:`OCX_ALLOW_FLOATING` is the explicit escape hatch.
+:command:`ocx_index` finds and refreshes a snapshot.
 
-.. variable:: OCX_INSTALL_VERSION
+Trust and mirrors
+^^^^^^^^^^^^^^^^^
 
-  ocx CLI version to bootstrap (default: the version pinned with this
-  find_ocx release). Same knob as the setup.ocx.sh installer.
+The ``sha256`` column of the dist.json snapshot embedded in ``ocx.cmake`` makes a downloaded ocx CLI trustworthy.
+The module checks every archive against its row before extraction, whichever URL served the bytes.
+The script ``scripts/update_dist.py`` only ever adds rows to the embedded snapshot.
 
-.. variable:: OCX_BOOTSTRAP
+:variable:`OCX_INSTALL_DIST_URL` and the ``DIST_MANIFEST`` keyword of :command:`ocx_bootstrap` replace the snapshot.
+The ``sha256`` column of that manifest is then the trust root, trusted as far as its transport.
+A manifest file named ``<sha256>.json`` is the exception.
+Its name carries its own digest, and the fetch is verified against it.
 
-  Implicit-bootstrap policy for the first provisioning call when
-  ``OCX_EXECUTABLE`` is not set. Unset or ``ON`` (default): use an ``ocx``
-  found on ``PATH``, bootstrap the pinned CLI when there is none.
-  ``ALWAYS``: skip the ``PATH`` search — every machine runs the identical
-  pinned binary (hermetic mode; pair with ``OCX_INSTALL_VERSION``).
-  ``OFF``: never download — ``OCX_EXECUTABLE`` or a ``PATH`` ocx is
-  required, anything else is a hard configure error (for environments
-  that forbid configure-time downloads). Inside ``Findocx.cmake`` the
-  same variable is the opt-*in* for the bootstrap fallback (find modules
-  discover by default).
+The ``SHA256SUMS`` file of a find_ocx release is the trust root of :command:`ocx_self_update`.
+The GitHub releases API only names the latest tag.
+Every download verifies TLS and is bounded by a timeout.
 
-.. variable:: OCX_DEFAULT_PLATFORM
+Anonymous read
+^^^^^^^^^^^^^^
 
-  Default ``PLATFORM`` for :command:`ocx_project` / :command:`ocx_package`
-  (empty = host): one ocx platform such as ``linux/arm64``. A ``;``-list is
-  a configure error; call the command once per platform under its own
-  ``NAME``.
-
-.. variable:: OCX_INDEX
-
-  Committed index snapshot directory freezing tag resolution for every
-  :command:`ocx_package` without an explicit ``INDEX``. When unset, each
-  call discovers the nearest ``.ocx/`` directory between its calling
-  directory and the last ``project()`` source dir instead
-  (:command:`ocx_index` ``FIND`` runs that discovery once and locks the
-  result into this variable). Clearing with ``-DOCX_INDEX=`` neutralizes
-  a value inherited from an outer ocx launcher without vetoing the
-  project's own committed snapshot.
-
-.. variable:: OCX_ALLOW_FLOATING
-
-  Reproducibility escape hatch. By default a floating tag with no index
-  snapshot in effect and no digest pin is a hard configure error — ocx is
-  reproducible-first. ``ON`` downgrades that to live resolution with a
-  drift warning; useful transiently to print the digests that seed
-  ``PINS``.
-
-.. variable:: OCX_BOOTSTRAP_CACHE
-
-  Cache directory for bootstrapped ocx binaries. Default: per-machine —
-  ``%LOCALAPPDATA%/find_ocx`` (Windows), ``$XDG_CACHE_HOME/find_ocx``,
-  ``~/.cache/find_ocx``, falling back to ``<build>/_ocx/cache`` when no
-  home directory exists. Point it into the workspace on CI runners where
-  the home directory is unreliable (and restore it with your CI cache).
-
-.. variable:: OCX_PROJECT_FILE
-
-  Default ocx.toml for :command:`ocx_project` when no ``TOML`` argument is
-  given.
-
-.. variable:: OCX_PULL
-
-  Force eager materialization (``PULL``) for every ocx_project/ocx_package
-  call — useful in CI to fail fast and warm caches.
-
-.. variable:: OCX_REFRESH
-
-  One-shot: bypass the reconfigure memoization and re-execute ocx.
-
-.. variable:: OCX_SELF_UPDATE_VERSION
-
-  find_ocx release tag to self-update the vendored ``ocx.cmake`` and
-  ``Findocx.cmake`` to (``vX.Y.Z``; the ``v`` is optional). Default: the
-  latest release, discovered via the GitHub releases API. Read by
-  :command:`ocx_self_update`, which runs in script mode only::
-
-    cmake [-DOCX_SELF_UPDATE_VERSION=v0.3.0] -P cmake/ocx.cmake
-
-  replaces this file (and a sibling ``Findocx.cmake`` when present) in
-  place, verified against the release ``SHA256SUMS``.
-
-.. variable:: OCX_SELF_UPDATE_URL
-
-  Fetch the find_ocx release files from ``<url>/<tag>/<filename>`` instead
-  of GitHub — same rewrite shape as ``OCX_INSTALL_MIRROR_URL``. Requires an
-  explicit ``OCX_SELF_UPDATE_VERSION`` (mirrors do not serve the releases
-  API); the mirrored ``SHA256SUMS`` stays the trust root.
-
-Every ocx call gets its environment from four classes of ``OCX_*``
-variable. The classes decide what an ambient value does, so a variable
-exported in the shell or by an outer launcher cannot change a build silently:
-
-===========  ================================  =========================================
-Class        Variables                         Behavior
-===========  ================================  =========================================
-site         ``OCX_HOME`` ``OCX_MIRRORS``      Snapshotted from the environment
-             ``OCX_INSECURE_REGISTRIES``       at the first configure and
-             ``OCX_OFFLINE`` ``OCX_FROZEN``    forwarded to every call.
-             ``OCX_REMOTE`` ``OCX_JOBS``       ``-DVAR=`` removes the variable
-             ``OCX_INDEX``                     from every call.
-             ``OCX_DEFAULT_REGISTRY``
-             ``OCX_MANAGED_CONFIG``
-             ``OCX_PATCHES``
-             ``OCX_EXTRA_CA_CERTS``
-translucent  ``OCX_CONFIG``                    The ambient value passes through
-             ``OCX_PATCH_SNAPSHOT``            unchanged. A keyword overrides it:
-             ``OCX_NO_CONFIG``                 ``CONFIG``, ``PATCH_SNAPSHOT`` and
-             ``OCX_SIGSTORE_TRUSTED_ROOT``     ``NO_CONFIG`` of :command:`ocx_project`
-                                               and :command:`ocx_package` (per command),
-                                               ``SIGSTORE_TRUSTED_ROOT`` of
-                                               :command:`ocx_policy`.
-explicit     ``OCX_NO_VERIFY``                 Removed from every call. Only
-             ``OCX_ALLOW_YANKED``              :command:`ocx_policy` sets them.
-pinned       ``OCX_PROJECT`` ``OCX_GLOBAL``    Forced to a fixed value on every
-             ``OCX_QUIET`` ``OCX_NO_PROJECT``  call (``OCX_PROJECT`` unset,
-             ``OCX_NO_CONFIG_REFRESH``         ``OCX_QUIET=0``,
-             ``OCX_NO_CONSENT``                ``OCX_SELF_UPDATE=manual``), so find_ocx
-             ``OCX_SELF_UPDATE``               can parse what ocx prints.
-===========  ================================  =========================================
-
-Both the configure-time calls and the exported ``OCX_<NAME>_RUN`` command
-lists carry the same environment. ocx launchers (``ocx run``, frozen
-``package exec``, including those ``OCX_<NAME>_RUN`` lists) export
-``OCX_FROZEN`` and ``OCX_INDEX`` into child processes, so a find_ocx
-configure nested inside one (ExternalProject, test harnesses) inherits the
-outer resolution mode unless it is given ``-DOCX_FROZEN=`` ``-DOCX_INDEX=``.
-
-``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are deliberately
-**never** snapshotted into the cache — export them in the environment and
-reconfigure after changing them.
+The variables :variable:`OCX_INSTALL_DIST_URL`, :variable:`OCX_INSTALL_MIRROR_URL` and :variable:`OCX_SELF_UPDATE_URL` name hosts that find_ocx reads without credentials.
+A mirror must therefore allow anonymous read.
+A mirror locked down later fails the download, and the failure looks like a network error.
 #]=]
 
 if(CMAKE_VERSION VERSION_LESS 3.25)
@@ -577,6 +459,184 @@ set(__OCX_DIST_JSON [=[
 # Environment classes
 # ---------------------------------------------------------------------------
 
+#[=[.rst:
+Variables
+---------
+
+Setting a variable
+^^^^^^^^^^^^^^^^^^
+
+The plain ``OCX_*`` variables below configure mirrors and behavior.
+Each one follows the snapshot pattern.
+A variable that is unset in CMake but set in the environment at the first configure is copied into the cache.
+The cached value then stays for the build directory.
+Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
+
+.. variable:: OCX_EXECUTABLE
+
+  Path of the ocx CLI that runs every command.
+  The environment value is snapshotted like every other variable, so CI needs no ``-D``.
+  ``export OCX_EXECUTABLE=$(which ocx)`` is enough.
+  When the variable is unset, the first provisioning call bootstraps the pinned CLI.
+
+.. variable:: OCX_INSTALL_DIST_URL
+
+  URL of an ocx release manifest (dist.json) that replaces the snapshot embedded in ``ocx.cmake``.
+  A manifest not named ``<sha256>.json`` is fetched unverified.
+  The ``DIST_MANIFEST`` keyword of :command:`ocx_bootstrap` takes precedence over this variable.
+
+  .. versionchanged:: 0.4
+    A manifest named ``<sha256>.json`` is verified against that digest.
+
+.. variable:: OCX_INSTALL_MIRROR_URL
+
+  Base URL that rewrites the ocx binary download to ``<mirror>/<tag>/<filename>``.
+  The manifest sha256 is still enforced, so a mirror can move bytes but cannot change them.
+
+.. variable:: OCX_INSTALL_CA_BUNDLE
+
+  Path of a PEM CA bundle that the CLI download trusts instead of the system store.
+  Use it for a mirror behind a TLS-intercepting proxy.
+  A path that is not a file is a configure error.
+
+  The module passes the bundle as ``TLS_CAINFO`` to the manifest and archive downloads of :command:`ocx_bootstrap` and to :command:`ocx_self_update`.
+  Every ocx call also receives it as ``OCX_EXTRA_CA_CERTS``, unless ``OCX_EXTRA_CA_CERTS`` is set.
+  An empty ``-DOCX_EXTRA_CA_CERTS=`` counts as set and removes the variable.
+  The setup.ocx.sh installer has the same variable.
+
+  .. versionadded:: 0.4
+
+.. variable:: OCX_INSTALL_VERSION
+
+  ocx CLI version to bootstrap.
+  The default is the version pinned by this find_ocx release.
+  The setup.ocx.sh installer has the same variable.
+
+.. variable:: OCX_BOOTSTRAP
+
+  Policy for the implicit bootstrap of the first provisioning call when ``OCX_EXECUTABLE`` is not set.
+  The values are:
+
+  ``ON``
+    The default, also when the variable is unset.
+    Use an ``ocx`` found on ``PATH`` and bootstrap the pinned CLI when there is none.
+
+  ``ALWAYS``
+    Skip the ``PATH`` search, so every machine runs the identical pinned binary.
+    Pair it with :variable:`OCX_INSTALL_VERSION`.
+
+  ``OFF``
+    Never download.
+    ``OCX_EXECUTABLE`` or an ``ocx`` on ``PATH`` is required, and anything else is a configure error.
+    Use it where configure-time downloads are forbidden.
+
+  Inside ``Findocx.cmake`` the same variable opts in to the bootstrap fallback, because find modules discover by default.
+
+.. variable:: OCX_DEFAULT_PLATFORM
+
+  Default ``PLATFORM`` for :command:`ocx_project` and :command:`ocx_package`.
+  The value is one ocx platform such as ``linux/arm64``, and the empty default means the host.
+  A ``;``-list is a configure error.
+  Call the command once per platform under its own ``NAME`` instead.
+
+.. variable:: OCX_INDEX
+
+  Directory of the committed index snapshot that freezes tag resolution for every :command:`ocx_package` without an explicit ``INDEX``.
+  When the variable is unset, each call discovers the nearest ``.ocx/`` directory between its calling directory and the last ``project()`` source directory.
+  :command:`ocx_index` ``FIND`` runs that discovery once and locks the result into this variable.
+
+  Clearing the variable with ``-DOCX_INDEX=`` neutralizes a value inherited from an outer ocx launcher.
+  The project's own committed snapshot is still discovered.
+
+.. variable:: OCX_ALLOW_FLOATING
+
+  Reproducibility escape hatch.
+  A floating tag with no index snapshot in effect and no digest pin is a configure error by default.
+  ``ON`` downgrades the error to live resolution with a drift warning.
+  Use it transiently to print the digests that seed ``PINS``.
+
+.. variable:: OCX_BOOTSTRAP_CACHE
+
+  Cache directory for bootstrapped ocx binaries.
+  The default is per machine: ``%LOCALAPPDATA%/find_ocx`` on Windows, else ``$XDG_CACHE_HOME/find_ocx``, else ``~/.cache/find_ocx``.
+  Without a home directory the module falls back to ``<build>/_ocx/cache``.
+  Point the variable into the workspace on CI runners where the home directory is unreliable, and restore it with the CI cache.
+
+.. variable:: OCX_PROJECT_FILE
+
+  Default ``ocx.toml`` for :command:`ocx_project` when the call has no ``TOML`` argument.
+
+.. variable:: OCX_PULL
+
+  Forces eager materialization, as the ``PULL`` keyword does, for every :command:`ocx_project` and :command:`ocx_package` call.
+  Use it in CI to fail fast and to warm caches.
+
+.. variable:: OCX_REFRESH
+
+  One-shot switch that bypasses the reconfigure memoization and runs ocx again.
+  The module clears it at the end of the configure.
+
+.. variable:: OCX_SELF_UPDATE_VERSION
+
+  find_ocx release tag that :command:`ocx_self_update` installs, written ``vX.Y.Z``.
+  The leading ``v`` is optional.
+  The default is the latest release, found through the GitHub releases API.
+
+.. variable:: OCX_SELF_UPDATE_URL
+
+  Base URL that serves the find_ocx release files as ``<url>/<tag>/<filename>`` instead of GitHub.
+  It has the same rewrite shape as :variable:`OCX_INSTALL_MIRROR_URL`.
+  It requires an explicit ``OCX_SELF_UPDATE_VERSION``, because mirrors do not serve the releases API.
+  The mirrored ``SHA256SUMS`` file stays the trust root.
+
+Environment classes
+^^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 0.4
+
+Every ocx call gets its environment from four classes of ``OCX_*`` variable.
+The class decides what an ambient value does, so a variable exported in the shell or by an outer launcher cannot change a build silently.
+
+===========  ================================  =========================================
+Class        Variables                         Behavior
+===========  ================================  =========================================
+site         ``OCX_HOME`` ``OCX_MIRRORS``      Snapshotted from the environment
+             ``OCX_INSECURE_REGISTRIES``       at the first configure and
+             ``OCX_OFFLINE`` ``OCX_FROZEN``    forwarded to every call.
+             ``OCX_REMOTE`` ``OCX_JOBS``       ``-DVAR=`` removes the variable
+             ``OCX_INDEX``                     from every call.
+             ``OCX_DEFAULT_REGISTRY``
+             ``OCX_MANAGED_CONFIG``
+             ``OCX_PATCHES``
+             ``OCX_EXTRA_CA_CERTS``
+translucent  ``OCX_CONFIG``                    The ambient value passes through
+             ``OCX_PATCH_SNAPSHOT``            unchanged. A keyword overrides it:
+             ``OCX_NO_CONFIG``                 ``CONFIG``, ``PATCH_SNAPSHOT`` and
+             ``OCX_SIGSTORE_TRUSTED_ROOT``     ``NO_CONFIG`` of :command:`ocx_project`
+                                               and :command:`ocx_package` (per command),
+                                               ``SIGSTORE_TRUSTED_ROOT`` of
+                                               :command:`ocx_policy`.
+explicit     ``OCX_NO_VERIFY``                 Removed from every call. Only
+             ``OCX_ALLOW_YANKED``              :command:`ocx_policy` sets them.
+pinned       ``OCX_PROJECT`` ``OCX_GLOBAL``    Forced to a fixed value on every
+             ``OCX_QUIET`` ``OCX_NO_PROJECT``  call (``OCX_PROJECT`` unset,
+             ``OCX_NO_CONFIG_REFRESH``         ``OCX_QUIET=0``,
+             ``OCX_NO_CONSENT``                ``OCX_SELF_UPDATE=manual``), so find_ocx
+             ``OCX_SELF_UPDATE``               can parse what ocx prints.
+===========  ================================  =========================================
+
+The configure-time calls and the exported ``OCX_<NAME>_RUN`` command lists carry the same environment.
+ocx launchers export ``OCX_FROZEN`` and ``OCX_INDEX`` into child processes.
+Launchers are ``ocx exec`` and the frozen ``package exec``, including the ``OCX_<NAME>_RUN`` lists.
+A find_ocx configure nested inside one, such as an ExternalProject or a test harness, inherits the outer resolution mode.
+Pass ``-DOCX_FROZEN=`` and ``-DOCX_INDEX=`` to opt out.
+
+Credentials
+^^^^^^^^^^^
+
+``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are never snapshotted into the cache.
+Export them in the environment, and reconfigure after changing them.
+#]=]
 function(__ocx_snapshot_env var)
   if(NOT DEFINED ${var} AND DEFINED ENV{${var}})
     set(
@@ -1227,32 +1287,50 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_policy
 
-  Weakens the verification posture of every later ocx call in this
-  configure, explicitly::
+  Weakens the verification posture of every later ocx call in this configure, explicitly.
 
+  .. signature::
     ocx_policy([ALLOW_UNVERIFIED] [ALLOW_YANKED]
                [SIGSTORE_TRUSTED_ROOT <file>])
+    :target: ocx_policy
+    :break: verbatim
+
+    .. versionadded:: 0.4
+
+    The policy is explicit-only.
+    An ``OCX_NO_VERIFY`` or ``OCX_ALLOW_YANKED`` in the environment is removed from every ocx call.
+    An inherited variable can therefore never weaken a build silently.
+    Nothing is cached, so state the policy in the project listfile on every configure.
+
+    Call the command before the first :command:`ocx_project` or :command:`ocx_package`.
+    A repeated call with identical arguments is a no-op.
+    A call that differs from an earlier one is a fatal error.
+    So is a call that weakens the posture after ocx has already run.
+
+  Options
+  ^^^^^^^
 
   ``ALLOW_UNVERIFIED``
-    Accept packages that fail or lack Sigstore verification
-    (``OCX_NO_VERIFY=1`` for the ocx calls).
+    Accept packages that fail or lack Sigstore verification.
+    The module sets ``OCX_NO_VERIFY=1`` for the ocx calls.
 
   ``ALLOW_YANKED``
-    Resolve yanked versions (``OCX_ALLOW_YANKED=1``).
+    Resolve yanked versions.
+    The module sets ``OCX_ALLOW_YANKED=1`` for the ocx calls.
 
   ``SIGSTORE_TRUSTED_ROOT <file>``
-    Absolute path of the Sigstore trusted root to verify against
-    (``OCX_SIGSTORE_TRUSTED_ROOT``).
+    Absolute path of the Sigstore trusted root to verify against.
+    The module sets ``OCX_SIGSTORE_TRUSTED_ROOT`` for the ocx calls.
+    A relative path is an error.
 
-  The policy is explicit-only: an ``OCX_NO_VERIFY`` or ``OCX_ALLOW_YANKED``
-  in the environment is removed from every ocx call, so an inherited
-  variable can never weaken a build silently. Nothing is cached - state the
-  policy in the project listfile on every configure.
+  Example
+  ^^^^^^^
 
-  Call it before the first :command:`ocx_project` or :command:`ocx_package`.
-  A repeated call with identical arguments is a
-  no-op; a call that differs from an earlier one, or that weakens the
-  posture after ocx has already run, is a fatal error.
+  The test fixture ``tests/fixtures/runtime_core/case.cmake`` runs this call.
+
+  .. code-block:: cmake
+
+    ocx_policy(ALLOW_YANKED)
 #]=]
 function(ocx_policy)
   cmake_parse_arguments(PARSE_ARGV 0 arg "ALLOW_UNVERIFIED;ALLOW_YANKED" "SIGSTORE_TRUSTED_ROOT" "")
@@ -1330,26 +1408,68 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_bootstrap
 
-  Downloads a pinned ocx CLI release for the host and sets
-  ``OCX_EXECUTABLE``::
+  Downloads a pinned ocx CLI release for the host and sets ``OCX_EXECUTABLE``.
 
+  .. signature::
     ocx_bootstrap([VERSION <version>] [TRIPLE <target-triple>]
                   [DIST_MANIFEST <dist.json>])
+    :target: ocx_bootstrap
+    :break: verbatim
 
-  No-op when ``OCX_EXECUTABLE`` already points at a binary of the requested
-  version. The release row (URL + sha256) comes from the dist.json snapshot
-  embedded in this file. ``OCX_INSTALL_DIST_URL`` fetches a mirrored
-  manifest instead, and ``DIST_MANIFEST`` names a local dist.json file that
-  wins over both. ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact download
-  to ``<mirror>/<tag>/<filename>``. The archive is verified against the
-  sha256 of its manifest row before extraction, whichever manifest or URL
-  served it, and the extracted binary must report the requested version.
-  Binaries land in the per-machine ``OCX_BOOTSTRAP_CACHE`` (downloaded once
-  per machine, shared by all build trees).
+    The call does nothing when ``OCX_EXECUTABLE`` already points at a binary of the requested version.
+    The release row (URL and sha256) comes from the dist.json snapshot embedded in ``ocx.cmake``.
+    :variable:`OCX_INSTALL_DIST_URL` fetches a mirrored manifest instead, and ``DIST_MANIFEST`` names a local file that wins over both.
+    :variable:`OCX_INSTALL_MIRROR_URL` rewrites the artifact download to ``<mirror>/<tag>/<filename>``.
 
-  A relative ``DIST_MANIFEST`` path is resolved against the calling file's
-  directory. In a project configure the file is watched, so editing it
-  reconfigures; in script mode it is read once.
+    The module verifies the archive against the sha256 of its manifest row before extraction, whichever manifest or URL served it.
+    The extracted binary must report the requested version.
+    A binary that reports another version is removed and the configure fails.
+
+    Binaries land in the per-machine :variable:`OCX_BOOTSTRAP_CACHE`.
+    They are downloaded once per machine and shared by all build trees.
+    A warm cache needs no network access, so an air-gapped reconfigure stays offline.
+
+    .. versionchanged:: 0.4
+      Downloads verify TLS and are bounded by a timeout.
+      The module probes the version of a fresh binary.
+
+  Options
+  ^^^^^^^
+
+  ``VERSION <version>``
+    ocx CLI version to download.
+    The default is :variable:`OCX_INSTALL_VERSION`, else the version pinned by this find_ocx release.
+
+  ``TRIPLE <target-triple>``
+    Release target triple.
+    The default is the host triple.
+    The module does not probe the version of a foreign triple, because its binary cannot run here.
+
+  ``DIST_MANIFEST <dist.json>``
+    Local release manifest that wins over the embedded snapshot and over :variable:`OCX_INSTALL_DIST_URL`.
+    A relative path resolves against the directory of the calling file.
+    A project configure watches the file, so editing it reconfigures.
+    Script mode reads it once.
+
+    .. versionadded:: 0.4
+
+  Result variables
+  ^^^^^^^^^^^^^^^^
+
+  ``OCX_EXECUTABLE``
+    Cache variable that holds the path of the bootstrapped binary.
+
+  Example
+  ^^^^^^^
+
+  The fixture ``tests/fixtures/bootstrap/CMakeLists.txt`` runs these calls.
+
+  .. code-block:: cmake
+
+    include(ocx)
+
+    ocx_bootstrap()
+    find_package(ocx REQUIRED)
 #]=]
 function(ocx_bootstrap)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "VERSION;TRIPLE;DIST_MANIFEST" "")
@@ -1508,8 +1628,8 @@ function(ocx_bootstrap)
     set(extract_dir "${scratch}/extract-${version}-${triple}")
     file(REMOVE_RECURSE "${extract_dir}")
     file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${extract_dir}")
-    # 0.6 ships ocx-<triple>/ocx inside .tar.gz and a flat ocx.exe inside
-    # .zip; either layout is accepted.
+    # The .tar.gz holds ocx-<triple>/ocx and the .zip a flat ocx.exe: accept
+    # either layout.
     set(nested "${extract_dir}/ocx-${triple}/ocx${exe_ext}")
     set(flat "${extract_dir}/ocx${exe_ext}")
     if(EXISTS "${nested}")
@@ -1578,7 +1698,8 @@ function(__ocx_claim out_var name caller signature)
 endfunction()
 
 # PLATFORM (keyword, else OCX_DEFAULT_PLATFORM) is at most one ocx platform:
-# `ocx -p` is single-valued since 0.5, a comma only starts a +feature list.
+# `ocx -p` takes a single value, and a comma starts a +feature list, not a
+# second platform.
 function(__ocx_single_platform out_var caller keyword_value)
   set(platform "${keyword_value}")
   set(source "PLATFORM")
@@ -1840,62 +1961,145 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_project
 
-  Provisions the toolchain of a workspace ``ocx.toml`` + ``ocx.lock``::
+  Provisions the toolchain of a workspace ``ocx.toml`` and its ``ocx.lock``.
 
+  .. signature::
     ocx_project([NAME <name>] [TOML <ocx.toml>] [LOCK <ocx.lock>]
                 [GROUPS <group>...] [BINS <tool>...]
                 [PLATFORM <ocx-platform>] [PULL]
                 [CONFIG <config.toml>] [NO_CONFIG] [PATCH_SNAPSHOT <path>])
+    :target: ocx_project
+    :break: verbatim
 
-  ``NAME`` (default ``PROJECT``) prefixes the exported result variables,
-  which are global cache-internal values usable from any directory:
+    The call always runs ``ocx lock --check``, an offline staleness gate for the lock file.
+    Content materializes on first execution.
+    ``PULL`` or :variable:`OCX_PULL` materializes it at configure time instead.
+
+    Calling the command again with the same ``NAME`` and identical arguments does nothing, because CMake includes a toolchain file twice.
+    The same ``NAME`` with different arguments is an error.
+
+    .. versionchanged:: 0.4
+      An empty argument value is an error, because it usually means that a variable is unset.
+
+  Options
+  ^^^^^^^
+
+  ``NAME <name>``
+    Prefix of the result variables.
+    The default is ``PROJECT``.
+    The module upper-cases the name and reduces it to a C identifier.
+
+  ``TOML <ocx.toml>``
+    The workspace declaration.
+    The default is :variable:`OCX_PROJECT_FILE`, else the nearest ``ocx.toml`` between the calling directory and the last ``project()`` source directory.
+    In script mode the search walks to the filesystem root.
+
+  ``LOCK <ocx.lock>``
+    The lock file.
+    The default is the ``ocx.lock`` next to the declaration.
+
+  ``GROUPS <group>...``
+    Groups that the commands see.
+    The ``[tools]`` table is the group ``default``, which a ``GROUPS`` list must name itself.
+
+  ``BINS <tool>...``
+    Tools that get an ``OCX_<NAME>_RUN_<BIN>`` command.
+    Entries are executable names on the composed environment, not package references, because a package may ship several tools.
+    A name that no locked package declares is a configure error that lists the declared names.
+    A name that only a group outside ``GROUPS`` declares says so.
+    The check is skipped while ``OCX_OFFLINE`` is set and the packages are not in the local store.
+
+    ``BINS`` is an error together with ``PLATFORM``, because content for another platform cannot run on the host.
+
+    .. versionchanged:: 0.4
+      The module checks every name against the binaries and entrypoints that ``ocx inspect --closure`` reports.
+
+  ``PLATFORM <ocx-platform>``
+    One ocx platform such as ``linux/arm64``.
+    The default is :variable:`OCX_DEFAULT_PLATFORM`, else the host.
+    The call pulls that platform's content from the same ``ocx.lock``.
+    It exports the platform result variables instead of the command lists.
+    A list of platforms is an error, so call the command once per platform under its own ``NAME``.
+
+  ``PULL``
+    Materialize the content at configure time.
+    :variable:`OCX_PULL` does the same for every call.
+    ``PLATFORM`` always pulls.
+
+  ``CONFIG <config.toml>``
+    An ocx config file that applies as ``OCX_CONFIG`` to every ocx call of this command and to the exported ``OCX_<NAME>_RUN``.
+    A relative path resolves against the calling directory.
+
+  ``NO_CONFIG``
+    Skip the user, ``$OCX_HOME`` and managed config tiers, as ``OCX_NO_CONFIG=1`` does.
+
+  ``PATCH_SNAPSHOT <path>``
+    A patch snapshot that applies as ``OCX_PATCH_SNAPSHOT``.
+
+  Each of the three config keywords overrides the environment variable of the same name for this command.
+
+  .. versionadded:: 0.4
+    ``CONFIG``, ``NO_CONFIG`` and ``PATCH_SNAPSHOT``.
+
+  Result variables
+  ^^^^^^^^^^^^^^^^
+
+  The call exports these variables as global cache-internal values, usable from any directory.
 
   ``OCX_<NAME>_RUN``
-    Command-list prefix that composes the project environment and runs any
-    tool on it (``ocx exec``; lazy: content materializes on first
-    execution)::
+    Command-list prefix that composes the project environment and runs any tool on it.
 
-      add_custom_command(... COMMAND ${OCX_PROJECT_RUN} jq . in > out)
+    .. versionchanged:: 0.4
+      The prefix calls ``ocx exec``.
 
   ``OCX_<NAME>_RUN_<BIN>``
-    Per-tool convenience command for every name in ``BINS``. Entries are
-    executable names on the composed environment (a package may ship
-    several tools), not package references. Every name is checked against
-    the binaries and entrypoints the locked packages declare
-    (``ocx inspect --closure``): a typo is a configure error that lists the
-    declared names, and a name that only exists in a group ``GROUPS`` does
-    not select says so. The check is skipped while ``OCX_OFFLINE`` is set
-    and the packages are not in the local store.
+    Per-tool command for every name in ``BINS``.
+    ``<BIN>`` is the upper-cased executable name.
 
   ``OCX_<NAME>_PATHS``, ``OCX_<NAME>_ENV_<KEY>``, ``OCX_<NAME>_ENV_KEYS``
-    Foreign ``PLATFORM`` only: the ``PATH`` directories (digest paths, in
-    environment order), the constant environment values, and the list of
-    their ``<KEY>`` names.
+    Set with ``PLATFORM`` instead of the command lists.
+    They hold the ``PATH`` directories (digest paths, in environment order), the constant environment values and the list of their ``<KEY>`` names.
 
-  ``TOML`` defaults to ``OCX_PROJECT_FILE`` or the nearest ``ocx.toml``
-  between the calling directory and the last ``project()`` source dir;
-  ``LOCK`` defaults to the sibling ``ocx.lock``. ``GROUPS`` selects the
-  groups the commands see (the ``[tools]`` table is the group ``default``,
-  which a ``GROUPS`` list must name itself). ``ocx lock --check`` always
-  runs (offline staleness gate); ``PULL`` (or the global ``OCX_PULL``)
-  materializes eagerly at configure time.
+  Examples
+  ^^^^^^^^
 
-  A foreign ``PLATFORM`` (a single value, default
-  ``OCX_DEFAULT_PLATFORM``) pulls that platform's content from the same
-  ocx.lock and exports ``OCX_<NAME>_PATHS`` / ``OCX_<NAME>_ENV_<KEY>``
-  instead of RUN commands (foreign binaries cannot execute; ``BINS`` is an
-  error). A list of platforms is an error: call the command once per
-  platform under its own ``NAME``.
+  The tested project ``examples/project`` builds a tool command and a test from the lazy ``OCX_TOOLS_RUN`` prefix.
 
-  ``CONFIG`` (an ocx config file, as ``OCX_CONFIG``), ``NO_CONFIG`` (as
-  ``OCX_NO_CONFIG=1``: skip the user, ``$OCX_HOME`` and managed tiers) and
-  ``PATCH_SNAPSHOT`` (as ``OCX_PATCH_SNAPSHOT``) apply to every ocx call of
-  this command and to the exported ``OCX_<NAME>_RUN``; each overrides the
-  environment variable of the same name.
+  .. code-block:: cmake
 
-  Calling the command again with the same ``NAME`` and identical arguments
-  does nothing (CMake includes a toolchain file twice); the same ``NAME``
-  with different arguments is an error.
+    include(ocx)
+
+    ocx_project(NAME TOOLS BINS jq)
+
+    add_test(
+      NAME data_valid
+      COMMAND ${OCX_TOOLS_RUN_JQ} -e ".greeting == \"hello\"" "${CMAKE_CURRENT_SOURCE_DIR}/data.json"
+    )
+
+  The same project selects groups.
+  A ``BINS`` entry from a non-default group needs that group in ``GROUPS``, and ``default`` keeps the top-level ``[tools]`` table in the environment.
+
+  .. code-block:: cmake
+
+    ocx_project(NAME DEV GROUPS default lint BINS jq shellcheck)
+    add_test(
+      NAME shellcheck_hello
+      COMMAND ${OCX_DEV_RUN_SHELLCHECK} "${CMAKE_CURRENT_SOURCE_DIR}/hello.sh"
+    )
+
+  The tested project ``examples/cross_build`` provisions the ``linux/arm64`` content from a toolchain file.
+
+  .. code-block:: cmake
+
+    ocx_project(NAME TARGET TOML "${CMAKE_CURRENT_LIST_DIR}/ocx.toml" PLATFORM linux/arm64)
+
+    list(APPEND CMAKE_FIND_ROOT_PATH ${OCX_TARGET_PATHS})
+
+  The tested project ``examples/policy`` pins one ocx config file and ignores the config files of the machine.
+
+  .. code-block:: cmake
+
+    ocx_project(NAME TOOLS BINS jq CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/ocx-config.toml" NO_CONFIG)
 #]=]
 function(ocx_project)
   __ocx_reject_empty_args("ocx_project" ${ARGC} "${ARGV}")
@@ -2173,81 +2377,187 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_package
 
-  Provisions a single OCX package from an OCI registry::
+  Provisions a single OCX package from an OCI registry.
 
+  .. signature::
     ocx_package(NAME <name> PACKAGE <registry/repo[:tag][@sha256:...]>
                 [PINS <platform>=sha256:<digest> ...]
                 [INDEX <dir> | NO_INDEX] [BINS <tool>...]
                 [PLATFORM <ocx-platform>] [PULL] [NO_ROOT]
                 [CONFIG <config.toml>] [NO_CONFIG] [PATCH_SNAPSHOT <path>])
+    :target: ocx_package
+    :break: verbatim
 
-  Exports the same ``OCX_<NAME>_RUN`` / ``OCX_<NAME>_RUN_<BIN>`` command
-  lists as :command:`ocx_project` (re-entering ``ocx package exec``, lazy
-  by default). ``BINS`` entries are executable names on the composed
-  environment (a package may ship several tools), not package references,
-  and are checked against the binaries and entrypoints the package
-  declares (``ocx package inspect --closure``): a typo is a configure error
-  listing the declared names. Lazy and eager provisioning both run the
-  check; it is skipped while ``OCX_OFFLINE`` is set and the package is not
-  in the local store.
+    The call exports the same ``OCX_<NAME>_RUN`` and ``OCX_<NAME>_RUN_<BIN>`` command lists as :command:`ocx_project`.
+    The lists re-enter ``ocx package exec`` and are lazy by default.
+    ``PULL`` or :variable:`OCX_PULL` installs the package at configure time instead.
+    A floating tag needs an index snapshot or a digest pin, as `Tag resolution`_ describes.
 
-  ``PINS`` maps ocx platform keys to per-platform manifest digests (as
-  reported by ``ocx package install -p <platform>``); the entry for the
-  effective platform (``PLATFORM``, else the host) installs
-  ``registry/repo@<digest>``. A ``@sha256:`` digest in ``PACKAGE`` is
-  accepted too: an image index digest pins every platform at once.
+    Calling the command again with the same ``NAME`` and identical arguments does nothing, because CMake includes a toolchain file twice.
+    The same ``NAME`` with different arguments is an error.
 
-  Tag resolution is frozen against the first index snapshot in effect:
-  the explicit ``INDEX <dir>``, else the :variable:`OCX_INDEX` knob, else
-  the nearest committed ``.ocx/`` directory between the calling directory
-  and the last ``project()`` source dir (a ``.ocx/`` counts only when it
-  holds a ``config.json`` or a ``<registry>/p/`` directory; the
-  ``.ocx/toolchain`` that ``ocx pull`` renders does not). ``NO_INDEX``
-  skips all three. A floating tag with no index in effect and no digest pin
-  is a hard error unless :variable:`OCX_ALLOW_FLOATING` is set —
-  reproducible first. Snapshots are created and refreshed deliberately
-  (``ocx --index <dir> index update <package>``; see
-  :command:`ocx_index` for the composed refresh command).
+    .. versionchanged:: 0.4
+      An empty argument value is an error, because it usually means that a variable is unset.
 
-  With an index in effect the exported launchers run
-  ``ocx --index <dir> --frozen`` and export both knobs into child
-  processes: a find_ocx configure nested under such a launcher inherits
-  the outer resolution mode unless it is given ``-DOCX_FROZEN=``
-  ``-DOCX_INDEX=``.
+  Options
+  ^^^^^^^
 
-  With ``PULL`` (or the global ``OCX_PULL``) the package is installed at
-  configure time. Result variables, global cache-internal values:
+  ``NAME <name>``
+    Prefix of the result variables.
+    The module upper-cases the name and reduces it to a C identifier.
+    The option is required.
+
+  ``PACKAGE <registry/repo[:tag][@sha256:...]>``
+    The package reference.
+    The option is required.
+    A ``@sha256:`` digest pins the package.
+    An image index digest pins every platform at once.
+
+  ``PINS <platform>=sha256:<digest> ...``
+    Maps ocx platform keys to per-platform manifest digests, as ``ocx package install -p <platform>`` reports them.
+    The entry for the effective platform installs ``registry/repo@<digest>``.
+    The effective platform is ``PLATFORM``, else the host.
+    An entry of another shape is an error.
+
+  ``INDEX <dir>``
+    Index snapshot directory that freezes tag resolution for this package.
+
+  ``NO_INDEX``
+    Skip index resolution.
+    ``INDEX`` and ``NO_INDEX`` exclude each other.
+
+  ``BINS <tool>...``
+    Tools that get an ``OCX_<NAME>_RUN_<BIN>`` command.
+    Entries are executable names on the composed environment, not package references, because a package may ship several tools.
+    The module checks every name against the binaries and entrypoints that ``ocx package inspect --closure`` reports.
+    A typo is a configure error that lists the declared names.
+
+    Lazy and eager provisioning both run the check.
+    The check is skipped while ``OCX_OFFLINE`` is set and the package is not in the local store.
+
+    ``BINS`` is an error together with ``PLATFORM``, because content for another platform cannot run on the host.
+
+    .. versionchanged:: 0.4
+      The module validates ``BINS``.
+
+  ``PLATFORM <ocx-platform>``
+    One ocx platform.
+    The default is :variable:`OCX_DEFAULT_PLATFORM`, else the host.
+    The call installs the package eagerly and exports the platform result variables instead of the command lists.
+    A list of platforms is an error, so call the command once per platform under its own ``NAME``.
+
+  ``PULL``
+    Install the package at configure time.
+    ``PLATFORM`` always installs.
+
+  ``NO_ROOT``
+    Do not export ``<name>_ROOT``.
+
+  ``CONFIG <config.toml>``
+    An ocx config file that applies as ``OCX_CONFIG`` to every ocx call of this command and to the exported ``OCX_<NAME>_RUN``.
+    A relative path resolves against the calling directory.
+
+  ``NO_CONFIG``
+    Skip the user, ``$OCX_HOME`` and managed config tiers, as ``OCX_NO_CONFIG=1`` does.
+
+  ``PATCH_SNAPSHOT <path>``
+    A patch snapshot that applies as ``OCX_PATCH_SNAPSHOT``.
+
+  Each of the three config keywords overrides the environment variable of the same name for this command.
+
+  .. versionadded:: 0.4
+    ``CONFIG``, ``NO_CONFIG`` and ``PATCH_SNAPSHOT``.
+
+  Tag resolution
+  ^^^^^^^^^^^^^^
+
+  Tag resolution is frozen against the first index snapshot in effect.
+  The candidates, in order, are:
+
+  1. The explicit ``INDEX <dir>``.
+  2. The :variable:`OCX_INDEX` variable.
+  3. The nearest committed ``.ocx/`` directory between the calling directory and the last ``project()`` source directory.
+
+  A ``.ocx/`` counts only when it holds a ``config.json`` or a ``<registry>/p/`` directory.
+  The ``.ocx/toolchain`` that ``ocx pull`` renders does not count.
+  ``NO_INDEX`` skips all three.
+
+  A floating tag with no index in effect and no digest pin is a configure error unless :variable:`OCX_ALLOW_FLOATING` is set.
+  Create and refresh a snapshot deliberately with ``ocx --index <dir> index update <package>``.
+  :command:`ocx_index` composes the refresh command.
+
+  With an index in effect, the exported launchers run ``ocx --index <dir> --frozen`` and export both settings into child processes.
+  A find_ocx configure nested under such a launcher inherits the outer resolution mode.
+  Pass ``-DOCX_FROZEN=`` and ``-DOCX_INDEX=`` to opt out.
+
+  Result variables
+  ^^^^^^^^^^^^^^^^
+
+  The call exports these variables as global cache-internal values.
+
+  ``OCX_<NAME>_RUN``, ``OCX_<NAME>_RUN_<BIN>``
+    The command lists described for :command:`ocx_project`.
 
   ``OCX_<NAME>_CONTENT``
-    The package content directory (``PULL`` only).
+    The package content directory.
+    The call sets it when it installs the package.
 
   ``<name>_ROOT``
-    The same directory under the original-case name (CMP0074), so a
-    following ``find_package(<name>)`` / ``find_library`` searches the
-    OCX-provisioned content; a changed value also unsets ``<name>_DIR``.
-    Suppress with ``NO_ROOT``. ``find_program`` ignores it: pass
-    ``HINTS ${<name>_ROOT}``.
+    The same directory under the original-case name (CMP0074).
+    A following ``find_package(<name>)`` or ``find_library`` searches the OCX-provisioned content.
+    ``find_program`` ignores the variable, so pass ``HINTS ${<name>_ROOT}``.
+    ``NO_ROOT`` suppresses it.
+
+    .. versionchanged:: 0.4
+      A changed value also unsets ``<name>_DIR``, so ``find_package`` stops answering with the old copy.
 
   ``OCX_<NAME>_PATHS``, ``OCX_<NAME>_ENV_<KEY>``, ``OCX_<NAME>_ENV_KEYS``
-    Foreign ``PLATFORM`` only: the ``PATH`` directories, the constant
-    environment values and the list of their ``<KEY>`` names, instead of
-    RUN commands.
+    Set with ``PLATFORM`` instead of the command lists.
+    They hold the ``PATH`` directories, the constant environment values and the list of their ``<KEY>`` names.
 
-  ``PLATFORM`` is a single ocx platform (default ``OCX_DEFAULT_PLATFORM``,
-  else the host). A foreign platform installs eagerly and exports
-  ``OCX_<NAME>_PATHS`` / ``OCX_<NAME>_ENV_<KEY>`` instead of RUN commands;
-  ``BINS`` is then an error. A list of platforms is an error: call the
-  command once per platform under its own ``NAME``.
+  Examples
+  ^^^^^^^^
 
-  ``CONFIG`` (an ocx config file, as ``OCX_CONFIG``), ``NO_CONFIG`` (as
-  ``OCX_NO_CONFIG=1``) and ``PATCH_SNAPSHOT`` (as ``OCX_PATCH_SNAPSHOT``)
-  apply to every ocx call of this command and to the exported
-  ``OCX_<NAME>_RUN``; each overrides the environment variable of the same
-  name.
+  The tested project ``examples/package`` pins one digest per platform and keeps the package lazy.
 
-  Calling the command again with the same ``NAME`` and identical arguments
-  does nothing (CMake includes a toolchain file twice); the same ``NAME``
-  with different arguments is an error.
+  .. code-block:: cmake
+
+    ocx_package(
+      NAME jq_pinned
+      PACKAGE ocx.sh/jqlang/jq:1.8.2
+      BINS jq
+      NO_ROOT
+      PINS
+        "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
+        "linux/arm64=sha256:81b771e5c4e9b70cfeb19c825ca2b00a5078c238e7d3175eee9d772cedda006b"
+        "darwin/amd64=sha256:f750c91d28769d12298ba9a4c10340152fcbdd48c48102bf275c21d736cc72a2"
+        "darwin/arm64=sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
+        "windows/amd64=sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"
+    )
+
+  The same project resolves a floating tag from a snapshot directory, with no digest in the CMake code.
+
+  .. code-block:: cmake
+
+    ocx_package(
+      NAME jq_frozen
+      PACKAGE ocx.sh/jqlang/jq:latest
+      BINS jq
+      NO_ROOT
+      INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index"
+    )
+
+  The same project installs a floating tag eagerly and hands the content root to ``find_program``.
+  ``OCX_ALLOW_FLOATING`` is the deliberate escape hatch here, and the log prints the ``PINS`` line to copy.
+
+  .. code-block:: cmake
+
+    set(OCX_ALLOW_FLOATING ON)
+    ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
+    unset(OCX_ALLOW_FLOATING)
+    message(STATUS "example: jq content at ${jq_ROOT}")
+
+    find_program(JQ_EXECUTABLE NAMES jq HINTS "${jq_ROOT}" "${jq_ROOT}/bin" NO_DEFAULT_PATH NO_CACHE)
 #]=]
 function(ocx_package)
   __ocx_reject_empty_args("ocx_package" ${ARGC} "${ARGV}")
@@ -2383,7 +2693,7 @@ function(ocx_package)
     set_property(GLOBAL APPEND PROPERTY __OCX_INDEX_REFRESH "${index_dir}|${index_ref}")
     # The flag string alone would memoize across snapshot refreshes: hash
     # the <repo>.json leaf into the fingerprint and retrigger on edits.
-    # CLI >= 0.6 layout: <registry>/p/<repo path>.json
+    # The leaf path is <registry>/p/<repo path>.json.
     # REGEX REPLACE "^[^/]*/" would re-anchor per global match ('ocx.sh/jqlang/jq'
     # -> 'jq'), so cut at the first '/' by position.
     string(FIND "${index_repo}" "/" index_slash)
@@ -2479,7 +2789,7 @@ function(ocx_package)
     if(which_type STREQUAL "OBJECT")
       string(JSON store_root GET "${which_json}" "${member}" path)
     else()
-      string(JSON store_root GET "${which_json}" "${member}") # CLI < 0.6: bare path
+      string(JSON store_root GET "${which_json}" "${member}") # older CLIs print the bare path
     endif()
     set(content "${store_root}/content")
     __ocx_set_result(OCX_${name}_CONTENT "${content}")
@@ -2667,63 +2977,91 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_index
 
-  Operations on committed index snapshots — the reproducibility mechanism
-  for floating tags, next to ``PINS`` and ``@sha256:`` digests. The first
-  argument selects the operation:
+  Operates on committed index snapshots, the reproducibility mechanism for floating tags next to ``PINS`` and ``@sha256:`` digests.
+  The first argument selects the operation.
 
   .. parsed-literal::
 
     ocx_index(`FIND`_ [REQUIRED])
     ocx_index(`UPDATE_COMMAND`_ <out-var> [INDEX <dir>] [PACKAGES <ref>...])
 
-  A snapshot is a CLI-owned directory of ``<registry>/p/<repo>.json`` leaves
-  mapping tags to digests, created and refreshed with
-  ``ocx --index <dir> index update <package>...``. Committing one next to
-  your ``CMakeLists.txt`` as ``.ocx/`` freezes every
-  :command:`ocx_package` tag resolution against it — see the discovery
-  ladder there.
+  A snapshot is a directory owned by the ocx CLI.
+  It holds ``<registry>/p/<repo>.json`` leaves that map tags to digests.
+  Create and refresh it with ``ocx --index <dir> index update <package>...``.
+  Committing one next to your ``CMakeLists.txt`` as ``.ocx/`` freezes every :command:`ocx_package` tag resolution against it.
+  The discovery ladder is described under :command:`ocx_package`.
+
+  .. versionchanged:: 0.4
+    The leaves follow the layout of ocx 0.6.
+    Regenerate a snapshot that an earlier CLI created with ``UPDATE_COMMAND``.
 
   .. signature::
     ocx_index(FIND [REQUIRED])
+    :target: FIND
+    :break: verbatim
 
-    Runs the ``.ocx/`` discovery once — upward from the calling directory,
-    bounded by the last ``project()`` source dir — and locks the result
-    into :variable:`OCX_INDEX` for the current directory and below. A
-    ``.ocx/`` counts only when it holds a ``config.json`` or a
-    ``<registry>/p/`` directory, never for the ``.ocx/toolchain`` that
-    ``ocx pull`` renders. ``REQUIRED`` turns "no snapshot found" into a
-    hard error (fail-fast at the top of a CMakeLists instead of per
-    package). Without it, finding nothing is a quiet no-op. Not available
-    in script mode (no search bound): set :variable:`OCX_INDEX` there
-    instead.
+    Runs the ``.ocx/`` discovery once and locks the result into :variable:`OCX_INDEX` for the current directory and below.
+    The search goes upward from the calling directory and stops at the last ``project()`` source directory.
+    A ``.ocx/`` counts only when it holds a ``config.json`` or a ``<registry>/p/`` directory.
+    The ``.ocx/toolchain`` that ``ocx pull`` renders does not count.
+
+    ``REQUIRED``
+      Turns "no snapshot found" into a configure error.
+      Use it to fail fast at the top of a ``CMakeLists.txt`` instead of once per package.
+      Without it, finding nothing is a quiet no-op.
+
+    The operation is not available in script mode, because script mode has no search bound.
+    Set :variable:`OCX_INDEX` there instead.
 
   .. signature::
     ocx_index(UPDATE_COMMAND <out-var> [INDEX <dir>] [PACKAGES <ref>...])
+    :target: UPDATE_COMMAND
+    :break: verbatim
 
-    Composes the command list that refreshes a snapshot:
-    ``ocx --index <dir> index update <ref>...`` under the module's
-    composed environment, without ``OCX_FROZEN`` (``index update`` refuses
-    to run frozen). ``INDEX`` defaults to the index in effect
-    (:variable:`OCX_INDEX`, else the ``.ocx/`` discovery). Without
-    ``PACKAGES`` the references are collected from the preceding
-    :command:`ocx_package` calls frozen against that directory;
-    ``PACKAGES`` overrides the collection. A reference with a tag records
-    only that tag, a bare repository every tag; ``@sha256:`` is stripped.
-    Works in project and script mode.
+    Composes the command list that refreshes a snapshot and stores it in ``<out-var>``.
+    The list runs ``ocx --index <dir> index update <ref>...`` under the composed environment of the module.
+    It carries no ``OCX_FROZEN``, because ``index update`` refuses to run frozen.
+    The operation works in project mode and in script mode, where ``execute_process`` can run the list.
 
-    How the command runs is the caller's choice — build target, test
-    fixture, or script mode::
+    ``INDEX <dir>``
+      The snapshot to refresh.
+      The default is the index in effect, which is :variable:`OCX_INDEX`, else the ``.ocx/`` discovery.
 
-      ocx_index(UPDATE_COMMAND refresh)
-      add_custom_target(index-update COMMAND ${refresh} VERBATIM)
-      # or, in script mode:
-      execute_process(COMMAND ${refresh} COMMAND_ERROR_IS_FATAL ANY)
+    ``PACKAGES <ref>...``
+      The references to refresh.
+      The default is the references of the preceding :command:`ocx_package` calls frozen against that directory.
+      A reference with a tag records only that tag, and a bare repository records every tag.
+      The operation strips a ``@sha256:`` digest.
 
-    Deliberately no built-in target or ctest wiring: a "test" that
-    rewrites a committed file would let CI paper over drift instead of
-    failing. The freshness gate is the frozen configure itself — a tag
-    missing from the snapshot fails with the exit-81 refresh hint. Run
-    the command, review the diff, commit.
+    How the command runs is the caller's choice: a build target, a test fixture or script mode.
+    The module deliberately has no built-in target or ctest wiring.
+    A test that rewrites a committed file would let CI paper over drift instead of failing.
+    The freshness gate is the frozen configure itself, because a tag missing from the snapshot fails with the exit-81 refresh hint.
+    Run the command, review the diff and commit.
+
+  Examples
+  ^^^^^^^^
+
+  The tested project ``examples/frozen_index`` locks the discovered snapshot and resolves a floating tag from it.
+
+  .. code-block:: cmake
+
+    ocx_index(FIND REQUIRED)
+
+    ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
+
+  The same project composes the refresh command and wraps it in a build target.
+
+  .. code-block:: cmake
+
+    ocx_index(UPDATE_COMMAND refresh)
+    add_custom_target(
+      index-update
+      COMMAND ${refresh}
+      COMMAND
+        ${CMAKE_COMMAND} -E echo "index snapshot refreshed - review the diff and commit the result"
+      VERBATIM
+    )
 #]=]
 function(ocx_index op)
   # Forward the verb's arguments (after the <out-var> of UPDATE_COMMAND)
@@ -2767,19 +3105,34 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_self_update
 
-  Replaces the vendored ``ocx.cmake`` (and a sibling ``Findocx.cmake`` when
-  present) with a released find_ocx version::
+  Replaces the vendored ``ocx.cmake`` and a sibling ``Findocx.cmake`` with a released find_ocx version.
 
+  .. signature::
     ocx_self_update()
+    :target: ocx_self_update
 
-  Script mode only (``cmake -P``): a configure fails with an error, because
-  the command rewrites files in the source tree. ``cmake -P ocx.cmake`` calls
-  it, or call it after ``include(ocx)`` from your own script. The release
-  is named by :variable:`OCX_SELF_UPDATE_VERSION` (default: the latest, via
-  the GitHub releases API) and fetched from GitHub or from
-  :variable:`OCX_SELF_UPDATE_URL`. The release ``SHA256SUMS`` is the trust
-  root: both files are downloaded and verified against it before either
-  one replaces the vendored copy.
+    .. versionadded:: 0.4
+
+    The command runs in script mode only (``cmake -P``).
+    A configure fails with an error, because the command rewrites files in the source tree.
+    ``cmake -P ocx.cmake`` calls it, and so does a call after ``include(ocx)`` from your own script.
+
+    :variable:`OCX_SELF_UPDATE_VERSION` names the release.
+    The default is the latest release, found through the GitHub releases API.
+    The files come from GitHub or from :variable:`OCX_SELF_UPDATE_URL`.
+
+    The release ``SHA256SUMS`` file is the trust root.
+    The command downloads both files and verifies them against it before either one replaces the vendored copy.
+    A failed update leaves the vendored copy untouched.
+
+  Example
+  ^^^^^^^
+
+  The check ``tests/self_update_check.cmake`` runs this form against a ``file://`` release.
+
+  .. code-block:: sh
+
+    cmake -DOCX_SELF_UPDATE_VERSION=v0.4.0 -P cmake/ocx.cmake
 #]=]
 function(ocx_self_update)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "")
