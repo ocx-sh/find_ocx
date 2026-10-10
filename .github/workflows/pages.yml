@@ -31,12 +31,12 @@ jobs:
 
       - uses: ocx-sh/setup-ocx@v1
         with:
-          version: "0.6.2"
+          version: "0.6.5"
 
       # Sphinx + the CMake domain, extracted from the .rst blocks in the
       # module sources (see docs/reference.rst).
       - name: Build docs
-        run: ocx run -- task docs
+        run: ocx exec -- task docs
 
       - uses: actions/configure-pages@v5
         with:

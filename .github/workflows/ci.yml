@@ -28,9 +28,9 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@v1
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       - name: Lint (actionlint, license headers, links)
-        run: ocx run -- task lint
+        run: ocx exec -- task lint
 
   docs:
     name: Docs
@@ -41,9 +41,9 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@v1
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       - name: Sphinx build (warnings are errors)
-        run: ocx run -- task docs
+        run: ocx exec -- task docs
 
   test:
     name: Test (${{ matrix.os }})
@@ -58,9 +58,9 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@v1
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       - name: Dogfooded CMake-version matrix (live ocx.sh registry)
-        run: ocx run -- task test
+        run: ocx exec -- task test
 
   examples:
     name: Example ${{ matrix.example }} (${{ matrix.os }})
@@ -76,16 +76,16 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@v1
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       - name: Configure, build, test
         shell: bash
         run: |
           # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables
           # the bootstrap fallback for the find_package one.
-          ocx run -- cmake -Werror=dev -DOCX_PULL=ON -DOCX_BOOTSTRAP=ON \
+          ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -DOCX_BOOTSTRAP=ON \
             -S "examples/${{ matrix.example }}" -B build/example
-          ocx run -- cmake --build build/example
-          ocx run -- ctest --test-dir build/example --output-on-failure
+          ocx exec -- cmake --build build/example
+          ocx exec -- ctest --test-dir build/example --output-on-failure
 
   offline:
     name: Offline determinism
@@ -96,16 +96,16 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@v1
         with:
-          version: "0.6.2"
+          version: "0.6.5"
       - name: Warm configure (pulls everything)
-        run: ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/warm
+        run: ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/warm
       - name: Offline configure in a fresh build dir (must succeed)
         run: |
-          OCX_OFFLINE=1 ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/offline
+          OCX_OFFLINE=1 ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/offline
       - name: Offline configure against an empty store (must fail)
         run: |
           if OCX_HOME="$RUNNER_TEMP/empty-ocx-home" OCX_OFFLINE=1 \
-             ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/empty; then
+             ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/empty; then
             echo "expected the offline configure against an empty store to fail" >&2
             exit 1
           fi

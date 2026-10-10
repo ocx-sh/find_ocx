@@ -9,8 +9,8 @@ env:
   CMAKE_GENERATOR: Ninja
 
 vars:
-  CMAKE: ocx run -- cmake
-  CTEST: ocx run -- ctest
+  CMAKE: ocx exec -- cmake
+  CTEST: ocx exec -- ctest
   BUILD: build
 
 tasks:
@@ -29,11 +29,11 @@ tasks:
   lint:
     desc: actionlint + license headers + links
     cmds:
-      - ocx run -- actionlint
-      - ocx run -- hawkeye check
+      - ocx exec -- actionlint
+      - ocx exec -- hawkeye check
       # The ocx.sh/integrations/cmake/ link 404s until the site's first deploy and the edge flip;
       # drop the exclude then.
-      - ocx run -- lychee --no-progress --exclude '^https://ocx\.sh/integrations/cmake/' README.md CONTRIBUTING.md SECURITY.md
+      - ocx exec -- lychee --no-progress --exclude '^https://ocx\.sh/integrations/cmake/' README.md CONTRIBUTING.md SECURITY.md
 
   test:
     desc: Harness — dogfooded CMake-version matrix via CTest
@@ -57,7 +57,7 @@ tasks:
   docs:
     desc: Sphinx (CMake domain) — warnings are errors
     cmds:
-      - ocx run -- uv run --project docs sphinx-build -W -b html docs docs/_build/html
+      - ocx exec -- uv run --project docs sphinx-build -W -b html docs docs/_build/html
 
   site:install:
     desc: Install the site's dependencies from the committed lockfile
