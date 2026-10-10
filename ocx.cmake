@@ -2787,7 +2787,8 @@ function(ocx_package)
     else()
       string(JSON store_root GET "${which_json}" "${member}") # older CLIs print the bare path
     endif()
-    set(content "${store_root}/content")
+    # ocx prints native paths: backslashes on Windows. The cache holds CMake paths, as <name>_ROOT does.
+    cmake_path(SET content NORMALIZE "${store_root}/content")
     __ocx_set_result(OCX_${name}_CONTENT "${content}")
     list(APPEND guard_paths "${content}")
     if(NOT arg_NO_ROOT)
