@@ -27,10 +27,10 @@ Machines that have `ocx` stop at step 2 and download nothing.
 
 ## Tell which binary a configure runs {#which}
 
-The first configure of a build tree names the choice in one status line.
+Every configure names a choice the module made itself in one status line.
 It reads `find_ocx: using ocx from PATH (<path>) - OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead`, or `find_ocx: using bootstrapped ocx <version> (<path>)` when the pin was downloaded.
-A later configure of the same tree reuses the cached answer and prints nothing, and so does an explicit `OCX_EXECUTABLE`.
-The cache keeps the answer too, and `cmake -LA -N build` prints it as `OCX_EXECUTABLE`.
+The module chooses again on each configure, so a newer `ocx` on `PATH` is picked up; an explicit `OCX_EXECUTABLE` is kept as given and prints nothing.
+The cache holds the answer for reading, and `cmake -LA -N build` prints it as `OCX_EXECUTABLE`.
 To read that binary's version, run `ocx version`, because the CLI has no `--version` flag.
 
 ## Name the binary yourself {#executable}
@@ -64,7 +64,9 @@ find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit bootstrap is d
 hint: install ocx on PATH or set OCX_EXECUTABLE to an ocx binary
 ```
 
-An empty value, as in `-DOCX_BOOTSTRAP=`, counts as `OFF`.
+An empty value, as in `-DOCX_BOOTSTRAP=`, counts as unset, so the default `ON` applies and a missing CLI is downloaded.
+`OFF` is the only value that forbids the download.
+`ON`, `OFF` and `ALWAYS` are the accepted values, in any case, and the module rejects every other one.
 
 ## Run the pinned CLI everywhere {#always}
 

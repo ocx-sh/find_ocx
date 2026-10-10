@@ -20,7 +20,8 @@ After an `index update`, the index digest is the file name under `.ocx/ocx.sh/p/
 
 `PINS` fixes one manifest digest per platform instead.
 A pin applies only to the platform of the call, which is `PLATFORM` when set and the host otherwise.
-A pin for another platform is ignored, and a tag with no matching pin stays floating.
+Entries for other platforms are ignored.
+A `PINS` list without an entry for the effective platform is a configure error, `PINS has no entry for the effective platform ... (PINS keys: ...)`, so list every platform you build for.
 Nothing downloads until the first build-time execution.
 
 <!-- snippet: examples/package/CMakeLists.txt#pins -->

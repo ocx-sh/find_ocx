@@ -47,7 +47,9 @@ Name the content root as a hint and turn off the default search paths.
 
 Where the program sits depends on the package.
 For `jq` it is the content root, and many packages use a `bin` directory, so the call lists both.
-The recording shows the plain call returning the host copy and the hinted call returning the provisioned one.
+The recording provisions `lychee`, which the host does not have.
+The plain call therefore returns `NOTFOUND`, and the call with `HINTS "${lychee_ROOT}"` returns the file under the package root.
+On a machine that has the tool, the plain call would return the host copy instead.
 
 <!-- cast: guides-find-package/find-program -->
 

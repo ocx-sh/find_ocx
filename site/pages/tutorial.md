@@ -73,7 +73,7 @@ A teammate or a CI runner then builds with nothing installed beyond CMake.
 
 ## Next steps {#next-steps}
 
-- [Add a tool to the project](guides/add-a-tool.md) to run more tools and keep rarely used ones in groups.
+- [Add or change a pinned tool](guides/add-a-tool.md) to run more tools and keep rarely used ones in groups.
 - [Pin and freeze tag resolution](guides/pin-and-freeze.md) to make `ocx_package` reproducible without a project file.
 - [Read how find_ocx works](concepts/how-it-works.md) for what ran under the hood.
 - [Fix a failing configure](troubleshooting/configure-errors.md) when a step above does not end as described.

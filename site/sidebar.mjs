@@ -6,13 +6,13 @@ export const GROUPS = [
     label: 'Everyday',
     items: [
       ['Everyday guides', '/guides/'],
-      ['Add a tool and fix a stale lock', '/guides/add-a-tool/'],
+      ['Add or change a pinned tool', '/guides/add-a-tool/'],
       ['Pin and freeze tag resolution', '/guides/pin-and-freeze/'],
       ['Pin digests instead of a snapshot', '/guides/pin-digests/'],
-      ['Use find_package with find_ocx', '/guides/find-package/'],
-      ['Use an ocx you already have', '/guides/use-system-ocx/'],
+      ['Make the build find provisioned content', '/guides/find-package/'],
+      ['Use an ocx you already installed', '/guides/use-system-ocx/'],
       ['Update the vendored files', '/guides/update-vendored/'],
-      ['Migrate from 0.3', '/guides/migrate-04/'],
+      ['Move from 0.3 to 0.4', '/guides/migrate-04/'],
     ],
   },
   {
@@ -21,8 +21,8 @@ export const GROUPS = [
       ['Reproduce the build in CI', '/guides/ci/'],
       ['Build behind a mirror or offline', '/guides/mirror/'],
       ['Route package pulls through a mirror', '/guides/mirror-packages/'],
-      ['Cross-build with foreign content', '/guides/cross-build/'],
-      ['Organisation policy and config', '/guides/policy-and-config/'],
+      ['Cross-build with foreign-platform content', '/guides/cross-build/'],
+      ['Apply organisation-wide download rules', '/guides/policy-and-config/'],
     ],
   },
   {

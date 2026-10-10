@@ -58,7 +58,7 @@ find_ocx: OCX_INSTALL_CA_BUNDLE='<path>' is not a readable file
 hint: point it at a PEM bundle, or clear it with -DOCX_INSTALL_CA_BUNDLE=
 ```
 
-The check runs only when the configure downloads the binary, so a warm bootstrap cache hides a wrong path until the next download.
+The path is checked on every configure that provisions or runs `ocx`, so a wrong path fails even when nothing is downloaded and the bootstrap cache is warm.
 
 ## Pass credentials {#credentials}
 
@@ -86,5 +86,5 @@ A helper that is configured but not installed prints a warning, and ocx then con
 ## Next steps {#next-steps}
 
 - [Build behind a mirror or offline](mirror.md) routes the `ocx` download and covers a build with no network.
-- [Apply organisation-wide rules](policy-and-config.md) to share one config file across builds.
+- [Apply organisation-wide download rules](policy-and-config.md) to share one config file across builds.
 - [Exit codes](../troubleshooting/exit-codes.md) to map a failed configure to its cause.

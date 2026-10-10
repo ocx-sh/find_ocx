@@ -29,7 +29,7 @@ The first match wins, in both entry points.
 
 | Order | Source | Notes |
 |---|---|---|
-| 1 | The `OCX_EXECUTABLE` cache variable | You set it, a previous `find_package(ocx)` set it, or an earlier bootstrap set it. Both entry points honor it, so they compose in either order. |
+| 1 | The `OCX_EXECUTABLE` cache variable | You set it. Both entry points honor it and it must exist. A path the module chose itself is not sticky: it is chosen again on each configure. |
 | 2 | An `ocx` on `PATH` | The configure log prints `using ocx from PATH` and the path. |
 | 3 | The pinned bootstrap | A sha256-verified download of `OCX_INSTALL_VERSION`, which defaults to the pin embedded in `ocx.cmake`. |
 
@@ -60,4 +60,4 @@ A lock file in a format the binary does not know fails with exit 78.
 [Exit codes](../troubleshooting/exit-codes.md) maps both to a fix.
 
 Set `OCX_BOOTSTRAP=ALWAYS` when every developer and CI runner must run the tested binary.
-To use a system ocx on purpose, see [Use a system ocx](../guides/use-system-ocx.md).
+To use a system ocx on purpose, see [Use an ocx you already installed](../guides/use-system-ocx.md).

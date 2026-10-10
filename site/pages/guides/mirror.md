@@ -16,30 +16,39 @@ The lock records the upstream host and digest of each tool, so it stays valid be
 
 ## Know what leaves the network {#what-leaves-the-network}
 
-A configure causes four kinds of traffic.
+A configure causes up to four kinds of traffic.
 Allow these hosts through the firewall, or mirror them as described here and in [Route package pulls through a mirror](mirror-packages.md).
 
 | Traffic | Default host | Variable |
 | --- | --- | --- |
-| Release manifest `dist.json` | `setup.ocx.sh` | `OCX_INSTALL_DIST_URL` |
+| Release manifest `dist.json` | none by default (`setup.ocx.sh` when `OCX_INSTALL_DIST_URL` is set) | `OCX_INSTALL_DIST_URL` |
 | `ocx` archive | `github.com` | `OCX_INSTALL_MIRROR_URL` |
 | Package blobs | `ghcr.io` | `OCX_MIRRORS` |
 | Package index | `index.ocx.sh` | `OCX_MIRRORS` |
 
+`ocx.cmake` embeds the manifest of the pinned version, so a default configure downloads only the archive.
 The module files themselves (`ocx.cmake` and `Findocx.cmake`) come from GitHub only when you run the [self-update](update-vendored.md).
 
 ## Put the ocx files on the mirror {#host-the-cli}
 
-1. Copy `https://setup.ocx.sh/dist.json` to your mirror.
-2. For every platform that builds on the mirror, copy the archive named in the manifest to `<mirror>/<tag>/<filename>`.
+1. For every platform that builds on the mirror, copy the archive named in the manifest to `<mirror>/<tag>/<filename>`.
+   The embedded manifest names the archives of the pinned version, and `https://setup.ocx.sh/dist.json` lists every release.
+2. Copy a manifest only when you set `OCX_INSTALL_VERSION` to a version that the embedded manifest does not list, for example with an older vendored find_ocx.
+   Publish it as `<sha256>.json`, where the name is the sha256 of the file, so that the module can enforce the digest.
 
 Linux hosts use the `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` archive, not the `gnu` one.
 Archives are `.tar.gz` on Linux and macOS and `.zip` on Windows.
-Every ocx version you set with `OCX_INSTALL_VERSION` needs its own archives and a row in the manifest.
+Every ocx version you set with `OCX_INSTALL_VERSION` needs its own archives.
 
-Both files must allow anonymous read.
-find_ocx downloads them without credentials, and the sha256 in the manifest is the security boundary, not the mirror.
+All files must allow anonymous read.
+find_ocx downloads them without credentials.
 A mirror locked down later breaks the download with an error that looks like a network failure.
+
+The sha256 of the manifest row is the security boundary, and it protects as far as the manifest is trusted.
+The embedded manifest and a manifest named `<sha256>.json` are trusted.
+A manifest under any other name, such as `dist.json`, is fetched unverified, and then the mirror is the trust root: it can serve a row with the hash of a different archive together with that archive.
+Prefer the embedded manifest whenever the pinned version is enough.
+
 A missing or locked manifest fails like this, and the message names the URL that was requested:
 
 ```text
@@ -52,8 +61,8 @@ CMake does not print the HTTP status, so check the access log of the mirror for 
 
 ## Point the configure at the mirror {#point-the-configure}
 
-Pass the two variables on the first configure of a build directory.
-This example serves the files from a local HTTP server that stands in for your mirror.
+Pass `OCX_INSTALL_MIRROR_URL` on the first configure of a build directory.
+This example serves the archive from a local HTTP server that stands in for your mirror.
 
 <!-- snippet: site/casts/guides-mirror__bootstrap.sh#cast -->
 
@@ -61,9 +70,10 @@ The recording shows the download going to the mirror instead of GitHub.
 
 <!-- cast: guides-mirror/bootstrap -->
 
-`OCX_INSTALL_DIST_URL` replaces the manifest embedded in `ocx.cmake`.
 `OCX_INSTALL_MIRROR_URL` rewrites every archive URL to `<mirror>/<tag>/<filename>`.
-The sha256 from the manifest is still enforced, so a mirror can move bytes but not change them.
+The sha256 from the embedded manifest is still enforced, so the mirror can move bytes but not change them.
+`OCX_INSTALL_DIST_URL` replaces the embedded manifest.
+Set it only for a version that the embedded manifest lacks, and name the file `<sha256>.json`, as above.
 
 Each variable is stored in `CMakeCache.txt` at the first configure and stays there.
 To change one later, pass it again with `-D` or use a fresh build directory.
@@ -87,6 +97,6 @@ Restore the store from your CI cache or pull it once online, as in [Reproduce th
 ## Next steps {#next-steps}
 
 - [Route package pulls through a mirror](mirror-packages.md) to mirror the registry and pass credentials.
-- [Apply organisation-wide rules](policy-and-config.md) to share one config file across builds.
+- [Apply organisation-wide download rules](policy-and-config.md) to share one config file across builds.
 - [Exit codes](../troubleshooting/exit-codes.md) to map a failed configure to its cause.
 - [Environment and config](../concepts/env-and-config.md) for which variables are forwarded to every `ocx` call.

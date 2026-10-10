@@ -40,6 +40,9 @@ Changing the shell variable later does not change an existing build directory, s
 And `-DOCX_FROZEN=` with an empty value removes the variable from every `ocx` call.
 That second form is how a nested configure opts out of what an outer launcher exports, as [Error: a nested configure fails](../troubleshooting/configure-errors.md#nested-configure) shows.
 
+A site value cannot contain `;`, because a CMake list would split it into extra arguments; the module stops with an error that names the value.
+The same holds for paths such as `OCX_EXECUTABLE`.
+
 ### Translucent {#translucent}
 
 A translucent variable has a call keyword that wins over the environment.
@@ -55,7 +58,7 @@ A CI job that exports `OCX_ALLOW_YANKED` resolves as if it had not.
 Move that intent into `ocx_policy(ALLOW_YANKED)`.
 
 A second `ocx_policy` call with different values is an error.
-[Set organisation-wide rules](../guides/policy-and-config.md) shows the call.
+[Apply organisation-wide download rules](../guides/policy-and-config.md) shows the call.
 
 ### Pinned {#pinned}
 
@@ -116,6 +119,6 @@ Run the command once on the machine.
 
 ## Related pages {#related}
 
-- [Set organisation-wide rules](../guides/policy-and-config.md) applies this in a build.
-- [Use a corporate mirror](../guides/mirror.md) uses the site variables.
+- [Apply organisation-wide download rules](../guides/policy-and-config.md) applies this in a build.
+- [Build behind a mirror or offline](../guides/mirror.md) uses the site variables.
 - [Exit codes](../troubleshooting/exit-codes.md) lists what each failure means.

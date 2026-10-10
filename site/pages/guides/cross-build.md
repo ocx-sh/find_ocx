@@ -41,6 +41,10 @@ The call registers `ocx.toml` and `ocx.lock` as configure dependencies, so the n
 For a package that ships a sysroot, headers or libraries, `CMAKE_FIND_ROOT_PATH` lets `find_package` and `find_library` search it.
 Use `CMAKE_SYSROOT` instead when the package is the whole sysroot.
 
+The four `CMAKE_FIND_ROOT_PATH_MODE_*` lines restrict the search.
+Without them, the libraries, headers and packages of the target fall back to the copies of the build machine, which link into a binary that cannot run on the target.
+Programs stay on the build machine, because they run there.
+
 The project tier renders its links into `.ocx/toolchain/` next to `ocx.toml`.
 That directory ignores itself with its own `.gitignore`, so there is nothing to add to yours.
 It is not the committed `.ocx/` index snapshot of [pin and freeze](pin-and-freeze.md), which sits in the same `.ocx/` directory under a registry name.
@@ -63,12 +67,11 @@ This example copies the content into an install tree that you ship to the target
 
 ## Run it {#run-it}
 
-Configure with the toolchain file and install into a prefix.
+The recording requests Windows content on a Unix host.
+The first configure passes `BINS` together with `PLATFORM` and fails with `PLATFORM is incompatible with BINS`.
+After the `sed` command drops `BINS`, the configure succeeds and prints the exported content path, which holds `jq.exe`.
 
 <!-- snippet: site/casts/guides-cross-build__foreign-paths.sh#cast -->
-
-The recording ends with the file type of the installed binary.
-It reports an ARM aarch64 executable, although the build machine is x86-64.
 
 <!-- cast: guides-cross-build/foreign-paths -->
 

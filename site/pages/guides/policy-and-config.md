@@ -21,7 +21,7 @@ The class decides who can change a value.
 | Class | Variables | Behavior |
 | --- | --- | --- |
 | Site | `OCX_MIRRORS`, `OCX_INSECURE_REGISTRIES`, `OCX_OFFLINE`, `OCX_FROZEN`, `OCX_REMOTE`, `OCX_JOBS`, `OCX_INDEX`, `OCX_DEFAULT_REGISTRY`, `OCX_MANAGED_CONFIG`, `OCX_PATCHES`, `OCX_EXTRA_CA_CERTS`, `OCX_HOME` | The environment value at the first configure is stored in the cache and forwarded to every `ocx` call. |
-| Per call | `OCX_CONFIG`, `OCX_NO_CONFIG`, `OCX_PATCH_SNAPSHOT`, `OCX_SIGSTORE_TRUSTED_ROOT` | A keyword on the command overrides the environment value. |
+| Translucent | `OCX_CONFIG`, `OCX_NO_CONFIG`, `OCX_PATCH_SNAPSHOT`, `OCX_SIGSTORE_TRUSTED_ROOT` | A keyword on the command overrides the environment value. |
 | Explicit | `OCX_NO_VERIFY`, `OCX_ALLOW_YANKED` | Only `ocx_policy` sets them. An exported value is ignored. |
 | Pinned | `OCX_QUIET`, `OCX_GLOBAL`, `OCX_NO_PROJECT`, `OCX_NO_CONSENT` and similar | find_ocx sets them on every call, so a developer's shell cannot change the output that CMake parses. |
 

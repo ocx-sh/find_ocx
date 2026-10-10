@@ -2,7 +2,7 @@
 # cast: true
 # doc: guides-mirror/bootstrap
 # title: Bootstrap ocx through an internal mirror
-# description: Where github.com is unreachable the bootstrap fails with a hint; point it at an internal mirror and the pinned ocx downloads and verifies.
+# description: Where github.com is unreachable the bootstrap fails with a hint; point it at an internal mirror and the pinned ocx downloads and verifies against the embedded manifest.
 
 # Error cast: the region runs with errexit off because the first configure must fail.
 # The verification repeats that configure and asserts status and message.
@@ -30,7 +30,7 @@ set +e
 # region cast
 cmake -S . -B build
 
-export OCX_INSTALL_DIST_URL="$MIRROR/dist.json" OCX_INSTALL_MIRROR_URL="$MIRROR"
+export OCX_INSTALL_MIRROR_URL="$MIRROR"
 
 cmake -S . -B build --fresh
 # endregion cast

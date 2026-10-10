@@ -22,8 +22,8 @@ Thanks for helping out! Ground rules:
 - The pinned ocx version (`__OCX_PIN_VERSION`), the embedded dist.json
   snapshot in `ocx.cmake` and the `ocx-sh/setup-ocx` pins in the CI
   workflows move together, in one command (`task dist:update`).
-- The published surface is exactly two files: `Findocx.cmake` (works on
-  CMake 3.15+) and `ocx.cmake` (3.25+). Everything else in this repository
+- The published surface is exactly two files: `Findocx.cmake` (written for
+  CMake 3.15+, tested on 3.25+) and `ocx.cmake` (3.25+). Everything else in this repository
   is harness.
 - Public result variables are `CACHE INTERNAL` (usable from any directory,
   recomputed each configure); internal identifiers are `__ocx_`-prefixed;

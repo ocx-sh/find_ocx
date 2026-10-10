@@ -50,7 +50,8 @@ Here it is a build target.
 3. Commit the result.
 
 The composed command runs without frozen mode, so it works while `OCX_FROZEN` is set.
-A tag that is missing from the snapshot makes the next frozen configure fail with exit code 81 and a refresh hint.
+A tag that is missing from the snapshot makes the next frozen configure fail with exit code 81 and a refresh hint, when the call has `BINS` or `PULL`, because those run `ocx` at configure time.
+Without them the first build step fails instead, as [the frozen configure](../concepts/reproducible-first.md#frozen-configure) explains.
 
 ## Run a frozen configure {#frozen-configure}
 

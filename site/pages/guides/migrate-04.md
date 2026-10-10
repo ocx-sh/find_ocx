@@ -8,7 +8,7 @@ description: Fix the lines of your build files that find_ocx 0.4 breaks, in orde
 # Move from 0.3 to 0.4
 
 Your project builds with find_ocx 0.3, and 0.4 changes several things at once.
-The CMake floor rises, the pinned `ocx` jumps from 0.3.11 to 0.6.5, and a `PLATFORM` list from the unreleased main branch is an error.
+The CMake floor rises, the pinned `ocx` jumps from 0.3.11 to 0.6.5, an exported `OCX_NO_VERIFY` or `OCX_ALLOW_YANKED` stops working, and a `PLATFORM` list from the unreleased main branch is an error.
 This page lists each break in the order to fix it, so the upgrade lands in one change.
 The [changelog](https://github.com/ocx-sh/find_ocx/blob/main/CHANGELOG.md) has the full list of changes.
 
@@ -37,7 +37,7 @@ In 0.4, `PLATFORM` takes exactly one platform, because the `ocx` CLI accepts one
 A list, whether written as several arguments or as a `;`-list in `OCX_DEFAULT_PLATFORM`, stops the configure.
 Pick the platform you really need.
 
-<!-- doc-norun: shows a rejected call, bound to the I4 PLATFORM-list fixture after P2 merges -->
+<!-- doc-norun: shows a rejected call; the i3 tests platform_list_keyword and platform_list_quoted assert the same error -->
 ```diff
 -ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:1.8.2 PLATFORM linux/arm64 linux/amd64)
 +ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:1.8.2 PLATFORM linux/amd64)
@@ -45,6 +45,37 @@ Pick the platform you really need.
 <!-- /doc-norun -->
 
 `PINS` still takes one digest per platform, so a project that pins digests for five platforms keeps its call.
+
+## List every platform in `PINS` {#pins}
+
+In 0.3, a `PINS` list without an entry for the building platform left the tag floating.
+In 0.4 it is a configure error: `PINS has no entry for the effective platform ... (PINS keys: ...)`.
+The effective platform is `PLATFORM` when set, else the host.
+Add an entry for every platform you build for, as [Pin digests instead of a snapshot](pin-digests.md#pins) shows.
+
+## Move `OCX_NO_VERIFY` and `OCX_ALLOW_YANKED` into `ocx_policy` {#policy}
+
+In 0.3, the ambient environment reached every `ocx` call, so a CI job that exported `OCX_ALLOW_YANKED=1` or `OCX_NO_VERIFY=1` resolved yanked versions or skipped verification.
+In 0.4, both variables are removed from every call, and only `ocx_policy` sets them.
+A job that still exports one of them now fails to resolve the yanked tag, or starts to enforce verification, with no message about the variable.
+
+Search your CI definitions and scripts for both names.
+Where the intent is deliberate, state it in the listfile, before the first `ocx_project` or `ocx_package`:
+
+```cmake
+ocx_policy(ALLOW_YANKED)
+ocx_policy(ALLOW_UNVERIFIED)
+```
+
+[Apply organisation-wide download rules](policy-and-config.md) shows the command in use.
+The other `OCX_*` variables keep their effect, in the classes that [Environment and config](../concepts/env-and-config.md) lists.
+
+## Check the `.ocx/` snapshot {#index}
+
+In 0.3, any `.ocx/` directory counted as an index snapshot.
+In 0.4 it counts only when it holds a `config.json` or a `<registry>/p/` directory.
+A `.ocx/` that holds only the `toolchain/` links that `ocx pull` renders is no snapshot, and a package behind it is floating again.
+Regenerate a snapshot that an earlier CLI created with `ocx_index(UPDATE_COMMAND)`, because the leaves follow the layout of ocx 0.6.
 
 ## Replace deprecated ocx verbs {#verbs}
 
@@ -68,13 +99,13 @@ From 0.4, a failed `ocx` call prints a hint for exit codes 64 to 87, and a downl
 
 ## Adopt the new keywords {#new-keywords}
 
-Nothing below is required, and your 0.3 calls keep working.
+Nothing below is required.
 
 - `CONFIG`, `NO_CONFIG` and `PATCH_SNAPSHOT` on `ocx_project` and `ocx_package` choose the `ocx` configuration and the patch snapshot per call.
-- `ocx_policy` sets download rules such as `ALLOW_UNVERIFIED`, `ALLOW_YANKED` and `SIGSTORE_TRUSTED_ROOT` in code, never from the environment.
+- `ocx_policy` also takes `SIGSTORE_TRUSTED_ROOT`, in code and never from the environment.
 - From 0.4, a changed `<name>_ROOT` also clears the cached `<name>_DIR`, so `find_package` stops answering with the old copy.
 
-[Apply organisation-wide rules](policy-and-config.md) shows the three in use.
+[Apply organisation-wide download rules](policy-and-config.md) shows the three in use.
 
 ## Check the result {#check}
 
