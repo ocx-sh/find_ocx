@@ -40,7 +40,8 @@ Changing the shell variable later does not change an existing build directory, s
 And `-DOCX_FROZEN=` with an empty value removes the variable from every `ocx` call.
 That second form is how a nested configure opts out of what an outer launcher exports, as [Error: a nested configure fails](../troubleshooting/configure-errors.md#nested-configure) shows.
 
-A site value cannot contain `;`, because a CMake list would split it into extra arguments; the module stops with an error that names the value.
+A site value cannot contain `;`, because a CMake list would split it into extra arguments.
+The module stops with an error that names the value.
 The same holds for paths such as `OCX_EXECUTABLE`.
 
 ### Translucent {#translucent}

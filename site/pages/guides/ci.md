@@ -56,8 +56,12 @@ This GitHub Actions workflow applies all four settings on three operating system
 
 <!-- snippet: examples/ci/github-actions.yml#workflow -->
 
-The job token is read-only and checkout does not persist it, because the downloaded `ocx` runs with whatever the job can write.
-The configure fails on a CMake author warning, the test run fails when it finds no tests, and a hung test is cut off after 300 seconds.
+The job token is read-only and checkout does not persist it.
+The downloaded `ocx` would otherwise run with whatever the job can write.
+The configure fails on a CMake author warning.
+The test run fails when it finds no tests.
+A hung test is cut off after 300 seconds.
+
 find_ocx's own lint step checks the file with `actionlint`.
 The same flags work in any CI system, because they are plain CMake and environment settings.
 

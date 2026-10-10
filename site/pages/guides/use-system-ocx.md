@@ -29,7 +29,9 @@ Machines that have `ocx` stop at step 2 and download nothing.
 
 Every configure names a choice the module made itself in one status line.
 It reads `find_ocx: using ocx from PATH (<path>) - OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead`, or `find_ocx: using bootstrapped ocx <version> (<path>)` when the pin was downloaded.
-The module chooses again on each configure, so a newer `ocx` on `PATH` is picked up; an explicit `OCX_EXECUTABLE` is kept as given and prints nothing.
+The module chooses again on each configure, so a changed `ocx` on `PATH` is picked up.
+An explicit `OCX_EXECUTABLE` is kept as given and prints nothing.
+
 The cache holds the answer for reading, and `cmake -LA -N build` prints it as `OCX_EXECUTABLE`.
 To read that binary's version, run `ocx version`, because the CLI has no `--version` flag.
 

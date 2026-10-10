@@ -41,8 +41,9 @@ The call registers `ocx.toml` and `ocx.lock` as configure dependencies, so the n
 For a package that ships a sysroot, headers or libraries, `CMAKE_FIND_ROOT_PATH` lets `find_package` and `find_library` search it.
 Use `CMAKE_SYSROOT` instead when the package is the whole sysroot.
 
-The four `CMAKE_FIND_ROOT_PATH_MODE_*` lines restrict the search.
-Without them, the libraries, headers and packages of the target fall back to the copies of the build machine, which link into a binary that cannot run on the target.
+The four `CMAKE_FIND_ROOT_PATH_MODE_*` lines narrow the search.
+Without them, the libraries, headers and packages of the target fall back to the copies of the build machine.
+The result links into a binary that cannot run on the target.
 Programs stay on the build machine, because they run there.
 
 The project tier renders its links into `.ocx/toolchain/` next to `ocx.toml`.

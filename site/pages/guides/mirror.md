@@ -33,7 +33,7 @@ The module files themselves (`ocx.cmake` and `Findocx.cmake`) come from GitHub o
 
 1. For every platform that builds on the mirror, copy the archive named in the manifest to `<mirror>/<tag>/<filename>`.
    The embedded manifest names the archives of the pinned version, and `https://setup.ocx.sh/dist.json` lists every release.
-2. Copy a manifest only when you set `OCX_INSTALL_VERSION` to a version that the embedded manifest does not list, for example with an older vendored find_ocx.
+2. Copy a manifest only when `OCX_INSTALL_VERSION` names a version that the embedded manifest does not list.
    Publish it as `<sha256>.json`, where the name is the sha256 of the file, so that the module can enforce the digest.
 
 Linux hosts use the `x86_64-unknown-linux-musl` or `aarch64-unknown-linux-musl` archive, not the `gnu` one.
@@ -44,9 +44,12 @@ All files must allow anonymous read.
 find_ocx downloads them without credentials.
 A mirror locked down later breaks the download with an error that looks like a network failure.
 
-The sha256 of the manifest row is the security boundary, and it protects as far as the manifest is trusted.
+The sha256 of the manifest row is the security boundary.
+It protects only as far as you trust the manifest.
+
 The embedded manifest and a manifest named `<sha256>.json` are trusted.
-A manifest under any other name, such as `dist.json`, is fetched unverified, and then the mirror is the trust root: it can serve a row with the hash of a different archive together with that archive.
+A manifest under any other name, such as `dist.json`, is fetched unverified.
+Then the mirror is the trust root: it can serve a row with the hash of a different archive together with that archive.
 Prefer the embedded manifest whenever the pinned version is enough.
 
 A missing or locked manifest fails like this, and the message names the URL that was requested:

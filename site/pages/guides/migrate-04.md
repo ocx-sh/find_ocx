@@ -37,7 +37,7 @@ In 0.4, `PLATFORM` takes exactly one platform, because the `ocx` CLI accepts one
 A list, whether written as several arguments or as a `;`-list in `OCX_DEFAULT_PLATFORM`, stops the configure.
 Pick the platform you really need.
 
-<!-- doc-norun: shows a rejected call; the i3 tests platform_list_keyword and platform_list_quoted assert the same error -->
+<!-- doc-norun: shows a rejected call, and the i3 tests platform_list_keyword and platform_list_quoted assert the same error -->
 ```diff
 -ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:1.8.2 PLATFORM linux/arm64 linux/amd64)
 +ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:1.8.2 PLATFORM linux/amd64)
@@ -55,9 +55,10 @@ Add an entry for every platform you build for, as [Pin digests instead of a snap
 
 ## Move `OCX_NO_VERIFY` and `OCX_ALLOW_YANKED` into `ocx_policy` {#policy}
 
-In 0.3, the ambient environment reached every `ocx` call, so a CI job that exported `OCX_ALLOW_YANKED=1` or `OCX_NO_VERIFY=1` resolved yanked versions or skipped verification.
+In 0.3, the ambient environment reached every `ocx` call.
+A CI job that exported `OCX_ALLOW_YANKED=1` or `OCX_NO_VERIFY=1` resolved yanked versions or skipped verification.
 In 0.4, both variables are removed from every call, and only `ocx_policy` sets them.
-A job that still exports one of them now fails to resolve the yanked tag, or starts to enforce verification, with no message about the variable.
+A job that still exports one of them fails to resolve the yanked tag, or enforces verification, with no message about the variable.
 
 Search your CI definitions and scripts for both names.
 Where the intent is deliberate, state it in the listfile, before the first `ocx_project` or `ocx_package`:

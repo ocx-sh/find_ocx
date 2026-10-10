@@ -58,7 +58,8 @@ find_ocx: OCX_INSTALL_CA_BUNDLE='<path>' is not a readable file
 hint: point it at a PEM bundle, or clear it with -DOCX_INSTALL_CA_BUNDLE=
 ```
 
-The path is checked on every configure that provisions or runs `ocx`, so a wrong path fails even when nothing is downloaded and the bootstrap cache is warm.
+The path is checked on every configure that provisions or runs `ocx`.
+A wrong path therefore fails even when nothing is downloaded and the bootstrap cache is warm.
 
 ## Pass credentials {#credentials}
 
