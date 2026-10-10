@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-# Fixture: ocx_package behaviors that need no failing call - PINS keyed on the
-# effective platform, an index digest in PACKAGE, BINS validated against the
-# closure, identical re-entry, a single-path <name>_ROOT and the CONFIG
-# keywords reaching the exported launcher.
+# Fixture: ocx_package behaviors that need no failing call - an index digest
+# in PACKAGE, BINS validated against the closure, identical re-entry, a
+# single-path <name>_ROOT and the CONFIG keywords reaching the exported launcher.
 
 cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_i3_ok LANGUAGES NONE)
@@ -15,31 +14,6 @@ set(
   jq_index
   "ocx.sh/jqlang/jq@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6"
 )
-
-# PINS: one distinct fake digest per platform, the host's must be selected
-# (a floating tag with no matching pin would be the reproducibility error).
-__ocx_host_info(host_triple host_platform host_ext)
-set(pins "")
-set(expected "")
-foreach(
-  entry
-  IN
-  ITEMS linux/amd64=a linux/arm64=b darwin/amd64=c darwin/arm64=d windows/amd64=e windows/arm64=f
-)
-  string(REPLACE "=" ";" parts "${entry}")
-  list(GET parts 0 pin_platform)
-  list(GET parts 1 digit)
-  string(REPEAT "${digit}" 64 hex)
-  list(APPEND pins "${pin_platform}=sha256:${hex}")
-  if(pin_platform STREQUAL "${host_platform}")
-    set(expected "sha256:${hex}")
-  endif()
-endforeach()
-ocx_package(NAME PINNED PACKAGE ocx.sh/jqlang/jq:latest PINS ${pins})
-list(FIND OCX_PINNED_RUN "ocx.sh/jqlang/jq:latest@${expected}" index)
-if(index EQUAL -1)
-  message(FATAL_ERROR "i3 ok fixture: host pin ${expected} not in '${OCX_PINNED_RUN}'")
-endif()
 
 # An index digest in PACKAGE pins all platforms; BINS jq is declared.
 ocx_package(NAME DIGEST PACKAGE "${jq_index}" BINS jq)

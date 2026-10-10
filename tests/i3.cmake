@@ -86,12 +86,19 @@ ocx_i3_add_test(
   EXPECT_FAIL "PLATFORM is incompatible with BINS"
 )
 ocx_i3_add_test(
-  pins_no_match
+  pins_removed
   cases
   VERSIONS ${i3_versions}
-  CASE pins_no_match
+  CASE pins_removed
   EXPECT_FAIL
-    "PINS has no entry for the effective platform 'linux/arm64' \\(PINS keys: linux/s390x, linux/ppc64le\\)"
+    "PINS was removed - commit an index snapshot, or put the image index digest in PACKAGE"
+)
+ocx_i3_add_test(
+  pins_after_bins
+  cases
+  VERSIONS ${i3_versions}
+  CASE pins_after_bins
+  EXPECT_FAIL "PINS was removed"
 )
 ocx_i3_add_test(
   unknown_keyword
@@ -338,7 +345,7 @@ ocx_i3_add_test(
   EXPECT_FAIL "config file not found"
 )
 
-# Positive paths: PINS per platform, index digest, <name>_ROOT, CONFIG env,
+# Positive paths: index digest, <name>_ROOT, CONFIG env,
 # project groups with real ocx exec launchers.
 ocx_i3_add_test(package_ok ok VERSIONS ${i3_versions})
 ocx_i3_add_test(project_groups groups VERSIONS ${i3_versions} BUILD)

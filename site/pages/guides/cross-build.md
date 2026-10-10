@@ -79,9 +79,9 @@ After the `sed` command drops `BINS`, the configure succeeds and prints the expo
 ## Pin a single package {#package-tier}
 
 `ocx_package` accepts `PLATFORM` as well, but it has no lock.
-A floating tag such as `:latest` is then a configure error until you pin it with a committed index snapshot or with `PINS`.
-The [pin and freeze](pin-and-freeze.md) page shows both.
-Use `OCX_ALLOW_FLOATING` only once, to print the digests that you then pin.
+A floating tag such as `:latest` is then a configure error until you pin it with an index snapshot or an index digest.
+The [pin and freeze](pin-and-freeze.md) and [image index digest](pin-digests.md) pages show both.
+Use `OCX_ALLOW_FLOATING` only once, to resolve the tag before you pin it.
 
 ## Next steps {#next-steps}
 

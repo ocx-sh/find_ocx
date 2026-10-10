@@ -45,7 +45,7 @@ Synopsis
 
   Provision tools
     `ocx_project`_([NAME <name>] [TOML <ocx.toml>] [LOCK <ocx.lock>] [GROUPS <group>...] [BINS <tool>...] [...])
-    `ocx_package`_(NAME <name> PACKAGE <package> [PINS <platform>=sha256:<digest> ...] [BINS <tool>...] [...])
+    `ocx_package`_(NAME <name> PACKAGE <package> [BINS <tool>...] [...])
 
   Freeze tag resolution
     `ocx_index`_(`FIND`_ [REQUIRED])
@@ -570,7 +570,7 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
   Reproducibility escape hatch.
   A floating tag with no index snapshot in effect and no digest pin is a configure error by default.
   ``ON`` downgrades the error to live resolution with a drift warning.
-  Use it transiently to print the digests that seed ``PINS``.
+  Use it transiently, then pin the tag with an index snapshot or an ``@sha256:`` image index digest.
 
 .. variable:: OCX_BOOTSTRAP_CACHE
 
@@ -2592,7 +2592,6 @@ endfunction()
 
   .. signature::
     ocx_package(NAME <name> PACKAGE <registry/repo[:tag][@sha256:...]>
-                [PINS <platform>=sha256:<digest> ...]
                 [INDEX <dir> | NO_INDEX] [BINS <tool>...]
                 [PLATFORM <ocx-platform>] [PULL] [NO_ROOT]
                 [CONFIG <config.toml>] [NO_CONFIG] [PATCH_SNAPSHOT <path>])
@@ -2602,13 +2601,17 @@ endfunction()
     The call exports the same ``OCX_<NAME>_RUN`` and ``OCX_<NAME>_RUN_<BIN>`` command lists as :command:`ocx_project`.
     The lists re-enter ``ocx package exec`` and are lazy by default.
     ``PULL`` or :variable:`OCX_PULL` installs the package at configure time instead.
-    A floating tag needs an index snapshot or a digest pin, as `Tag resolution`_ describes.
+    A floating tag needs an index snapshot or an image index digest, as `Tag resolution`_ describes.
 
     Calling the command again with the same ``NAME`` and identical arguments does nothing, because CMake includes a toolchain file twice.
     The same ``NAME`` with different arguments is an error.
 
     .. versionchanged:: 0.4
       An empty argument value is an error, because it usually means that a variable is unset.
+
+    .. versionchanged:: 0.4
+      ``PINS`` is removed.
+      Pin a floating tag with a committed index snapshot, or with the image index digest in ``PACKAGE``.
 
   Options
   ^^^^^^^
@@ -2622,13 +2625,8 @@ endfunction()
     The package reference.
     The option is required.
     A ``@sha256:`` digest pins the package.
-    An image index digest pins every platform at once.
-
-  ``PINS <platform>=sha256:<digest> ...``
-    Maps ocx platform keys to per-platform manifest digests, as ``ocx package install -p <platform>`` reports them.
-    The entry for the effective platform installs ``registry/repo@<digest>``.
-    The effective platform is ``PLATFORM``, else the host.
-    An entry of another shape is an error, and so is a list without an entry for the effective platform.
+    An image index digest pins every platform at once, and ocx selects the leaf for the effective platform, features included.
+    ``ocx package inspect <registry/repo:tag>`` prints it as ``pinned_digest``.
 
   ``INDEX <dir>``
     Index snapshot directory that freezes tag resolution for this package.
@@ -2730,21 +2728,15 @@ endfunction()
   Examples
   ^^^^^^^^
 
-  The tested project ``examples/package`` pins one digest per platform and keeps the package lazy.
+  The tested project ``examples/package`` pins the image index digest and keeps the package lazy.
 
   .. code-block:: cmake
 
     ocx_package(
       NAME jq_pinned
-      PACKAGE ocx.sh/jqlang/jq:1.8.2
+      PACKAGE ocx.sh/jqlang/jq:1.8.2@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6
       BINS jq
       NO_ROOT
-      PINS
-        "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
-        "linux/arm64=sha256:81b771e5c4e9b70cfeb19c825ca2b00a5078c238e7d3175eee9d772cedda006b"
-        "darwin/amd64=sha256:f750c91d28769d12298ba9a4c10340152fcbdd48c48102bf275c21d736cc72a2"
-        "darwin/arm64=sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
-        "windows/amd64=sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"
     )
 
   The same project resolves a floating tag from a snapshot directory, with no digest in the CMake code.
@@ -2760,7 +2752,7 @@ endfunction()
     )
 
   The same project installs a floating tag eagerly and hands the content root to ``find_program``.
-  ``OCX_ALLOW_FLOATING`` is the deliberate escape hatch here, and the log prints the ``PINS`` line to copy.
+  ``OCX_ALLOW_FLOATING`` is the deliberate escape hatch here, and the log says how to pin the tag.
 
   .. code-block:: cmake
 
@@ -2778,8 +2770,16 @@ function(ocx_package)
     arg
     "PULL;NO_ROOT;NO_INDEX;NO_CONFIG"
     "NAME;PACKAGE;INDEX;PLATFORM;CONFIG;PATCH_SNAPSHOT"
-    "PINS;BINS"
+    "BINS"
   )
+  # PINS parses as an unknown argument, or as part of BINS when it follows BINS.
+  if("PINS" IN_LIST arg_UNPARSED_ARGUMENTS OR "PINS" IN_LIST arg_BINS)
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_package: PINS was removed - commit an index snapshot, or "
+      "put the image index digest in PACKAGE (PACKAGE <repo>:<tag>@sha256:<index digest>)"
+    )
+  endif()
   if(NOT "${arg_UNPARSED_ARGUMENTS}" STREQUAL "")
     set(hint "")
     if(NOT "${arg_PLATFORM}" STREQUAL "")
@@ -2804,7 +2804,6 @@ function(ocx_package)
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${arg_NAME}"
     "${arg_PACKAGE}"
-    "${arg_PINS}"
     "${arg_INDEX}"
     "${arg_NO_INDEX}"
     "${arg_BINS}"
@@ -2838,43 +2837,7 @@ function(ocx_package)
 
   __ocx_require_cli()
   __ocx_host_info(host_triple host_platform exe_ext)
-  # The platform PINS are keyed on: the requested one, else the host.
-  if(NOT "${platform}" STREQUAL "")
-    set(pin_platform "${platform}")
-  else()
-    set(pin_platform "${host_platform}")
-  endif()
-
-  # Apply the per-platform manifest pin: replace everything after '@'.
   set(ref "${arg_PACKAGE}")
-  set(pin_keys "")
-  set(pin_matched FALSE)
-  foreach(entry IN LISTS arg_PINS)
-    if(NOT entry MATCHES "^([^=]+)=(sha256:[0-9a-f]+)$")
-      message(
-        FATAL_ERROR
-        "find_ocx: ocx_package ${arg_NAME}: PINS entry '${entry}' is not "
-        "'<platform>=sha256:<digest>'"
-      )
-    endif()
-    list(APPEND pin_keys "${CMAKE_MATCH_1}")
-    if(CMAKE_MATCH_1 STREQUAL "${pin_platform}")
-      set(pin_matched TRUE)
-      set(digest "${CMAKE_MATCH_2}") # the REPLACE below clobbers CMAKE_MATCH_*
-      string(REGEX REPLACE "@.*$" "" ref "${ref}")
-      set(ref "${ref}@${digest}")
-    endif()
-  endforeach()
-  # A PINS list that skips the effective platform would silently leave a floating ref.
-  if(NOT "${arg_PINS}" STREQUAL "" AND NOT pin_matched)
-    list(JOIN pin_keys ", " pin_keys_text)
-    message(
-      FATAL_ERROR
-      "find_ocx: ocx_package ${arg_NAME}: PINS has no entry for the effective platform "
-      "'${pin_platform}' (PINS keys: ${pin_keys_text})\n"
-      "hint: add '${pin_platform}=sha256:<digest>' to PINS or set PLATFORM to one of the keys"
-    )
-  endif()
 
   # Index resolution ladder: explicit INDEX, else the OCX_INDEX knob, else
   # the nearest committed `.ocx/` snapshot; NO_INDEX skips all three. An
@@ -2902,7 +2865,7 @@ function(ocx_package)
       "index snapshot is in effect - resolution is not reproducible\n"
       "fix (pick one): commit a snapshot ('ocx --index .ocx index update "
       "${arg_PACKAGE}' next to your CMakeLists, or set OCX_INDEX); pin "
-      "digests with PINS or @sha256:; or accept drift explicitly with "
+      "the image index digest with @sha256:; or accept drift explicitly with "
       "-DOCX_ALLOW_FLOATING=ON"
     )
   endif()
@@ -2966,7 +2929,7 @@ function(ocx_package)
   __ocx_env_prefix(prefix ${config_env})
   string(
     SHA256 fingerprint
-    "package|${module_version}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}"
+    "package|${module_version}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}"
   )
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
   if(hit)
@@ -3003,20 +2966,16 @@ function(ocx_package)
       WHAT "installing ${ref}"
       ENV ${config_env}
       COMMAND ${index_args} --format json package install ${platform_args} "${ref}"
-      OUTPUT_VARIABLE install_json
       RETRIES 2
       HINTS "${index_hint}"
     )
     if(NOT index_dir AND NOT ref MATCHES "@sha256:")
-      string(JSON member MEMBER "${install_json}" 0)
-      string(JSON identifier GET "${install_json}" "${member}" identifier)
-      if(identifier MATCHES "@(sha256:[0-9a-f]+)$")
-        message(
-          STATUS
-          "find_ocx: ${arg_NAME} resolved floating - pin it with PINS "
-          "\"${pin_platform}=${CMAKE_MATCH_1}\""
-        )
-      endif()
+      message(
+        STATUS
+        "find_ocx: ${arg_NAME} resolved floating - pin it with a committed index "
+        "snapshot or the image index digest (PACKAGE <repo>:<tag>@sha256:<index digest>; "
+        "'ocx package inspect ${arg_PACKAGE}' prints it as pinned_digest)"
+      )
     endif()
     __ocx_run(
       WHAT "locating ${ref} in the store"
@@ -3050,8 +3009,8 @@ function(ocx_package)
     message(
       WARNING
       "find_ocx: ocx_package ${arg_NAME}: '${ref}' is lazy AND floating - "
-      "the tag resolves on first execution and can drift; add PINS, an "
-      "index snapshot, or an @sha256: digest (or PULL to resolve now)"
+      "the tag resolves on first execution and can drift; add an "
+      "index snapshot or an @sha256: image index digest (or PULL to resolve now)"
     )
   endif()
 
@@ -3216,7 +3175,7 @@ endfunction()
 #[=[.rst:
 .. command:: ocx_index
 
-  Operates on committed index snapshots, the reproducibility mechanism for floating tags next to ``PINS`` and ``@sha256:`` digests.
+  Operates on committed index snapshots, the reproducibility mechanism for floating tags next to ``@sha256:`` image index digests.
   The first argument selects the operation.
 
   .. parsed-literal::

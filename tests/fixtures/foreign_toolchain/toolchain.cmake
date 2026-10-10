@@ -18,13 +18,11 @@ endif()
 
 ocx_package(
   NAME FT_PKG
-  PACKAGE ocx.sh/jqlang/jq:1.8.2
+  PACKAGE
+    ocx.sh/jqlang/jq:1.8.2@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6
   PLATFORM ${__foreign}
   NO_INDEX
   NO_ROOT
-  PINS
-    "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
-    "linux/arm64=sha256:81b771e5c4e9b70cfeb19c825ca2b00a5078c238e7d3175eee9d772cedda006b"
 )
 
 ocx_project(NAME FT_PROJ TOML "${CMAKE_CURRENT_LIST_DIR}/ocx.toml" PLATFORM ${__foreign})

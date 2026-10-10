@@ -31,13 +31,10 @@ elseif(I3_CASE STREQUAL "project_platform_list")
   )
 elseif(I3_CASE STREQUAL "bins_foreign")
   ocx_package(NAME X PACKAGE "${jq_index}" PLATFORM linux/arm64 BINS jq)
-elseif(I3_CASE STREQUAL "pins_no_match")
-  ocx_package(
-    NAME X
-    PACKAGE ocx.sh/jqlang/jq:latest
-    PLATFORM linux/arm64
-    PINS linux/s390x=sha256:abc linux/ppc64le=sha256:def
-  )
+elseif(I3_CASE STREQUAL "pins_removed")
+  ocx_package(NAME X PACKAGE "${jq_index}" PINS linux/amd64=sha256:abc)
+elseif(I3_CASE STREQUAL "pins_after_bins")
+  ocx_package(NAME X PACKAGE "${jq_index}" BINS jq PINS linux/amd64=sha256:abc)
 elseif(I3_CASE STREQUAL "unknown_keyword")
   ocx_package(NAME X PACKAGE "${jq_index}" BOGUS)
 elseif(I3_CASE STREQUAL "bins_typo")

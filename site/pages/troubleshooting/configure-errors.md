@@ -47,7 +47,7 @@ On a machine with no `ocx`, [write the first lock with the downloaded CLI](../gu
 
 ```text
 find_ocx: ocx_package DRIFTY: 'ocx.sh/jqlang/jq:latest' is floating and no index snapshot is in effect - resolution is not reproducible
-fix (pick one): commit a snapshot ('ocx --index .ocx index update ocx.sh/jqlang/jq:latest' next to your CMakeLists, or set OCX_INDEX); pin digests with PINS or @sha256:; or accept drift explicitly with -DOCX_ALLOW_FLOATING=ON
+fix (pick one): commit a snapshot ('ocx --index .ocx index update ocx.sh/jqlang/jq:latest' next to your CMakeLists, or set OCX_INDEX); pin the image index digest with @sha256:; or accept drift explicitly with -DOCX_ALLOW_FLOATING=ON
 ```
 
 This issue occurs when a package uses a floating tag such as `:latest`, and neither an index snapshot nor a digest fixes it:
@@ -58,10 +58,12 @@ find_ocx is [reproducible first](../concepts/reproducible-first.md), so it refus
 Pick one fix:
 
 - Commit an index snapshot. Run `ocx --index .ocx index update ocx.sh/jqlang/jq:latest` in the directory that holds `CMakeLists.txt`, then commit `.ocx`.
-- Pin a digest. Use `PACKAGE ocx.sh/jqlang/jq@sha256:<index digest>`, or add `PINS`.
-- Accept drift for one run. Configure with `-DOCX_ALLOW_FLOATING=ON`. A `PULL` call then prints a `PINS` line with the digest, and a lazy call only warns that the tag can drift.
+- Pin the image index digest. Use `PACKAGE ocx.sh/jqlang/jq:latest@sha256:<index digest>`, and read the digest with `ocx package inspect ocx.sh/jqlang/jq:latest`.
+- Accept drift for one run. Configure with `-DOCX_ALLOW_FLOATING=ON`. A `PULL` call then logs how to pin the tag, and a lazy call only warns that the tag can drift.
 
 [Pin and freeze tag resolution](../guides/pin-and-freeze.md) walks through the first two.
+A call that still passes the removed `PINS` keyword stops with `PINS was removed`.
+Use the second fix, and [Move from 0.3 to 0.4](../guides/migrate-04.md#pins) shows the before and after.
 If the call stops earlier with `NAME and PACKAGE are required`, add `NAME`.
 A one-line `ocx_package(PACKAGE ...)` copied from an article often lacks it.
 
