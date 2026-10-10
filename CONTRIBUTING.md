@@ -17,9 +17,9 @@ Thanks for helping out! Ground rules:
   registry auth, no index/store layout knowledge. Everything goes through
   the pinned `ocx` CLI; if the CLI is missing a capability, file an issue
   against [ocx-sh/ocx](https://github.com/ocx-sh/ocx) instead.
-- The pinned ocx version (`__OCX_PIN_VERSION`) and the embedded dist.json
-  snapshot in `ocx.cmake` are bumped together, deliberately
-  (`task dist:update` refreshes the snapshot, never the pin).
+- The pinned ocx version (`__OCX_PIN_VERSION`), the embedded dist.json
+  snapshot in `ocx.cmake` and the `ocx-sh/setup-ocx` pins in the CI
+  workflows move together, in one command (`task dist:update`).
 - The published surface is exactly two files: `Findocx.cmake` (works on
   CMake 3.15+) and `ocx.cmake` (3.19+). Everything else in this repository
   is harness.

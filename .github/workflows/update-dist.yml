@@ -17,25 +17,32 @@ concurrency:
 
 jobs:
   update:
-    name: Refresh the embedded dist.json snapshot
+    name: Bump ocx - snapshot, pin and CI pins in lockstep
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Refresh snapshot in ocx.cmake
+      - name: Guard unit tests
+        run: python3 -I -m unittest discover -s scripts -p update_dist_test.py
+      - name: Bump snapshot, __OCX_PIN_VERSION and setup-ocx pins
         run: |
           python3 scripts/update_dist.py
           python3 scripts/update_dist.py --check
       - name: Open PR if changed
         uses: peter-evans/create-pull-request@v7
         with:
-          # GITHUB_TOKEN-created PRs never trigger CI workflows; a PAT makes
-          # checks run on the PR.
+          # GITHUB_TOKEN-created PRs never trigger CI workflows, and it cannot
+          # push changes under .github/workflows/ (the setup-ocx pins live
+          # there); a PAT with the workflow scope does both.
           token: ${{ secrets.DIST_UPDATE_TOKEN }}
           branch: chore/update-dist
-          commit-message: "chore(dist): refresh embedded dist.json snapshot"
-          title: "chore(dist): refresh embedded dist.json snapshot"
+          commit-message: "chore(dist): bump ocx to the latest stable release"
+          title: "chore(dist): bump ocx to the latest stable release"
           body: >
-            Automated refresh of the setup.ocx.sh release manifest embedded
-            in `ocx.cmake`. Bump `__OCX_PIN_VERSION` separately and
-            deliberately (see CONTRIBUTING.md).
+            Automated lockstep bump from the setup.ocx.sh release manifest
+            (`scripts/update_dist.py`): the snapshot embedded in `ocx.cmake`,
+            `__OCX_PIN_VERSION` and every `ocx-sh/setup-ocx` `version:` pin
+            move together. The script refuses rewritten or dropped rows, a
+            non-stable `latest`, and a pin that does not move forward. Read
+            the ocx changelog before merging: find_ocx is tested against
+            exactly the pinned version.
