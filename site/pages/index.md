@@ -39,4 +39,4 @@ An `ocx` on `PATH` is used when present, otherwise the pinned CLI is bootstrappe
 ## Look it up
 
 - [Commands](reference/commands.md), [variables](reference/variables.md) and [Findocx.cmake](reference/findocx.md)
-- [Examples](reference/examples.md): the four tested projects in `examples/`
+- [Examples](https://github.com/ocx-sh/find_ocx/tree/main/examples): the four tested projects in `examples/`
