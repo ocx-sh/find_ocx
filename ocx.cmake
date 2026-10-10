@@ -20,8 +20,7 @@ Vendor this file together with ``Findocx.cmake`` into your project (e.g.
   ocx_project()                    # toolchain from ./ocx.toml + ./ocx.lock
   ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest)   # frozen via ./.ocx snapshot
 
-Requires CMake 3.19 (``string(JSON)``, ``file(ARCHIVE_EXTRACT)``).
-Include after ``project()``.
+Requires CMake 3.25 or newer. Include after ``project()``.
 
 Resolution is reproducible-first: a floating tag resolves through a
 committed index snapshot (the nearest ``.ocx/`` directory, discovered
@@ -39,6 +38,24 @@ machine runs the identical pinned binary); ``OCX_BOOTSTRAP=OFF`` forbids
 the implicit download entirely. An explicit :command:`ocx_bootstrap` call
 always provisions the pin.
 
+**Trust root.** The ``sha256`` column of the dist.json snapshot embedded in
+this file makes a downloaded ocx CLI trustworthy. Every archive is checked
+against it before extraction, whichever URL served the bytes.
+``scripts/update_dist.py`` only ever adds rows to the snapshot.
+
+A manifest fetched from ``OCX_INSTALL_DIST_URL`` is trusted as far as its
+transport. The exception is a file named ``<sha256>.json``: the name carries
+the manifest's own digest, and the fetch is verified against it.
+
+The ``SHA256SUMS`` file of a find_ocx release is the trust root of
+:command:`ocx_self_update`. The GitHub releases API only names the latest
+tag. Every download verifies TLS and is bounded by a timeout.
+
+**Anonymous read.** ``OCX_INSTALL_DIST_URL``, ``OCX_INSTALL_MIRROR_URL`` and
+``OCX_SELF_UPDATE_URL`` are fetched without credentials, so a mirror must
+allow anonymous read. A mirror locked down later fails the download, and the
+failure looks like a network error.
+
 Corporate mirrors and behavior knobs are plain ``OCX_*`` variables. Each one
 follows the snapshot pattern: if the CMake variable is unset but the
 environment variable is set at the *first* configure, the value is
@@ -55,7 +72,10 @@ snapshotted into the cache and stays sticky for the build directory
 .. variable:: OCX_INSTALL_DIST_URL
 
   Fetch the ocx release manifest (dist.json) from a mirror instead of the
-  snapshot embedded in this file.
+  snapshot embedded in this file. A manifest named ``<sha256>.json`` is
+  verified against that digest; any other name is fetched unverified.
+  Takes precedence over the ``DIST_MANIFEST`` keyword of
+  :command:`ocx_bootstrap`.
 
 .. variable:: OCX_INSTALL_MIRROR_URL
 
@@ -103,9 +123,9 @@ snapshotted into the cache and stays sticky for the build directory
 
   Reproducibility escape hatch. By default a floating tag with no index
   snapshot in effect and no digest pin is a hard configure error — ocx is
-  reproducible-first. ``ON`` downgrades that to the pre-0.3 behavior
-  (live resolution, drift warning); useful transiently to print the
-  digests that seed ``PINS``.
+  reproducible-first. ``ON`` downgrades that to live resolution with a
+  drift warning; useful transiently to print the digests that seed
+  ``PINS``.
 
 .. variable:: OCX_BOOTSTRAP_CACHE
 
@@ -133,8 +153,8 @@ snapshotted into the cache and stays sticky for the build directory
 
   find_ocx release tag to self-update the vendored ``ocx.cmake`` and
   ``Findocx.cmake`` to (``vX.Y.Z``; the ``v`` is optional). Default: the
-  latest release, discovered via the GitHub releases API. Script mode
-  only::
+  latest release, discovered via the GitHub releases API. Read by
+  :command:`ocx_self_update`, which runs in script mode only::
 
     cmake [-DOCX_SELF_UPDATE_VERSION=v0.3.0] -P cmake/ocx.cmake
 
@@ -165,10 +185,9 @@ test harnesses) inherits the outer resolution mode unless it is given
 reconfigure after changing them.
 #]=]
 
-if(CMAKE_VERSION VERSION_LESS 3.19)
+if(CMAKE_VERSION VERSION_LESS 3.25)
   message(FATAL_ERROR
-    "find_ocx: ocx.cmake requires CMake >= 3.19 "
-    "(string(JSON), file(ARCHIVE_EXTRACT)); this is CMake ${CMAKE_VERSION}")
+    "find_ocx: ocx.cmake requires CMake >= 3.25; this is CMake ${CMAKE_VERSION}")
 endif()
 
 include_guard(GLOBAL)
@@ -176,11 +195,36 @@ include_guard(GLOBAL)
 # Function definitions capture the policy settings of their definition
 # point: pin them to this module's baseline so includers that never ran
 # cmake_minimum_required (script mode, exotic embeddings) get identical
-# behavior. Balanced by cmake_policy(POP) at the end of this file.
+# behavior. Balanced by cmake_policy(POP) after the last definition.
 cmake_policy(PUSH)
-cmake_policy(VERSION 3.19)
+cmake_policy(VERSION 3.25...4.4)
 
 set(__OCX_MODULE_VERSION "0.3.0")
+
+# include_guard(GLOBAL) is keyed on the file path, so a second vendored copy
+# would run in full and silently win. Record the first copy; a second copy
+# at another path with another version is a configure error.
+get_filename_component(__ocx_this_file "${CMAKE_CURRENT_LIST_FILE}" REALPATH)
+get_property(__ocx_loaded GLOBAL PROPERTY __OCX_MODULE_FILE SET)
+if(__ocx_loaded)
+  get_property(__ocx_loaded_file GLOBAL PROPERTY __OCX_MODULE_FILE)
+  get_property(__ocx_loaded_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
+  if(NOT __ocx_loaded_file STREQUAL __ocx_this_file
+      AND NOT __ocx_loaded_version STREQUAL __OCX_MODULE_VERSION)
+    message(FATAL_ERROR
+      "find_ocx: two copies of ocx.cmake with different versions are loaded: "
+      "${__ocx_loaded_version} from ${__ocx_loaded_file} and "
+      "${__OCX_MODULE_VERSION} from ${__ocx_this_file}\n"
+      "hint: vendor one copy and point CMAKE_MODULE_PATH at it")
+  endif()
+else()
+  set_property(GLOBAL PROPERTY __OCX_MODULE_FILE "${__ocx_this_file}")
+  set_property(GLOBAL PROPERTY __OCX_MODULE_VERSION "${__OCX_MODULE_VERSION}")
+endif()
+unset(__ocx_this_file)
+unset(__ocx_loaded)
+unset(__ocx_loaded_file)
+unset(__ocx_loaded_version)
 
 # The ocx CLI declares no stability for its command-line surface across
 # versions; find_ocx therefore pins an exact version and is tested against
@@ -800,25 +844,56 @@ endfunction()
 # ocx_bootstrap
 # ---------------------------------------------------------------------------
 
+# Digest named by a dist manifest URL whose last path segment is
+# <sha256>.json (the form the setup.ocx.sh installers write), else "". The
+# name is the manifest's own digest, so the fetch can enforce it.
+function(__ocx_manifest_sha256 url out_var)
+  set(${out_var} "" PARENT_SCOPE)
+  string(REGEX REPLACE "[#?].*$" "" clean "${url}")
+  # CMake regexes have no {64}: match the hex run, then count it.
+  if(clean MATCHES "(^|/)([0-9a-f]+)\\.json$")
+    set(digest "${CMAKE_MATCH_2}")
+    string(LENGTH "${digest}" len)
+    if(len EQUAL 64)
+      set(${out_var} "${digest}" PARENT_SCOPE)
+    endif()
+  endif()
+endfunction()
+
 #[=[.rst:
 .. command:: ocx_bootstrap
 
   Downloads a pinned ocx CLI release for the host and sets
   ``OCX_EXECUTABLE``::
 
-    ocx_bootstrap([VERSION <version>] [TRIPLE <target-triple>])
+    ocx_bootstrap([VERSION <version>] [TRIPLE <target-triple>]
+                  [DIST_MANIFEST <dist.json>])
 
   No-op when ``OCX_EXECUTABLE`` already points at a binary of the requested
   version. The release row (URL + sha256) comes from the dist.json snapshot
-  embedded in this file; ``OCX_INSTALL_DIST_URL`` fetches a mirrored
-  manifest instead, ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact
-  download to ``<mirror>/<tag>/<filename>``. The manifest sha256 is
-  enforced either way. Binaries land in the per-machine
-  ``OCX_BOOTSTRAP_CACHE`` (downloaded once per machine, shared by all build
-  trees).
+  embedded in this file. ``DIST_MANIFEST`` names a local dist.json file to
+  use instead, and ``OCX_INSTALL_DIST_URL`` fetches a mirrored manifest
+  instead of both. ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact download
+  to ``<mirror>/<tag>/<filename>``. The archive is verified against the
+  sha256 of its manifest row before extraction, whichever manifest or URL
+  served it, and the extracted binary must report the requested version.
+  Binaries land in the per-machine ``OCX_BOOTSTRAP_CACHE`` (downloaded once
+  per machine, shared by all build trees).
+
+  A relative ``DIST_MANIFEST`` path is resolved against the calling file's
+  directory. In a project configure the file is watched, so editing it
+  reconfigures; in script mode it is read once.
 #]=]
 function(ocx_bootstrap)
-  cmake_parse_arguments(arg "" "VERSION;TRIPLE" "" ${ARGN})
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "VERSION;TRIPLE;DIST_MANIFEST" "")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR
+      "find_ocx: ocx_bootstrap: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(arg_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR
+      "find_ocx: ocx_bootstrap: missing value for ${arg_KEYWORDS_MISSING_VALUES}")
+  endif()
 
   set(version "${__OCX_PIN_VERSION}")
   if(DEFINED OCX_INSTALL_VERSION AND NOT "${OCX_INSTALL_VERSION}" STREQUAL "")
@@ -861,23 +936,61 @@ function(ocx_bootstrap)
 
   # Warm machine cache: no manifest work, no network - not even the
   # OCX_INSTALL_DIST_URL fetch (air-gapped reconfigures stay offline).
+  set(fresh FALSE)
   if(NOT EXISTS "${binary}")
+    set(fresh TRUE)
     if(DEFINED OCX_INSTALL_DIST_URL AND NOT "${OCX_INSTALL_DIST_URL}" STREQUAL "")
       set(dist_file "${CMAKE_BINARY_DIR}/_ocx/dist.json")
-      file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}" STATUS status)
+      # A <sha256>.json name is the manifest's own digest: enforce it.
+      # Any other name is fetched unverified (documented trust boundary).
+      __ocx_manifest_sha256("${OCX_INSTALL_DIST_URL}" manifest_sha)
+      set(manifest_hash "")
+      if(NOT manifest_sha STREQUAL "")
+        set(manifest_hash EXPECTED_HASH "SHA256=${manifest_sha}")
+      endif()
+      file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}"
+        ${manifest_hash}
+        TLS_VERIFY ON
+        TIMEOUT 120
+        INACTIVITY_TIMEOUT 30
+        STATUS status)
       list(GET status 0 status_code)
       if(NOT status_code EQUAL 0)
         list(GET status 1 status_msg)
         message(FATAL_ERROR
           "find_ocx: failed to fetch the dist manifest from "
-          "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}")
+          "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}\n"
+          "hint: the mirror must allow anonymous read; a manifest named "
+          "<sha256>.json must match that digest")
       endif()
       file(READ "${dist_file}" manifest)
+    elseif(arg_DIST_MANIFEST)
+      cmake_path(ABSOLUTE_PATH arg_DIST_MANIFEST BASE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+        NORMALIZE OUTPUT_VARIABLE dist_manifest)
+      if(NOT EXISTS "${dist_manifest}")
+        message(FATAL_ERROR
+          "find_ocx: ocx_bootstrap: DIST_MANIFEST '${arg_DIST_MANIFEST}' does not exist "
+          "(looked for ${dist_manifest})")
+      endif()
+      if(NOT CMAKE_SCRIPT_MODE_FILE)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${dist_manifest}")
+      endif()
+      file(READ "${dist_manifest}" manifest)
     else()
       set(manifest "${__OCX_DIST_JSON}")
     endif()
 
     __ocx_select_release("${manifest}" "${version}" "${triple}" url sha tag filename)
+
+    # tag and filename become path segments (the mirror url, the scratch
+    # archive): a custom manifest must not walk out of either directory.
+    foreach(field IN ITEMS tag filename)
+      if(NOT "${${field}}" MATCHES "^[A-Za-z0-9._+-]+$" OR "${${field}}" MATCHES "^\\.\\.?$")
+        message(FATAL_ERROR
+          "find_ocx: dist manifest row for ocx ${version} (${triple}) has an unusable "
+          "${field} '${${field}}' - not a single path segment")
+      endif()
+    endforeach()
 
     if(DEFINED OCX_INSTALL_MIRROR_URL AND NOT "${OCX_INSTALL_MIRROR_URL}" STREQUAL "")
       string(REGEX REPLACE "/+$" "" mirror "${OCX_INSTALL_MIRROR_URL}")
@@ -891,18 +1004,25 @@ function(ocx_bootstrap)
       "find_ocx:   version knob: OCX_INSTALL_VERSION (pin: "
       "${__OCX_PIN_VERSION}); cache: ${cache_root}; opt out: "
       "OCX_BOOTSTRAP=OFF + OCX_EXECUTABLE")
-    file(DOWNLOAD "${url}" "${archive}" EXPECTED_HASH SHA256=${sha} STATUS status)
+    file(DOWNLOAD "${url}" "${archive}"
+      EXPECTED_HASH SHA256=${sha}
+      TLS_VERIFY ON
+      TIMEOUT 900
+      INACTIVITY_TIMEOUT 60
+      STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
       message(FATAL_ERROR
         "find_ocx: download of ${url} failed: ${status_msg}\n"
         "hint: corporate networks - set OCX_INSTALL_MIRROR_URL (artifacts) "
-        "and/or OCX_INSTALL_DIST_URL (manifest)")
+        "and/or OCX_INSTALL_DIST_URL (manifest); mirrors must allow anonymous read")
     endif()
     set(extract_dir "${scratch}/extract-${version}-${triple}")
     file(REMOVE_RECURSE "${extract_dir}")
     file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${extract_dir}")
+    # 0.6 ships ocx-<triple>/ocx inside .tar.gz and a flat ocx.exe inside
+    # .zip; either layout is accepted.
     set(nested "${extract_dir}/ocx-${triple}/ocx${exe_ext}")
     set(flat "${extract_dir}/ocx${exe_ext}")
     if(EXISTS "${nested}")
@@ -920,7 +1040,20 @@ function(ocx_bootstrap)
 
   set(OCX_EXECUTABLE "${binary}" CACHE FILEPATH "Path to the ocx CLI" FORCE)
   set_property(GLOBAL PROPERTY __OCX_CLI_VERSION "")
-  message(STATUS "find_ocx: using bootstrapped ocx ${version} (${binary})")
+  set(reported "${version}")
+  # A fresh binary must report the version the manifest row promised: a
+  # mirrored manifest can pair a valid hash with the wrong release. A foreign
+  # TRIPLE cannot run here, so it is not probed.
+  if(fresh AND triple STREQUAL host_triple)
+    __ocx_cli_version(reported)
+    if(NOT reported VERSION_EQUAL version)
+      file(REMOVE "${binary}")
+      message(FATAL_ERROR
+        "find_ocx: the bootstrapped ocx reports version ${reported}, expected ${version} "
+        "(removed ${binary}) - check OCX_INSTALL_DIST_URL / DIST_MANIFEST")
+    endif()
+  endif()
+  message(STATUS "find_ocx: using bootstrapped ocx ${reported} (${binary})")
 endfunction()
 
 # ---------------------------------------------------------------------------
@@ -1542,18 +1675,42 @@ function(ocx_index op)
   endif()
 endfunction()
 
-cmake_policy(POP)
-
 # ---------------------------------------------------------------------------
-# Self-update (script mode)
+# ocx_self_update (script mode)
 # ---------------------------------------------------------------------------
 
-# Replaces this file (and a sibling Findocx.cmake when present) with a
-# released version, verified against the release SHA256SUMS. Only reachable
-# via `cmake -P ocx.cmake` (guard below) - never during a configure. Knobs:
-# OCX_SELF_UPDATE_VERSION (tag; default: latest via the GitHub API) and
-# OCX_SELF_UPDATE_URL (mirror base; requires an explicit version).
-function(__ocx_self_update)
+#[=[.rst:
+.. command:: ocx_self_update
+
+  Replaces the vendored ``ocx.cmake`` (and a sibling ``Findocx.cmake`` when
+  present) with a released find_ocx version::
+
+    ocx_self_update()
+
+  Script mode only (``cmake -P``): a configure fails with an error, because
+  the command rewrites files in the source tree. ``cmake -P ocx.cmake`` calls
+  it, or call it after ``include(ocx)`` from your own script. The release
+  is named by :variable:`OCX_SELF_UPDATE_VERSION` (default: the latest, via
+  the GitHub releases API) and fetched from GitHub or from
+  :variable:`OCX_SELF_UPDATE_URL`. The release ``SHA256SUMS`` is the trust
+  root: both files are downloaded and verified against it before either
+  one replaces the vendored copy.
+#]=]
+function(ocx_self_update)
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "")
+  if(arg_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR
+      "find_ocx: ocx_self_update: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
+  endif()
+  if(NOT CMAKE_SCRIPT_MODE_FILE)
+    message(FATAL_ERROR
+      "find_ocx: ocx_self_update rewrites the vendored files and runs in script "
+      "mode only\nhint: cmake [-DOCX_SELF_UPDATE_VERSION=vX.Y.Z] -P <dir>/ocx.cmake")
+  endif()
+  get_property(module_file GLOBAL PROPERTY __OCX_MODULE_FILE)
+  get_property(module_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
+  get_filename_component(module_dir "${module_file}" DIRECTORY)
+
   set(tag "")
   if(DEFINED OCX_SELF_UPDATE_VERSION AND NOT "${OCX_SELF_UPDATE_VERSION}" STREQUAL "")
     set(tag "${OCX_SELF_UPDATE_VERSION}")
@@ -1568,12 +1725,17 @@ function(__ocx_self_update)
   endif()
 
   # Sibling temp dir: same filesystem, so the final file(RENAME) is atomic.
-  set(tmp "${CMAKE_CURRENT_LIST_DIR}/.ocx-self-update-tmp")
+  set(tmp "${module_dir}/.ocx-self-update-tmp")
   file(REMOVE_RECURSE "${tmp}")
 
   if(tag STREQUAL "")
+    # The API only names the tag; SHA256SUMS below is what is trusted.
     file(DOWNLOAD "https://api.github.com/repos/ocx-sh/find_ocx/releases/latest"
-      "${tmp}/latest.json" STATUS status)
+      "${tmp}/latest.json"
+      TLS_VERIFY ON
+      TIMEOUT 60
+      INACTIVITY_TIMEOUT 30
+      STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
@@ -1587,19 +1749,30 @@ function(__ocx_self_update)
     file(READ "${tmp}/latest.json" api_json)
     string(JSON tag GET "${api_json}" tag_name)
   endif()
+  # The tag becomes a URL path segment.
+  if(NOT tag MATCHES "^v[0-9][A-Za-z0-9._+-]*$")
+    file(REMOVE_RECURSE "${tmp}")
+    message(FATAL_ERROR "find_ocx: '${tag}' is not a find_ocx release tag (vX.Y.Z)")
+  endif()
 
   set(base "https://github.com/ocx-sh/find_ocx/releases/download")
   if(DEFINED OCX_SELF_UPDATE_URL AND NOT "${OCX_SELF_UPDATE_URL}" STREQUAL "")
     string(REGEX REPLACE "/+$" "" base "${OCX_SELF_UPDATE_URL}")
   endif()
 
-  file(DOWNLOAD "${base}/${tag}/SHA256SUMS" "${tmp}/SHA256SUMS" STATUS status)
+  # Trust root of the update: its hashes gate both files below.
+  file(DOWNLOAD "${base}/${tag}/SHA256SUMS" "${tmp}/SHA256SUMS"
+    TLS_VERIFY ON
+    TIMEOUT 60
+    INACTIVITY_TIMEOUT 30
+    STATUS status)
   list(GET status 0 status_code)
   if(NOT status_code EQUAL 0)
     list(GET status 1 status_msg)
     file(REMOVE_RECURSE "${tmp}")
     message(FATAL_ERROR
-      "find_ocx: failed to fetch ${base}/${tag}/SHA256SUMS: ${status_msg}")
+      "find_ocx: failed to fetch ${base}/${tag}/SHA256SUMS: ${status_msg}\n"
+      "hint: a mirror must allow anonymous read")
   endif()
 
   file(READ "${tmp}/SHA256SUMS" sums)
@@ -1627,7 +1800,11 @@ function(__ocx_self_update)
   set(shas "${module_sha}" "${find_sha}")
   foreach(name sha IN ZIP_LISTS names shas)
     file(DOWNLOAD "${base}/${tag}/${name}" "${tmp}/${name}"
-      EXPECTED_HASH SHA256=${sha} STATUS status)
+      EXPECTED_HASH SHA256=${sha}
+      TLS_VERIFY ON
+      TIMEOUT 120
+      INACTIVITY_TIMEOUT 30
+      STATUS status)
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
@@ -1644,12 +1821,12 @@ function(__ocx_self_update)
   endif()
   # No downgrade refusal: an explicit version is the operator's choice
   # (rollbacks are legitimate); the direction is visible in this line.
-  message(STATUS "find_ocx: ${__OCX_MODULE_VERSION} -> ${new_version} (${tag})")
+  message(STATUS "find_ocx: ${module_version} -> ${new_version} (${tag})")
 
   # Replacing the running script is safe: CMake parses the whole listfile
   # before executing it.
-  file(RENAME "${tmp}/ocx.cmake" "${CMAKE_CURRENT_LIST_FILE}")
-  set(findocx "${CMAKE_CURRENT_LIST_DIR}/Findocx.cmake")
+  file(RENAME "${tmp}/ocx.cmake" "${module_file}")
+  set(findocx "${module_dir}/Findocx.cmake")
   if(EXISTS "${findocx}")
     file(RENAME "${tmp}/Findocx.cmake" "${findocx}")
   else()
@@ -1660,9 +1837,11 @@ function(__ocx_self_update)
   file(REMOVE_RECURSE "${tmp}")
 endfunction()
 
+cmake_policy(POP)
+
 # `cmake -P ocx.cmake` runs the self-update; `include(ocx)` from another
 # script keeps CMAKE_SCRIPT_MODE_FILE pointing at the outer script, so a
 # plain include never triggers it.
 if(CMAKE_SCRIPT_MODE_FILE AND CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
-  __ocx_self_update()
+  ocx_self_update()
 endif()
