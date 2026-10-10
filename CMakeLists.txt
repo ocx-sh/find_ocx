@@ -53,3 +53,6 @@ ocx_add_floating_fatal_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_memoize_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_script_mode_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
 ocx_add_self_update_test(VERSIONS ${OCX_TEST_CMAKE_VERSIONS})
+
+# Docs check: the exit-code table on the troubleshooting page matches the hint table (no ocx needed).
+include(tests/hint_table_check.cmake)
