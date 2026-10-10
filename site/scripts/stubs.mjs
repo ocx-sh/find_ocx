@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 const NEW = 'https://ocx.sh/integrations/cmake/';
 export const STUBS = {
   'index.html': NEW,
-  'examples.html': `${NEW}reference/examples/`,
+  'examples.html': NEW, // reference/examples was deleted; the landing page links the worked examples
   'reference.html': `${NEW}reference/commands/`,
 };
 

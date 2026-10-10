@@ -249,6 +249,8 @@ function main() {
     writeFileSync(join(out, dest), text);
   }
   // A recorded cast nobody embeds is dead weight at build time; say so, the cast is still a ctest.
+  // TODO(after the D3 page writers merge): throw instead of warn (S2 plan, point 3). Warn only while the D1 stack is open:
+  // tutorial__first-configure.sh is uncited until the D3 tutorial page cites it.
   const cited = new Set(built.flatMap((b) => b.casts));
   const scriptsDir = join(ROOT, 'site/casts');
   for (const f of existsSync(scriptsDir) ? readdirSync(scriptsDir) : []) {
