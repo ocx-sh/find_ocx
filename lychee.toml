@@ -5,4 +5,5 @@ no_progress = true
 # Re-checking an unchanged link within a day costs nothing but time (.lycheecache is gitignored).
 cache = true
 max_cache_age = "1d"
-exclude = ['^https://ocx\.sh/integrations/cmake/']
+# This repo's own blob/tree URLs answer 503 to bots; the files they name are in the checkout.
+exclude = ['^https://ocx\.sh/integrations/cmake/', '^https://github\.com/ocx-sh/find_ocx/(blob|tree)/']
