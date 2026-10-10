@@ -32,19 +32,6 @@ jobs:
       - name: Lint (actionlint, license headers, links)
         run: ocx run -- task lint
 
-  docs:
-    name: Docs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Setup OCX
-        uses: ocx-sh/setup-ocx@v1
-        with:
-          version: "0.6.2"
-      - name: Sphinx build (warnings are errors)
-        run: ocx run -- task docs
-
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

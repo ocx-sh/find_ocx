@@ -3,9 +3,12 @@ name: Site
 on:
   pull_request:
     paths:
-      - "docs/**"
       - "site/**"
       - "examples/**"
+      - "tests/**"
+      - "README.md"
+      - "CHANGELOG.md"
+      - ".github/workflows/ci.yml"
       - "ocx.cmake"
       - "Findocx.cmake"
       - "ocx.toml"
