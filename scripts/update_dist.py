@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
+
 """Bump find_ocx to an ocx CLI release: snapshot + pin + CI, in lockstep.
 
 One command moves three things together, and refuses to move any of them

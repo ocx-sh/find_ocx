@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
+
 """Specification tests for the supply-chain guards in update_dist.py.
 
 Run: python3 -I -m unittest discover -s scripts -p update_dist_test.py
