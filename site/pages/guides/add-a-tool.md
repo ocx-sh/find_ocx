@@ -35,7 +35,7 @@ Commit `ocx.toml` and `ocx.lock` together.
 If you skip this step, the next configure stops with exit code 65 and names the command to run.
 The recording shows that failure and the repair.
 
-<!-- cast: guides-add-a-tool__stale-lock -->
+<!-- cast: guides-add-a-tool/stale-lock -->
 
 `ocx lock` also asks you to add one line to `.gitattributes`.
 Add it, so two branches that each add a tool merge without a conflict in the lock.
@@ -58,7 +58,7 @@ The command resolves `shellcheck` from the locked group, never from the host `PA
 A `BINS` name that the selected groups do not provide stops the configure.
 The error names the entry and lists the names that are declared, so a typo or a forgotten group shows up at once.
 
-<!-- cast: guides-add-a-tool__bins-typo -->
+<!-- cast: guides-add-a-tool/bins-typo -->
 
 ## Keep a group out of the default environment {#lazy-group}
 

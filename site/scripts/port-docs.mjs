@@ -253,7 +253,7 @@ function main() {
   // tutorial__first-configure.sh is uncited until the D3 tutorial page cites it.
   const cited = new Set(built.flatMap((b) => b.casts));
   const scriptsDir = join(ROOT, 'site/casts');
-  for (const f of existsSync(scriptsDir) ? readdirSync(scriptsDir) : []) {
+  for (const f of existsSync(scriptsDir) ? readdirSync(scriptsDir).filter((n) => n.endsWith('.sh')) : []) {
     const doc = readFileSync(join(scriptsDir, f), 'utf8').match(/^# doc: (.+)$/m)?.[1];
     if (doc && !cited.has(doc)) console.warn(`port-docs: cast ${doc} (site/casts/${f}) is cited by no page`);
   }

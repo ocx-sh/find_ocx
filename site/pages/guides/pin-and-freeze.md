@@ -19,7 +19,7 @@ This page freezes the tag with an index snapshot or a digest, refreshes it on pu
 The error names the package and lists three ways out.
 The recording shows it for a `jq:latest` package.
 
-<!-- cast: guides-pin-and-freeze__floating-fatal -->
+<!-- cast: guides-pin-and-freeze/floating-fatal -->
 
 The three ways are a committed snapshot, a digest, or `OCX_ALLOW_FLOATING=ON`.
 The last one accepts drift and belongs in throwaway experiments only.
@@ -82,7 +82,7 @@ Configure once online with `-DOCX_PULL=ON`, because a lazy configure leaves the 
 Then configure a fresh directory with `OCX_FROZEN=1` and `OCX_OFFLINE=1`.
 [Lazy versus eager](../concepts/lazy-vs-eager.md) explains the difference.
 
-<!-- cast: guides-pin-and-freeze__frozen-offline -->
+<!-- cast: guides-pin-and-freeze/frozen-offline -->
 
 ## Point at a snapshot elsewhere {#index-dir}
 

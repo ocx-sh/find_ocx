@@ -49,7 +49,7 @@ Where the program sits depends on the package.
 For `jq` it is the content root, and many packages use a `bin` directory, so the call lists both.
 The recording shows the plain call returning the host copy and the hinted call returning the provisioned one.
 
-<!-- cast: guides-find-package__find-program -->
+<!-- cast: guides-find-package/find-program -->
 
 `find_program` stores its answer in the CMake cache.
 After you change the pin, delete the entry with `-UJQ_EXE` or use a fresh build directory.

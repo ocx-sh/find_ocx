@@ -49,7 +49,7 @@ Unlike `include(ocx)`, the find module does not download anything by default.
 Add `-DOCX_BOOTSTRAP=ON` to fall back to the pinned CLI when none is found.
 The recording configures the example and prints the version it found.
 
-<!-- cast: guides-use-system-ocx__find-package-ocx -->
+<!-- cast: guides-use-system-ocx/find-package-ocx -->
 
 [Two entry points](../concepts/entry-points.md) compares the two ways to start.
 
