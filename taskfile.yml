@@ -73,7 +73,7 @@ tasks:
       - ocx exec -- pnpm install --frozen-lockfile
 
   site:casts:
-    desc: Record the docs terminal casts from site/casts/*.sh (real runs, sanitized, gitignored)
+    desc: Record the docs terminal casts from site/casts/*.sh (real runs, sanitized, gitignored; Linux and macOS)
     dir: site
     cmds:
       - ocx exec -- node scripts/record-casts.mjs

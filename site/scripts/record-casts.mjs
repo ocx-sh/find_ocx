@@ -1,21 +1,18 @@
-// Records site/casts/*.sh (those with `# cast: true`) into site/public/casts/<doc>.cast (asciicast v3, gitignored).
-// A cast is a view on a script that already passes as a ctest: the recorder never gates anything (DOC-EX-11)
-// and every recorded byte comes from a real run, only the typed command line is simulated (DOC-EX-12).
-//
-//   ocx exec -- node scripts/record-casts.mjs [--only <doc>] [--out <dir>]
-//
-// Needs asciinema (ocx.toml), cmake, ocx and network on PATH. Headless: asciinema --headless runs the
-// driver in its own PTY, so no terminal is required (CI, ssh without -t, a pipe).
-import { execFileSync, spawnSync } from 'node:child_process';
+// Records site/casts/*.sh (`# cast: true`) into site/public/casts/<doc>.cast (asciicast v3, gitignored).
+// The ctests (tests/casts.cmake) are the correctness gate; a cast is a view on a script that passes there.
+// A failed recording still fails this command and so the site build (DOC-EX-11).
+// Every byte comes from a real cold run, only the typed command line is simulated (DOC-EX-12).
+//   ocx exec -- node scripts/record-casts.mjs [--only <doc>] [--out <dir>] [--jobs <n>]
+import { spawn } from 'node:child_process';
+import { availableParallelism, homedir, tmpdir } from 'node:os';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SITE = fileURLToPath(new URL('..', import.meta.url));
-const WIDTH = 100, ROWS = 40, TYPE_DELAY = 0.04, IDLE_LIMIT = 2; // recording window: tall enough that nothing scrolls; sanitize() shrinks the header to the used rows
+const WIDTH = 100, ROWS = 30, TYPE_DELAY = 0.04, IDLE_LIMIT = 2; // the header rows shrink to the used rows in sanitize()
 
-/** `# key: value` header lines before the first non-comment line. */
+/** `# key: value` header lines before the first non-comment line, plus the `cast` region. */
 export function parseScript(text) {
   const meta = {};
   for (const l of text.split('\n').slice(1)) {
@@ -23,14 +20,19 @@ export function parseScript(text) {
     if (m) meta[m[1]] = m[2];
     else if (!l.startsWith('#')) break;
   }
-  const region = (name) => {
-    const m = text.match(new RegExp(`^# region ${name}\\n([\\s\\S]*?)^# endregion ${name}\\n`, 'm'));
-    return m ? { start: m.index, end: m.index + m[0].length, body: m[1] } : null;
-  };
-  return { meta, cast: region('cast'), text };
+  const m = text.match(/^# region cast\n([\s\S]*?)^# endregion cast\n/m);
+  return { meta, cast: m ? { start: m.index, end: m.index + m[0].length, body: m[1] } : null, text };
 }
 
-/** Driver: pre silent, cast region typed then run, post silent. Blank lines split the region into commands. */
+/** The file a doc key lives in: `a/b` is `a__b.sh`. */
+export const scriptName = (doc) => `${doc.replace(/\//g, '__')}.sh`;
+
+/**
+ * Driver: the script text before the cast region runs silently, the region is typed and run block by block
+ * (blank lines split it into commands), the text after it runs silently. Silent output goes to
+ * $CAST_TMP/silent.log, which the recorder prints when the recording fails. Brace groups, not fd copies, so
+ * a background process started by setup cannot hold the terminal open.
+ */
 export function driver({ text, cast }) {
   const blocks = cast.body.trimEnd().split(/\n\s*\n/);
   const typed = blocks
@@ -45,12 +47,13 @@ __block() {
   printf '\\n'; sleep 0.4
   eval "$b"; sleep 1
 }
-exec 3>&1 4>&2 >/dev/null 2>&1
+{
 ${text.slice(text.indexOf('\n') + 1, cast.start)}
-exec >&3 2>&4
+} >>"$CAST_TMP/silent.log" 2>&1
 ${typed}
-exec >/dev/null 2>&1
+{
 ${text.slice(cast.end)}
+} >>"$CAST_TMP/silent.log" 2>&1
 `;
 }
 
@@ -66,43 +69,72 @@ export function sanitize(castText, subs, title) {
     else merged.push([dt, code, data]);
   }
   const clean = (s) => {
+    s = s.replace(/\S*?\/share\/cmake-(\d+\.\d+)\/Modules\//g, '/usr/share/cmake-$1/Modules/'); // before the home rewrite
     for (const [from, to] of subs) s = s.split(from).join(to);
     return s
-      .replace(/sha256:([0-9a-f]{12})[0-9a-f]{52}/g, 'sha256:$1')  // keep 12 hex of a digest
-      .replace(/\((\d+\.\d)\d*s\)/g, '(0.1s)')                      // "Configuring done (0.0s)"
-      .replace(/\/tmp\/(?:tmp\.)?[\w.-]+/g, '/tmp/build');          // any stray mktemp path
+      .replace(/sha256:([0-9a-f]{12})[0-9a-f]{52}/g, 'sha256:$1')       // keep 12 hex of a digest
+      .replace(/sha256\/([0-9a-f]{2})\/([0-9a-f]{10})[0-9a-f]{20}/g, 'sha256/$1/$2') // the same digest as a store path
+      .replace(/\b([0-9a-f]{12})[0-9a-f]{20}\b/g, '$1')                  // a 32-hex temp name
+      .replace(/\((\d+\.\d)\d*s\)/g, '(0.1s)')                          // "Configuring done (0.0s)"
+      .replace(/127\.0\.0\.1:\d+/g, '127.0.0.1:8080')                    // the loopback port of a local mirror
+      .replace(/\/tmp\/(?:tmp\.)?[\w.-]+/g, '/tmp/build');              // any stray mktemp path
   };
   merged[0][0] = Math.min(merged[0][0], 0.3); // the silent setup ran before the first byte
-  const visible = merged.filter((e) => e[1] === 'o').map((e) => e[2]).join('').replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
-  const rows = visible.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.replace(/\r/g, '').length / hdr.term.cols)), 0);
+  // Rows: wrapped lines of the output. A progress bar redraws one line (carriage return or cursor-up), so a line
+  // counts as its longest redraw, not the sum of them.
+  const visible = merged.filter((e) => e[1] === 'o').map((e) => e[2]).join('');
+  const width = (l) => Math.max(...l.split(/\r|\x1b\[[0-9;]*[ABCDGHJKf]/).map((x) => x.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').length));
+  const rows = visible.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(width(l) / hdr.term.cols)), 0);
   const out = { version: 3, term: { cols: hdr.term.cols, rows: Math.max(rows + 1, 5) }, idle_time_limit: IDLE_LIMIT, title }; // auto height; drops timestamp, command, env
-  return [out, ...merged.map(([dt, code, d]) => [Math.round(dt * 1000) / 1000, code, code === 'o' ? clean(d) : d])]
+  // Timings: a wait is capped at the idle limit and rounded to a millisecond, so a slow network cannot stretch a cast.
+  return [out, ...merged.map(([dt, code, d]) => [Math.round(Math.min(dt, IDLE_LIMIT) * 1000) / 1000, code, code === 'o' ? clean(d) : d])]
     .map((x) => JSON.stringify(x)).join('\n') + '\n';
 }
 
-function record(file, outDir) {
+/** What a published cast must not contain: the recording machine's home or scratch directories. */
+export const leaks = (castText, scratch) =>
+  [homedir(), scratch, tmpdir()].filter((s) => s.length > 3 && s !== '/tmp' && castText.includes(s));
+
+const run = (cmd, args, env) => new Promise((resolve) => {
+  const p = spawn(cmd, args, { env, stdio: ['ignore', 'inherit', 'inherit'] });
+  p.on('error', (e) => { console.error(`${cmd}: ${e.message}`); resolve(127); });
+  p.on('close', (code) => resolve(code ?? 1));
+});
+
+async function record(file, outDir) {
   const s = parseScript(readFileSync(file, 'utf8'));
   if (s.meta.cast !== 'true') return null;
-  if (!s.cast || !s.meta.doc || !s.meta.title) throw new Error(`${file}: needs "# doc:", "# title:" and a "# region cast"`);
+  const base = file.split('/').pop();
+  if (!s.cast || !s.meta.doc || !s.meta.title || !s.meta.description) {
+    throw new Error(`${base}: needs "# doc:", "# title:", "# description:" and a "# region cast"`);
+  }
+  if (scriptName(s.meta.doc) !== base) throw new Error(`${base}: "# doc: ${s.meta.doc}" belongs in ${scriptName(s.meta.doc)}`);
   const scratch = mkdtempSync(join(tmpdir(), 'cast-'));
   try {
     const drv = join(scratch, 'driver.sh');
     writeFileSync(drv, driver(s));
     const raw = join(scratch, 'raw.cast');
+    const home = join(scratch, 'run'); // the wrapper's temp dir, known up front so its paths can be rewritten
+    mkdirSync(home, { recursive: true });
     const wrapper = join(SITE, 'scripts/run-cast-script.sh');
-    const run = join(scratch, 'run'); // the wrapper's temp dir, known up front so its paths can be rewritten
-    const r = spawnSync('asciinema', ['rec', '--headless', '--overwrite', '--return', '--quiet',
-      '--window-size', `${WIDTH}x${ROWS}`, '--command', `${wrapper} ${drv}`, raw],
-    { env: { ...process.env, CAST_TMP: run }, stdio: ['ignore', 'inherit', 'inherit'], encoding: 'utf8' });
-    if (r.status !== 0) throw new Error(`${file}: recording failed (exit ${r.status}); the script must pass as a test first`);
-    const text = readFileSync(raw, 'utf8');
+    const code = await run('asciinema', ['rec', '--headless', '--overwrite', '--return', '--quiet',
+      '--window-size', `${WIDTH}x${ROWS}`, '--command', `${wrapper} ${drv}`, raw], { ...process.env, CAST_TMP: home });
+    if (code !== 0) {
+      let silent = '';
+      try { silent = readFileSync(join(home, 'silent.log'), 'utf8').split('\n').slice(-40).join('\n'); } catch { /* no setup ran */ }
+      throw new Error(`${base}: recording failed (exit ${code}); the script must pass as a test first\n--- silent setup/verification output (tail) ---\n${silent}`);
+    }
+    const dir = s.meta.dir || 'project';
     const subs = [
-      [`${run}/work`, '~/hello-jq'], [`${run}/home/.ocx`, '~/.ocx'], [`${run}/home`, '~'],
-      [homedir(), '~'],
+      [`${home}/work`, `~/${dir}`], [`${home}/home/.ocx`, '~/.ocx'], [`${home}/home`, '~'],
+      [home, '/tmp/cast'], [scratch, '/tmp/cast'], [homedir(), '~'],
     ];
+    const text = sanitize(readFileSync(raw, 'utf8'), subs, s.meta.title);
+    const found = leaks(text, scratch);
+    if (found.length) throw new Error(`${base}: the cast still contains ${found.map((f) => JSON.stringify(f)).join(', ')}`);
     const dest = join(outDir, `${s.meta.doc}.cast`);
     mkdirSync(dirname(dest), { recursive: true });
-    writeFileSync(dest, sanitize(text, subs, s.meta.title));
+    writeFileSync(dest, text);
     return dest;
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -110,13 +142,30 @@ function record(file, outDir) {
 }
 
 if (process.argv[1] && import.meta.url === new URL(process.argv[1], 'file:').href) {
-  const arg = (k) => process.argv[process.argv.indexOf(k) + 1];
-  const only = process.argv.includes('--only') ? arg('--only') : null;
-  const outDir = process.argv.includes('--out') ? arg('--out') : join(SITE, 'public/casts');
+  const arg = (k, d) => (process.argv.includes(k) ? process.argv[process.argv.indexOf(k) + 1] : d);
+  const only = arg('--only', null);
+  const outDir = arg('--out', join(SITE, 'public/casts'));
+  const jobs = Number(arg('--jobs', Math.min(4, availableParallelism())));
   const dir = join(SITE, 'casts');
-  for (const f of readdirSync(dir).filter((f) => f.endsWith('.sh')).sort()) {
-    if (only && !f.startsWith(only.replace('/', '__'))) continue;
-    const dest = record(join(dir, f), outDir);
-    if (dest) console.log(`recorded ${dest}`);
+  const files = readdirSync(dir).filter((f) => f.endsWith('.sh')).sort()
+    .filter((f) => !only || f.startsWith(only.replace(/\//g, '__')));
+  if (!only && outDir.endsWith('casts')) rmSync(outDir, { recursive: true, force: true }); // a cast whose script is gone must not ship
+  const failed = [];
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.max(1, jobs) }, async () => {
+    while (next < files.length) {
+      const f = files[next++];
+      try {
+        const dest = await record(join(dir, f), outDir);
+        if (dest) console.log(`recorded ${dest}`);
+      } catch (e) {
+        failed.push(f);
+        console.error(e.message);
+      }
+    }
+  }));
+  if (failed.length) {
+    console.error(`record-casts: ${failed.length} of ${files.length} failed: ${failed.join(', ')}`);
+    process.exit(1);
   }
 }
