@@ -59,11 +59,13 @@ endif()
 
 unset(OCX_VERSION_STRING)
 if(OCX_EXECUTABLE AND EXISTS "${OCX_EXECUTABLE}")
+  # OCX_QUIET=0: an ambient OCX_QUIET=1 would blank the version output.
   execute_process(
-    COMMAND "${OCX_EXECUTABLE}" version
+    COMMAND "${CMAKE_COMMAND}" -E env OCX_QUIET=0 "${OCX_EXECUTABLE}" version
     RESULT_VARIABLE __ocx_find_rc
     OUTPUT_VARIABLE __ocx_find_out
     ERROR_QUIET
+    ENCODING UTF-8
   )
   if(__ocx_find_rc EQUAL 0)
     string(STRIP "${__ocx_find_out}" __ocx_find_out)
