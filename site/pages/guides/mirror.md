@@ -5,8 +5,6 @@ description: Configure find_ocx behind a corporate mirror or with no network, wi
 <!-- doc_type: how-to -->
 <!-- doc_tier: integration -->
 
-# Build behind a mirror or offline {#build-behind-a-mirror-or-offline}
-
 Your build machines reach an internal artifact host and nothing else, or they reach nothing.
 A configure that downloads `ocx` from GitHub and tools from a public registry stops at the firewall.
 `FetchContent` and CPM do not help, because they also fetch from the public internet at configure time.
@@ -18,13 +16,15 @@ The lock records the upstream host and digest of each tool, so it stays valid be
 
 ## Know what leaves the network {#what-leaves-the-network}
 
-A configure causes three kinds of traffic, and each has its own variable.
+A configure causes four kinds of traffic.
+Allow these hosts through the firewall, or mirror them as described below.
 
 | Traffic | Default host | Variable |
 | --- | --- | --- |
 | Release manifest `dist.json` | `setup.ocx.sh` | `OCX_INSTALL_DIST_URL` |
 | `ocx` archive | `github.com` | `OCX_INSTALL_MIRROR_URL` |
-| Package index and blobs | the registry hosts behind `ocx.sh` | `OCX_MIRRORS` |
+| Package blobs | `ghcr.io` | `OCX_MIRRORS` |
+| Package index | `index.ocx.sh` | `OCX_MIRRORS` |
 
 The module files themselves (`ocx.cmake` and `Findocx.cmake`) come from GitHub only when you run the [self-update](update-vendored.md).
 
@@ -62,28 +62,40 @@ To change one later, pass it again with `-D` or use a fresh build directory.
 
 ## Route package pulls through the mirror {#mirrors}
 
-Set `OCX_MIRRORS` to a JSON map from a registry host to the mirror that serves it.
+Set `OCX_MIRRORS` to a JSON map from the host that carries the traffic to the mirror that replaces it.
+A package from `ocx.sh` is fetched from two hosts, so the map names both.
+Naming `ocx.sh` has no effect, because `ocx.sh` is only the alias that resolves to these hosts.
 
-<!-- doc-norun: the host name is a placeholder for your own mirror -->
+<!-- doc-norun: the host names are placeholders for your own mirror -->
 ```sh
-export OCX_MIRRORS='{"ocx.sh": "https://mirror.corp/ocx"}'
+export OCX_MIRRORS='{
+  "ghcr.io": "https://mirror.corp/ghcr-remote",
+  "index.ocx.sh": {"index": "https://mirror.corp/ocx-index"}
+}'
 ```
 <!-- /doc-norun -->
 
-With this entry ocx treats `ocx.sh` as a plain registry on your mirror, and it logs a warning that it dropped the public index.
+The `ghcr.io` entry serves the package blobs, for example from an Artifactory remote repository in front of GitHub's container registry.
+The `index.ocx.sh` entry serves the package index, which the mirror must copy from `https://index.ocx.sh/`.
 The digests in `ocx.lock` still verify every blob.
-There is no fallback to the origin, so an unreachable mirror is a hard error.
+There is no fallback to the origin, so an unreachable mirror is a hard error that names the mirror.
 
 Run one configure and read the mirror's access log.
 A request that went to any other host names one more key for the map.
+
+To mirror only the pulls and keep the public index out of the picture, the config file offers a `[mirrors]` entry for `ocx.sh`.
+That turns `ocx.sh` into a plain registry on your mirror, drops the index with a warning, and so gives up the index's digest verification and yank gate.
+[Apply organisation-wide download rules](policy-and-config.md#config) shows the file.
+`OCX_MIRRORS` cannot suppress the index, so the environment variable does not offer that route.
 
 Three more variables cover the usual corporate network:
 
 - `OCX_INSECURE_REGISTRIES` takes a comma list of hosts that speak plain HTTP.
 - `OCX_EXTRA_CA_CERTS` adds the corporate root to the trust of every `ocx` call. It takes a path to a PEM file or the PEM text.
-- `CMAKE_TLS_CAINFO` is the CMake variable that names the CA bundle for the `ocx` download, because CMake performs that download itself.
+- `CMAKE_TLS_CAINFO` is a CMake variable, not an environment variable. It names the CA bundle for the `ocx` download, because CMake performs that download itself, and `OCX_EXTRA_CA_CERTS` does not cover it.
 
-Set these in the environment of the first configure, like the mirror variables.
+Set the first two in the environment of the first configure, like the mirror variables.
+Pass `CMAKE_TLS_CAINFO` with `-DCMAKE_TLS_CAINFO=<path>`, or set it before `include(ocx)`.
 
 ## Pass credentials {#credentials}
 

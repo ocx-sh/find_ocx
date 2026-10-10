@@ -5,8 +5,6 @@ description: Provision tools or libraries for a platform other than the host fro
 <!-- doc_type: how-to -->
 <!-- doc_tier: integration -->
 
-# Cross-build with foreign-platform content {#cross-build}
-
 You build on one CPU or operating system for another, for example `linux/arm64` from an x86-64 laptop.
 The target needs its own binaries, and copying them from another machine leaves two sets of versions to keep in sync.
 
@@ -32,8 +30,10 @@ Passing `BINS` together with `PLATFORM` is a configure error for the same reason
 ## Provision in a toolchain file {#toolchain-file}
 
 A toolchain file is the usual place to describe the target, so the provisioning call belongs there too.
-CMake reads a toolchain file again for each compiler probe, so guard the call to run it once.
-The guard below skips the call when the result variable already exists.
+CMake reads a toolchain file again for each compiler probe.
+An `ocx_project` or `ocx_package` call with the same `NAME` and identical arguments does nothing on re-entry, so the call needs no guard.
+A different call under the same `NAME` is a configure error.
+Every configure reruns the call, so run `cmake` again after you edit `ocx.lock` or `ocx.toml`.
 
 <!-- snippet: examples/cross_build/toolchain.cmake#toolchain -->
 

@@ -5,8 +5,6 @@ description: Run the same pinned ocx and the same locked tools on Linux, macOS a
 <!-- doc_type: how-to -->
 <!-- doc_tier: integration -->
 
-# Reproduce the build in CI {#reproduce-the-build-in-ci}
-
 A build passes on your laptop and fails on a CI runner because the two machines carry different tool versions.
 A README line such as "install jq 1.7 first" cannot prevent that, and `FetchContent` or CPM fetch sources to compile, not a pinned `jq` for a custom command.
 
@@ -58,7 +56,7 @@ This GitHub Actions workflow applies all four settings on three operating system
 
 <!-- snippet: examples/ci/github-actions.yml#workflow -->
 
-The file is checked with `actionlint` in find_ocx's own lint step.
+find_ocx's own lint step checks the file with `actionlint`.
 The same flags work in any CI system, because they are plain CMake and environment settings.
 
 A leg that cannot reach the registry exits with code 69 or 75.

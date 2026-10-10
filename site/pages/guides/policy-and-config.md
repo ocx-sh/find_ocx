@@ -5,8 +5,6 @@ description: Make every build follow the same ocx config file, signature and yan
 <!-- doc_type: how-to -->
 <!-- doc_tier: integration -->
 
-# Apply organisation-wide download rules {#apply-organisation-wide-rules}
-
 Your organisation sets rules for what a build may download.
 Examples are a mirror, a corporate CA, signed packages only, no withdrawn tags and a patch for the internal TLS setup.
 `ocx` reads those rules from config files in the system, user and home directories, so a laptop and a CI runner can resolve the same `ocx.toml` differently.
