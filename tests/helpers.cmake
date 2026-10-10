@@ -98,8 +98,8 @@ function(ocx_add_cmake_version_test fixture)
 endfunction()
 
 # Negative test: runs `cmake <ARGS>` under tests/expect_failure.cmake, which
-# asserts the exit status AND the CMake Error diagnostic together: a bare
-# PASS_REGULAR_EXPRESSION ignores the exit code, WILL_FAIL ignores why.
+# asserts the exit status AND the CMake Error diagnostic together: a message
+# regex alone ignores the exit code, an inverted exit status ignores why.
 #   ocx_add_negative_test(<test> <v> REGEX <regex> ARGS <cmake args>... [EXIT <n>])
 # <regex> must match the flattened message text after the severity header.
 function(ocx_add_negative_test test v)
