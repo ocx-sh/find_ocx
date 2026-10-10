@@ -1,57 +1,97 @@
+---
+title: Pin and freeze tag resolution
+description: Freeze a floating package tag with a committed index snapshot or digests, refresh it on purpose, and run a frozen or offline configure.
+---
 <!-- doc_type: how-to -->
 <!-- doc_tier: everyday -->
-<!-- description: Freeze floating tags with a committed index snapshot or per-platform digests, and refresh them on purpose. -->
+
 # Pin and freeze tag resolution
 
-Use a committed `.ocx/` index snapshot or per-platform digests so a floating tag such as `:latest` resolves the same way on every machine.
-Without one of them, a floating tag is a hard configure error.
+A configure stopped because `ocx_package` got a floating tag such as `:latest` and nothing fixes what that tag means.
+A moving tag builds one tool version today and another next month, and a host `find_program` has the same problem with whatever is installed.
+FetchContent hashes the sources it downloads, but a tool tag has no such hash until you record one.
+This page freezes the tag with an index snapshot or a digest, refreshes it on purpose, and runs a frozen configure.
 
-## Commit an index snapshot
+`ocx_project` builds are already frozen by `ocx.lock`, so this page covers `ocx_package`.
 
-Create the snapshot for the packages you use and commit it like a lock file.
+## See why the configure stopped {#floating-error}
 
-```console
-ocx --index .ocx index update ocx.sh/jqlang/jq ocx.sh/kitware/cmake
-git add .ocx
-```
+The error names the package and lists three ways out.
+The recording shows it for a `jq:latest` package.
 
-Then fail fast in `CMakeLists.txt` when the snapshot is missing.
+<!-- cast: guides-pin-and-freeze__floating-fatal -->
 
---8<-- "examples/frozen_index/CMakeLists.txt" from="^# Fail-fast" to="^ocx_package" title="examples/frozen_index/CMakeLists.txt"
+The three ways are a committed snapshot, a digest, or `OCX_ALLOW_FLOATING=ON`.
+The last one accepts drift and belongs in throwaway experiments only.
+[Reproducible first](../concepts/reproducible-first.md) explains the reasoning.
 
-Each `ocx_package` call discovers the nearest `.ocx/` directory by itself.
-The `ocx_index(FIND REQUIRED)` call only makes the intent explicit.
+## Commit an index snapshot {#snapshot}
 
-## Refresh the snapshot on purpose
+A snapshot is a directory named `.ocx/` that records what each tag resolved to.
+Create it from the directory that holds your `CMakeLists.txt`, once per tag you use, and commit it like a lock file.
+The command for `jq` is `ocx --index .ocx index update ocx.sh/jqlang/jq:latest`.
+A bare repository, without `:latest`, records every tag the registry lists and makes a larger diff.
 
-Snapshots are never updated automatically.
-Compose the refresh command and decide how it runs. Here it is a build target.
+Every `ocx_package` call finds the nearest `.ocx/` directory by itself.
+`ocx_index(FIND REQUIRED)` makes that explicit and stops the configure when the snapshot is missing.
 
---8<-- "examples/frozen_index/CMakeLists.txt" from="^ocx_index\(UPDATE_COMMAND" to="VERBATIM\)$" title="examples/frozen_index/CMakeLists.txt"
+<!-- snippet: examples/frozen_index/CMakeLists.txt#snapshot -->
+
+## Refresh the snapshot on purpose {#refresh}
+
+Nothing updates a snapshot by itself, because a silent refresh would hide drift.
+`ocx_index(UPDATE_COMMAND)` composes the refresh command, and you decide how it runs.
+Here it is a build target.
+
+<!-- snippet: examples/frozen_index/CMakeLists.txt#refresh -->
 
 1. Run `cmake --build build --target index-update`.
 2. Review the diff of `.ocx/`.
 3. Commit the result.
 
-A tag that is missing from the snapshot makes the next frozen configure fail with a refresh hint.
+The composed command runs without frozen mode, so it works while `OCX_FROZEN` is set.
+A tag that is missing from the snapshot makes the next frozen configure fail with exit code 81 and a refresh hint.
 
-## Pin per-platform digests instead
+## Pin digests instead {#digests}
 
-Pin a manifest digest for each platform when you want no snapshot directory.
-Nothing is downloaded until the first build-time execution.
+Pin by digest when you want no snapshot directory.
+A digest of the image index fixes every platform at once, so write it into `PACKAGE` as `ocx.sh/jqlang/jq@sha256:<index digest>`.
+After an `index update`, the index digest is the file name under `.ocx/ocx.sh/p/jqlang/jq/o/sha256/`.
 
---8<-- "examples/package/CMakeLists.txt" from="^ocx_package\(NAME jq_pinned" to="^\)$" title="examples/package/CMakeLists.txt"
+`PINS` fixes one manifest digest per platform instead.
+Nothing downloads until the first build-time execution.
 
-Get the digests from `ocx package install -p <platform>` or from the `ocx.lock` of a project.
-You can also print them once with a floating pull, which needs the explicit escape hatch.
+<!-- snippet: examples/package/CMakeLists.txt#pins -->
 
---8<-- "examples/package/CMakeLists.txt" from="^set\(OCX_ALLOW_FLOATING ON\)" to="^unset" title="examples/package/CMakeLists.txt"
+A project's `ocx.lock` lists these per-platform digests under each tool.
+Without a project, `ocx --format json package install -p <platform> <package>` prints the digest as the `identifier` field.
+The plain table output omits it.
 
-## Point at a snapshot elsewhere
+## Run a frozen configure {#frozen-configure}
 
-Use `INDEX` to freeze against any directory.
+Set `OCX_FROZEN` to a truthy value such as `1` before the first configure of a build directory.
+Every `ocx` call then refuses a tag that is neither in the snapshot nor in the lock, with exit code 81.
+Frozen mode is not an offline mode, because ocx may still fetch content it has pinned.
 
---8<-- "examples/package/CMakeLists.txt" from="^ocx_package\(NAME jq_frozen" to=index.\)$ title="examples/package/CMakeLists.txt"
+Each `OCX_*` setting is stored on the first configure and stays for that build directory.
+Use a fresh build directory when you change it.
 
-For why a floating tag is an error, see [Reproducible first](../concepts/reproducible-first.md).
-Needs addressed: problem 3 of the [use-case research](https://github.com/ocx-sh/find_ocx/blob/main/.agents/research/docs-use-cases.md).
+To build with no network, fill the local store first.
+Configure once online with `-DOCX_PULL=ON`, because a lazy configure leaves the store empty.
+Then configure a fresh directory with `OCX_FROZEN=1` and `OCX_OFFLINE=1`.
+[Lazy versus eager](../concepts/lazy-vs-eager.md) explains the difference.
+
+<!-- cast: guides-pin-and-freeze__frozen-offline -->
+
+## Point at a snapshot elsewhere {#index-dir}
+
+Give `ocx_package` an `INDEX` directory to freeze against a snapshot outside the project tree.
+`NO_INDEX` skips every snapshot for one call.
+
+<!-- snippet: examples/package/CMakeLists.txt#index-dir -->
+
+## Next steps {#next-steps}
+
+- [Add or change a pinned tool](add-a-tool.md) covers `ocx_project` and its lock.
+- [Build behind a mirror or offline](mirror.md) covers mirrors and credentials.
+- [`ocx_index`](../reference/commands.md#ocx_index) lists every keyword.
