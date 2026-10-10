@@ -6,8 +6,9 @@
     "port": "node scripts/port-docs.mjs",
     "dev": "pnpm run port && astro dev --host",
     "build": "pnpm run port && astro build",
-    "test": "node --test scripts/port-docs.test.mjs scripts/stubs.test.mjs scripts/lighthouse.test.mjs scripts/record-casts.test.mjs",
-    "check": "node scripts/check-anchors.mjs && ocx-site check --dist dist",
+    "test": "node --test scripts/rst.test.mjs scripts/port-docs.test.mjs scripts/stubs.test.mjs scripts/lighthouse.test.mjs scripts/record-casts.test.mjs",
+    "check": "node scripts/check-anchors.mjs && node scripts/docs-gate.mjs && ocx-site check --dist dist",
+    "docs:baseline": "node scripts/docs-gate.mjs --update-baseline",
     "lighthouse": "node scripts/lighthouse.mjs"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "@lhci/cli": "0.15.1",
     "chrome-launcher": "1.2.1",
     "lighthouse": "12.6.1",
+    "markdownlint-cli2": "0.18.1",
     "playwright-core": "^1.63.0"
   }
 }

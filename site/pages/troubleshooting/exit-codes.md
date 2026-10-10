@@ -16,7 +16,8 @@ hint: <the fix for this code>
 
 ocx follows the BSD sysexits convention for 64 to 78.
 It uses 79 to 87 for its own cases.
-find_ocx retries only the content download of a `PULL` call when it exits 75, twice, and never retries another code.
+find_ocx retries only the content download of a `PULL` call, and only when it exits 75, twice.
+It never retries another code.
 Every other call fails on its first 75.
 A code such as 69, 65 or 81 means that a rerun changes nothing.
 

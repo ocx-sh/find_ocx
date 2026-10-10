@@ -1,6 +1,9 @@
 // Every `.. command::` / `.. variable::` the module sources document must exist as an id in the built reference
-// pages, and no id may repeat. Every <Terminal> cast a built page embeds must exist under dist.
+// pages, and no id may repeat. Every <Terminal> cast a built page embeds must exist under dist, and as many must be
+// embedded as the pages cite. Every `{#id}` heading of a source page must be an id in its built page. Every source page
+// is in the sidebar and every sidebar entry has a page.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { GROUPS } from '../sidebar.mjs';
 import { entries, rstBlocks, slug } from './rst.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
@@ -30,4 +33,25 @@ for (const page of html(dist)) {
   }
 }
 console.log(`casts: ${casts} embedded`);
+
+// Source pages (site/pages): link, `{#id}` headings and cast directives.
+const PAGES = new URL('../pages/', import.meta.url);
+const sources = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? sources(new URL(`${d.name}/`, dir)) : d.name.endsWith('.md') ? [new URL(d.name, dir)] : []));
+const linkOf = (file) => `/${file.pathname.slice(PAGES.pathname.length).replace(/\.md$/, '').replace(/(^|\/)index$/, '')}/`.replace(/^\/\/$/, '/');
+const linked = new Set(GROUPS.flatMap((g) => g.items.map(([, link]) => link)));
+let cites = 0;
+const pages = sources(PAGES);
+for (const file of pages) {
+  const link = linkOf(file);
+  const text = readFileSync(file, 'utf8');
+  if (!linked.has(link)) (bad++, console.error(`sidebar: ${link} (${file.pathname.slice(PAGES.pathname.length)}) is in no sidebar group`));
+  cites += [...text.matchAll(/^<!-- cast: /gm)].length;
+  const built = new URL(`${link.slice(1)}index.html`, dist);
+  if (!existsSync(built)) continue; // a missing built page is the sidebar check's job
+  const have = new Set([...readFileSync(built, 'utf8').matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  for (const m of text.matchAll(/^#{2,6} .*\{#([\w.:-]+)\}\s*$/gm)) if (!have.has(m[1])) (bad++, console.error(`${link}: heading anchor #${m[1]} is not an id in the built page`));
+}
+for (const link of linked) if (!pages.some((f) => linkOf(f) === link)) (bad++, console.error(`sidebar: ${link} has no page in site/pages`));
+if (cites !== casts) (bad++, console.error(`casts: pages cite ${cites}, the built pages embed ${casts}`));
+console.log(`pages: ${pages.length} in site/pages, ${linked.size} in the sidebar`);
 process.exit(bad ? 1 : 0);

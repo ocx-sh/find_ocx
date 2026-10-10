@@ -22,7 +22,8 @@ The bootstrap of the `ocx` binary is separate.
 It downloads once per machine and logs the download.
 
 To find out whether a configure needs the network, configure a fresh build directory with `-DOCX_OFFLINE=1`.
-A call that needs content stops with exit 79 when the package is pinned and the store lacks it, and with exit 81 when the tag is unpinned.
+A call that needs content stops with exit 79 when the package is pinned and the store lacks it.
+It stops with exit 81 when the tag is unpinned.
 The message names the command.
 A configure that passes touched no network.
 

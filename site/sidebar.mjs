@@ -1,0 +1,45 @@
+// The sidebar of the site: six groups per docs/discovery/ia-plan.md. scripts/check-anchors.mjs asserts every page in site/pages
+// is listed here and every entry has a page, so neither a page nor a link goes missing unnoticed.
+export const GROUPS = [
+  { label: 'Get started', items: [['Overview', '/'], ['Tutorial: run jq in a build', '/tutorial/']] },
+  {
+    label: 'Everyday',
+    items: [
+      ['Everyday guides', '/guides/'],
+      ['Add a tool and fix a stale lock', '/guides/add-a-tool/'],
+      ['Pin and freeze tag resolution', '/guides/pin-and-freeze/'],
+      ['Use find_package with find_ocx', '/guides/find-package/'],
+      ['Use an ocx you already have', '/guides/use-system-ocx/'],
+      ['Update the vendored files', '/guides/update-vendored/'],
+      ['Migrate from 0.3', '/guides/migrate-04/'],
+    ],
+  },
+  {
+    label: 'Integrate',
+    items: [
+      ['Reproduce the build in CI', '/guides/ci/'],
+      ['Build behind a mirror or offline', '/guides/mirror/'],
+      ['Cross-build with foreign content', '/guides/cross-build/'],
+      ['Organisation policy and config', '/guides/policy-and-config/'],
+    ],
+  },
+  {
+    label: 'Concepts',
+    items: [
+      ['How find_ocx works', '/concepts/how-it-works/'],
+      ['Two entry points', '/concepts/entry-points/'],
+      ['Reproducible first', '/concepts/reproducible-first/'],
+      ['Lazy versus eager', '/concepts/lazy-vs-eager/'],
+      ['Environment and config', '/concepts/env-and-config/'],
+    ],
+  },
+  {
+    label: 'Troubleshooting',
+    items: [['Configure errors', '/troubleshooting/configure-errors/'], ['Module conflicts', '/troubleshooting/module-conflicts/'], ['Exit codes', '/troubleshooting/exit-codes/']],
+  },
+  {
+    label: 'Reference',
+    items: [['Commands', '/reference/commands/'], ['Variables', '/reference/variables/'], ['Findocx.cmake', '/reference/findocx/']],
+  },
+];
+
