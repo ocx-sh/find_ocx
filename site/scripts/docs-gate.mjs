@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { delimiter, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { GENERATED } from './port-docs.mjs';
+import { isGenerated as generated } from './port-docs.mjs';
 
 const SITE = fileURLToPath(new URL('../', import.meta.url));
 const CHECKS = '../.claude/rules/docs-quality/checks';
@@ -37,7 +37,7 @@ export function main(argv = process.argv.slice(2)) {
   if (port.status !== 0) throw new Error(`port-docs failed:\n${port.stderr}`);
 
   const pages = walk(join(SITE, EXPANDED)).map((f) => relative(SITE, f)).filter((f) => /\.mdx?$/.test(f));
-  const isGenerated = (f) => GENERATED.includes(relative(EXPANDED, f).replace(/\.mdx$/, '.md'));
+  const isGenerated = (f) => generated(relative(EXPANDED, f).replace(/\.mdx$/, '.md'));
   const sets = { written: pages.filter((f) => !isGenerated(f)), generated: pages.filter(isGenerated) };
   if (!sets.written.length || !sets.generated.length) throw new Error('docs-gate: no pages found in the expansion');
 

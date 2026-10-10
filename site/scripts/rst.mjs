@@ -40,7 +40,7 @@ const reference = (ref, ctx) => {
   return id ?? '';
 };
 
-/** ctx: { commands:Set, variables:Set, urls:{command, variable}, aliases:{name: url}, lang, scope, depth } */
+/** ctx: { commands:Set, variables:Set, urls:{command, variable}, each a page URL or a function of the name, aliases:{name: url}, lang, scope, depth } */
 export function inline(text, ctx) {
   return text
     .split(/(``[^`]+``)/)
@@ -51,7 +51,7 @@ export function inline(text, ctx) {
           const alias = ctx.aliases?.[name];
           if (alias) return `[\`${name}\`](${alias})`;
           const known = { command: ctx.commands, variable: ctx.variables }[role];
-          if (known?.has(name)) return `[\`${name}\`](${ctx.urls[role]}#${slug(name)})`;
+          if (known?.has(name)) return `[\`${name}\`](${typeof ctx.urls[role] === 'function' ? ctx.urls[role](name) : `${ctx.urls[role]}#${slug(name)}`})`;
           const [shape, dir] = EXTERNAL[role];
           if (!shape.test(name)) throw new Error(`rst: :${role}:\`${name}\` has no .. ${role}:: block and is no CMake ${role}`);
           return `[\`${name}\`](${CMAKE_HELP}${dir}/${name}.html)`;
@@ -60,7 +60,7 @@ export function inline(text, ctx) {
           throw new Error(`rst: unknown role :${role}:`);
         })
         .replace(/`([^`<]+?)\s*<([^>]+)>`_/g, (_m, label, url) => `[${label}](${url})`)
-        .replace(/`([^`]+)`_/g, (_m, ref) => `[${ref}](#${reference(ref, ctx)})`)
+        .replace(/`([^`]+)`_/g, (_m, ref) => `[${ref}](${/\//.test(reference(ref, ctx)) ? '' : '#'}${reference(ref, ctx)})`)
         // The theme has no italics (an italic face costs a font download past the page budget): plain.
         .replace(/(?<![*\w])\*(?!\*)([^*\n]+?)\*(?![*\w])/g, '$1');
     })
@@ -92,7 +92,9 @@ function table(lines, i, ctx) {
     if (!cells[0] && rows.length) cells.forEach((c, k) => c && (rows.at(-1)[k] = `${rows.at(-1)[k]} ${c}`.trim()));
     else rows.push(cells);
   }
-  const cell = (c) => inline(c, ctx).replace(/\|/g, '\\|');
+  // Adjacent literals (`a` `b`) become one code element: a long variable list would otherwise cost one DOM element each.
+  const merge = (t) => (/`[^`]+` `[^`]+`/.test(t) ? merge(t.replace(/`([^`]+)` `([^`]+)`/, '`$1 $2`')) : t);
+  const cell = (c) => merge(inline(c, ctx)).replace(/\|/g, '\\|');
   const md = [`| ${rows[0].map(cell).join(' | ')} |`, `| ${cols.map(() => '---').join(' | ')} |`];
   for (const r of rows.slice(1)) md.push(`| ${r.map(cell).join(' | ')} |`);
   return { md: [...md, ''], next: j };

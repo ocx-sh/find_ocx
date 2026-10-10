@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { ASSERT_MATRIX, BASE, BUDGET, CATEGORIES, HTML_GZ_MAX, sitePages } from '../lighthouse.budgets.mjs';
+import { ASSERT_MATRIX, assertMatrix, BASE, BUDGET, CATEGORIES, HTML_GZ_MAX, TERMINAL_JS, castPages, sitePages } from '../lighthouse.budgets.mjs';
 import { htmlFailures } from './lighthouse.mjs';
 
 const KB = 1024;
@@ -36,4 +36,17 @@ test('an oversized html page fails', () => {
   const d = dist();
   writeFileSync(join(d, 'guides/ci/index.html'), Buffer.from(Array.from({ length: 200_000 }, () => Math.random() * 255 | 0)));
   assert.deepEqual(htmlFailures(sitePages(d), d).length, 1);
+});
+
+test('a cast page gets the script allowance, the others the content budget', () => {
+  const d = dist();
+  writeFileSync(join(d, 'guides/ci/index.html'), '<div class="ocx-terminal not-content"></div>');
+  const casts = castPages(d);
+  assert.deepEqual(casts, [`${BASE}guides/ci/`]);
+  const [, rest, cast] = assertMatrix(casts);
+  const re = (m) => new RegExp(m.matchingUrlPattern);
+  assert.ok(re(cast).test(`http://x${BASE}guides/ci/`) && !re(rest).test(`http://x${BASE}guides/ci/`));
+  assert.ok(re(rest).test(`http://x${BASE}`) && !re(cast).test(`http://x${BASE}`));
+  assert.equal(cast.assertions['resource-summary:script:size'][1].maxNumericValue, BUDGET.jsBytes + TERMINAL_JS);
+  assert.equal(rest.assertions['resource-summary:script:size'][1].maxNumericValue, BUDGET.jsBytes);
 });

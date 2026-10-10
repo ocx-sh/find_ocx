@@ -6,14 +6,16 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, posix, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { entries, rstBlocks, slug, toMarkdown } from './rst.mjs';
+import { entries, inline, rstBlocks, slug, toMarkdown } from './rst.mjs';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const BASE = '/integrations/cmake/';
 const SOURCE = 'https://github.com/ocx-sh/find_ocx/blob/main/';
-const URLS = { command: `${BASE}reference/commands/`, variable: `${BASE}reference/variables/` };
+// One page per command: a command's signatures, options and examples alone fill a content page's DOM and HTML budgets.
+const commandUrl = (name) => `${BASE}reference/commands/${name}/`;
+const URLS = { command: commandUrl, variable: `${BASE}reference/variables/` };
 // Result variables written `OCX_<NAME>_RUN` in the prose are documented as part of ocx_project.
-const ALIASES = { 'OCX_<NAME>_RUN': `${URLS.command}#ocx_project` };
+const ALIASES = { 'OCX_<NAME>_RUN': commandUrl('ocx_project') };
 
 // Generated pages edit their source, not the page stub.
 const EDIT_URLS = {
@@ -23,6 +25,7 @@ const EDIT_URLS = {
 };
 /** Pages whose body is generated from the modules: the docs gate ratchets these instead of failing on them. */
 export const GENERATED = Object.keys(EDIT_URLS);
+export const isGenerated = (rel) => GENERATED.includes(rel) || /^reference\/commands\/[^/]+\.mdx?$/.test(rel);
 
 const LANGS = { '.cmake': 'cmake', '.toml': 'toml', '.lock': 'toml', '.yml': 'yaml', '.yaml': 'yaml', '.sh': 'bash', '.json': 'json', '.py': 'python', '.md': 'markdown', '.mjs': 'js', '.js': 'js', '.txt': 'text' };
 const langOf = (path) => (basename(path) === 'CMakeLists.txt' ? 'cmake' : (LANGS[extname(path)] ?? 'text'));
@@ -94,6 +97,11 @@ export function expander(src) {
     lang: 'cmake',
   };
   const md = (lines, extra) => toMarkdown(lines.join('\n'), { ...ctx, ...extra });
+  /** The first sentence of a command's text, as markdown. */
+  const summary = (c) => {
+    const first = c.lines.join('\n').split(/\n\s*\n/)[0].replace(/\s+/g, ' ').trim();
+    return inline(first.match(/^.+?\.(?=\s|$)/)?.[0] ?? first, ctx);
+  };
   const casts = new Set();
 
   const handlers = {
@@ -120,12 +128,22 @@ export function expander(src) {
       // Explicit ids (DOC-NAV-07): pages link to these headings by name.
       const head = (name) => `## ${name} {#${slug(name)}}`;
       if (arg === 'commands') {
-        // The module overview (first block) and every command render with one target map, so the synopsis may reference any command.
-        const parts = [{ lines: body(entries(src.modules[0].blocks[0])[0].lines), extra: { depth: 1 } }, ...src.commands.map((c) => ({ lines: c.lines, extra: { scope: c.name }, name: c.name }))];
-        const targets = new Map(src.commands.map((c) => [c.name.toLowerCase(), slug(c.name)]));
-        const run = (p, extra) => md(p.lines, { ...p.extra, targets, ...extra });
-        for (const p of parts) run(p, { collect: true });
-        return parts.map((p) => (p.name ? `${head(p.name)}\n\n${run(p)}` : run(p))).join('\n\n');
+        // The module overview (first block), then a list of the command pages.
+        // A reference in the overview (the synopsis links every signature) points into the command's own page.
+        const targets = new Map();
+        for (const c of src.commands) {
+          const own = new Map([[c.name.toLowerCase(), slug(c.name)]]);
+          md(c.lines, { scope: c.name, depth: 1, targets: own, collect: true });
+          for (const [k, id] of own) targets.set(k, id === slug(c.name) ? commandUrl(c.name) : `${commandUrl(c.name)}#${id}`);
+        }
+        const list = src.commands.map((c) => `- [\`${c.name}\`](${commandUrl(c.name)}): ${summary(c)}`);
+        return `${md(body(entries(src.modules[0].blocks[0])[0].lines), { depth: 1, targets })}\n\n${head('Commands')}\n\n${list.join('\n')}`;
+      }
+      const one = arg.match(/^command (\S+)$/);
+      if (one) {
+        const c = src.commands.find((e) => e.name === one[1]);
+        if (!c) throw new Error(`cmake: no command ${one[1]}`);
+        return `${md(c.lines, { scope: c.name, depth: 1 })}\n\nAll commands are listed in the [command reference](${BASE}reference/commands/).`;
       }
       if (arg === 'variables') {
         // The blocks with `.. variable::` entries: opening text, the variables, then the closing text (each with its own headings).
@@ -152,7 +170,7 @@ export function expander(src) {
     });
     return { text: out, mdx: casts.size > 0, casts: [...casts] };
   };
-  return { expand, ctx };
+  return { expand, ctx, summary };
 }
 
 /** Applies `fn` to every line outside fenced code. */
@@ -194,7 +212,7 @@ function dropTitleH1(body, title) {
 }
 
 export function frontMatter(text, rel) {
-  const editUrl = EDIT_URLS[rel] ?? `${SOURCE}site/pages/${rel}`;
+  const editUrl = EDIT_URLS[rel] ?? (isGenerated(rel) ? `${SOURCE}ocx.cmake` : `${SOURCE}site/pages/${rel}`);
   if (text.startsWith('---\n')) {
     const end = text.indexOf('\n---\n', 3);
     if (end < 0) throw new Error(`${rel}: front matter is not closed`);

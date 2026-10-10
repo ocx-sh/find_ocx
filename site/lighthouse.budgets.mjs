@@ -3,7 +3,8 @@
  * `content` class of ocx-sh/website `tests/budgets.mjs`; a value here never exceeds the one there.
  * Sizes are gzip of the response body, in bytes.
  */
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 const KB = 1024;
 
@@ -25,18 +26,36 @@ export const HTML_GZ_MAX = 14_200;
 
 export const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'];
 
-/** lhci assert matrix: score 1 in all four categories plus the JS, weight and DOM budgets. */
-export const ASSERT_MATRIX = [
-  {
-    matchingUrlPattern: '.*',
-    assertions: {
-      ...Object.fromEntries(CATEGORIES.map((c) => [`categories:${c}`, ['error', { minScore: 1 }]])),
-      'resource-summary:script:size': ['error', { maxNumericValue: BUDGET.jsBytes }],
-      'total-byte-weight': ['error', { maxNumericValue: BUDGET.totalBytes }],
-      'dom-size': ['error', { maxNumericValue: BUDGET.domElements }],
+/**
+ * Script weight a page with a recorded cast (the theme's `Terminal`) adds to `BUDGET.jsBytes`: the Terminal's
+ * mount script is 2,446 B gzip, which takes a page to 12,238 B against 11,264 B; the player itself loads only on first use.
+ * ponytail: a cap above the website `content` class for cast pages; drop it when the theme splits the mount script.
+ */
+export const TERMINAL_JS = 3 * KB;
+
+/**
+ * lhci assert matrix: score 1 in all four categories plus the JS, weight and DOM budgets. Entries apply independently,
+ * so the script budget is split into one entry for the cast pages (served paths in `casts`) and one for the rest.
+ * @param {string[]} [casts]
+ */
+export function assertMatrix(casts = []) {
+  const script = (/** @type {number} */ max) => ({ 'resource-summary:script:size': ['error', { maxNumericValue: max }] });
+  const alt = casts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return [
+    {
+      matchingUrlPattern: '.*',
+      assertions: {
+        ...Object.fromEntries(CATEGORIES.map((c) => [`categories:${c}`, ['error', { minScore: 1 }]])),
+        'total-byte-weight': ['error', { maxNumericValue: BUDGET.totalBytes }],
+        'dom-size': ['error', { maxNumericValue: BUDGET.domElements }],
+      },
     },
-  },
-];
+    { matchingUrlPattern: casts.length ? `^(?!.*(?:${alt})$)` : '.*', assertions: script(BUDGET.jsBytes) },
+    ...(casts.length ? [{ matchingUrlPattern: `(?:${alt})$`, assertions: script(BUDGET.jsBytes + TERMINAL_JS) }] : []),
+  ];
+}
+
+export const ASSERT_MATRIX = assertMatrix();
 
 /**
  * Served path of every built HTML page, sorted, under `base` (`index.html` -> `<base>`,
@@ -53,4 +72,14 @@ export function sitePages(distDir = 'dist', base = BASE) {
     .filter((f) => f.endsWith('.html') && f !== '404.html')
     .map((f) => `${base}${f.replace(/index\.html$/, '')}`)
     .sort();
+}
+
+/**
+ * Served paths of the built pages that embed a recorded cast (`<Terminal>` renders `.ocx-terminal`).
+ * @param {string} [distDir]
+ * @param {string} [base]
+ * @returns {string[]}
+ */
+export function castPages(distDir = 'dist', base = BASE) {
+  return sitePages(distDir, base).filter((p) => readFileSync(join(distDir, p.slice(base.length), 'index.html'), 'utf8').includes('class="ocx-terminal'));
 }

@@ -19,7 +19,10 @@ const check = (page, wanted) => {
   console.log(`${page}: ${wanted.length} anchors in the sources, ${wanted.filter((n) => built.has(slug(n))).length} in dist`);
 };
 const all = names('ocx.cmake');
-check('commands', all.filter((e) => e.kind === 'command').map((e) => e.name));
+// Each command has a page of its own, `reference/commands/<name>/`; its title is the page's h1, so the page itself is the anchor.
+const commands = all.filter((e) => e.kind === 'command').map((e) => e.name);
+for (const n of commands) if (!existsSync(new URL(`../dist/reference/commands/${n}/index.html`, import.meta.url))) (bad++, console.error(`commands: no page for ${n} in dist`));
+console.log(`commands: ${commands.length} pages in the sources, ${commands.filter((n) => existsSync(new URL(`../dist/reference/commands/${n}/index.html`, import.meta.url))).length} in dist`);
 check('variables', all.filter((e) => e.kind === 'variable').map((e) => e.name));
 
 const BASE = '/integrations/cmake/';
@@ -44,7 +47,8 @@ const pages = sources(PAGES);
 for (const file of pages) {
   const link = linkOf(file);
   const text = readFileSync(file, 'utf8');
-  if (!linked.has(link)) (bad++, console.error(`sidebar: ${link} (${file.pathname.slice(PAGES.pathname.length)}) is in no sidebar group`));
+  // The per-command pages are reached from the commands page, not the sidebar: each sidebar entry is a link in every page's DOM.
+  if (!linked.has(link) && !link.startsWith('/reference/commands/')) (bad++, console.error(`sidebar: ${link} (${file.pathname.slice(PAGES.pathname.length)}) is in no sidebar group`));
   cites += [...text.matchAll(/^<!-- cast: /gm)].length;
   const built = new URL(`${link.slice(1)}index.html`, dist);
   if (!existsSync(built)) continue; // a missing built page is the sidebar check's job

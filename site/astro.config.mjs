@@ -31,6 +31,7 @@ export default defineConfig({
       description: 'CMake support for OCX: pinned, sha256-verified tools in a CMake build.',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ocx-sh/find_ocx' }],
       plugins: [ocxTheme()],
+      customCss: ['./src/plain-code.css'],
       expressiveCode: { shiki: { langAlias: { 'bash-run': 'bash', 'cmake-run': 'cmake', 'bash-norun': 'bash', 'cmake-norun': 'cmake', 'console-norun': 'console' } } },
       sidebar,
     }),
