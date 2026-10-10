@@ -27,7 +27,8 @@ This documentation is for CMake authors and the platform engineers who run their
 
 - [Everyday guides](guides/index.md): add a tool, freeze a tag, find provisioned content, update the vendored files
 - [Reproduce the build in CI](guides/ci.md): the same tool versions on Linux, macOS and Windows
-- [Build behind a mirror or offline](guides/mirror.md): internal hosts, credentials and no downloads
+- [Build behind a mirror or offline](guides/mirror.md): internal hosts and no downloads
+- [Route package pulls through a mirror](guides/mirror-packages.md): registry hosts, the corporate CA and credentials
 - [Fix a failing configure](troubleshooting/configure-errors.md): the error text, its cause and the fix
 
 ## Understand it {#understand-it}

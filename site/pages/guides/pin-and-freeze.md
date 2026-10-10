@@ -21,7 +21,7 @@ The recording shows it for a `jq:latest` package.
 
 <!-- cast: guides-pin-and-freeze/floating-fatal -->
 
-The three ways are a committed snapshot, a digest, or `OCX_ALLOW_FLOATING=ON`.
+The three ways are a committed snapshot, a [digest](pin-digests.md), or `OCX_ALLOW_FLOATING=ON`.
 The last one accepts drift and belongs in throwaway experiments only.
 [Reproducible first](../concepts/reproducible-first.md) explains the reasoning.
 
@@ -52,31 +52,6 @@ Here it is a build target.
 The composed command runs without frozen mode, so it works while `OCX_FROZEN` is set.
 A tag that is missing from the snapshot makes the next frozen configure fail with exit code 81 and a refresh hint.
 
-## Pin digests instead {#digests}
-
-Pin by digest when you want no snapshot directory.
-A digest of the image index fixes every platform at once, so write it into `PACKAGE` as `ocx.sh/jqlang/jq@sha256:<index digest>`.
-After an `index update`, the index digest is the file name under `.ocx/ocx.sh/p/jqlang/jq/o/sha256/`.
-
-`PINS` fixes one manifest digest per platform instead.
-A pin applies only to the platform of the call, which is `PLATFORM` when set and the host otherwise.
-A pin for another platform is ignored, and a tag with no matching pin stays floating.
-Nothing downloads until the first build-time execution.
-
-<!-- snippet: examples/package/CMakeLists.txt#pins -->
-
-A project's `ocx.lock` lists these per-platform digests under each tool.
-Without a project, an eager configure of the floating tag with `-DOCX_ALLOW_FLOATING=ON -DOCX_PULL=ON` logs the line to copy:
-
-```text
--- find_ocx: DRIFTY resolved floating - pin it with PINS "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
-```
-
-The line names one platform only, so repeat the step for each platform you build for.
-`ocx --format json package install -p <platform> <package>` prints the digest in the `identifier` field, which reads `<ref>@sha256:<digest>`.
-Take the part after `@`, which is the manifest digest for that platform, and not the whole field.
-The plain table output omits it.
-
 ## Run a frozen configure {#frozen-configure}
 
 Set `OCX_FROZEN` to a truthy value such as `1` before the first configure of a build directory.
@@ -102,6 +77,7 @@ Give `ocx_package` an `INDEX` directory to freeze against a snapshot outside the
 
 ## Next steps {#next-steps}
 
+- [Pin digests instead of a snapshot](pin-digests.md) fixes a tag without a snapshot directory.
 - [Add or change a pinned tool](add-a-tool.md) covers `ocx_project` and its lock.
-- [Build behind a mirror or offline](mirror.md) covers mirrors and credentials.
-- [`ocx_index`](../reference/commands.md#ocx_index) lists every keyword.
+- [Route package pulls through a mirror](mirror-packages.md) covers mirrors and credentials.
+- [`ocx_index`](../reference/commands/ocx_index.md) lists every keyword.

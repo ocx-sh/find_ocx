@@ -82,9 +82,7 @@ The error names the entry and lists the names that are declared, so a typo or a 
 
 <!-- cast: guides-add-a-tool/bins-typo -->
 
-## Keep a group out of the default environment {#lazy-group}
-
-Give the group its own `ocx_project` call when only one target needs it.
+To keep a group out of the default environment, give it its own `ocx_project` call when only one target needs it.
 The group costs nothing until someone builds that target.
 
 <!-- snippet: examples/project/CMakeLists.txt#lazy-group -->
@@ -95,8 +93,7 @@ Configure, build and test the project.
 The `shellcheck_hello` test passes on a machine whose `PATH` has no `shellcheck`, because the launcher puts the locked copy first.
 A teammate gets the new tool by pulling and configuring, with no install step.
 
-## Leave `.ocx/toolchain` out of version control {#toolchain-dir}
-
+Leave `.ocx/toolchain` out of version control.
 The first run creates `.ocx/toolchain` next to `ocx.toml`.
 It holds links into the local store and carries its own `.gitignore`, so git skips it without a rule from you.
 It is not the committed `.ocx/` index snapshot of [Pin and freeze tag resolution](pin-and-freeze.md), which holds a `<registry>/p/` directory instead.
@@ -105,4 +102,4 @@ It is not the committed `.ocx/` index snapshot of [Pin and freeze tag resolution
 
 - [Pin and freeze tag resolution](pin-and-freeze.md) freezes floating tags for `ocx_package`.
 - [Fix a failing configure](../troubleshooting/configure-errors.md) maps an error to its cause.
-- [`ocx_project`](../reference/commands.md#ocx_project) lists every keyword.
+- [`ocx_project`](../reference/commands/ocx_project.md) lists every keyword.

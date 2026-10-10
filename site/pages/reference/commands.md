@@ -3,6 +3,6 @@
 # Commands
 
 Reference for the six commands that `ocx.cmake` defines.
-This page is generated from the `.. command::` blocks in the module source.
+This page is generated from the module source, and each command has a page of its own.
 
 <!-- cmake: commands -->

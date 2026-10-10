@@ -11,6 +11,7 @@ These guides are for a CMake project that already runs a pinned tool and needs t
 
 - [Add a tool to the project](add-a-tool.md): edit `ocx.toml`, refresh the lock and get the build green for everyone
 - [Pin and freeze tag resolution](pin-and-freeze.md): fix what `latest` means and refresh it on purpose
+- [Pin digests instead of a snapshot](pin-digests.md): fix a tag with a digest and no snapshot directory
 - [Make the build find provisioned content](find-package.md): point `find_package` and `find_program` at what the build fetched
 
 ## Control which ocx runs {#control-which-ocx-runs}
@@ -27,4 +28,4 @@ These guides are for a CMake project that already runs a pinned tool and needs t
 
 ## Go further {#go-further}
 
-The [integration guides](ci.md) cover CI, [mirrors and offline builds](mirror.md), [cross builds](cross-build.md) and [organisation-wide policy](policy-and-config.md).
+The [integration guides](ci.md) cover CI, [mirrors and offline builds](mirror.md), [package mirrors and credentials](mirror-packages.md), [cross builds](cross-build.md) and [organisation-wide policy](policy-and-config.md).

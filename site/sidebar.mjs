@@ -8,6 +8,7 @@ export const GROUPS = [
       ['Everyday guides', '/guides/'],
       ['Add a tool and fix a stale lock', '/guides/add-a-tool/'],
       ['Pin and freeze tag resolution', '/guides/pin-and-freeze/'],
+      ['Pin digests instead of a snapshot', '/guides/pin-digests/'],
       ['Use find_package with find_ocx', '/guides/find-package/'],
       ['Use an ocx you already have', '/guides/use-system-ocx/'],
       ['Update the vendored files', '/guides/update-vendored/'],
@@ -19,6 +20,7 @@ export const GROUPS = [
     items: [
       ['Reproduce the build in CI', '/guides/ci/'],
       ['Build behind a mirror or offline', '/guides/mirror/'],
+      ['Route package pulls through a mirror', '/guides/mirror-packages/'],
       ['Cross-build with foreign content', '/guides/cross-build/'],
       ['Organisation policy and config', '/guides/policy-and-config/'],
     ],

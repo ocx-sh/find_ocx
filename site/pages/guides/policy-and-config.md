@@ -113,6 +113,6 @@ Adopting a managed config is a deliberate step.
 
 ## Next steps {#next-steps}
 
-- [Build behind a mirror or offline](mirror.md) for the mirror and credential variables.
+- [Route package pulls through a mirror](mirror-packages.md) for the mirror and credential variables.
 - [Environment and config](../concepts/env-and-config.md) for the four classes in detail.
 - [Exit codes](../troubleshooting/exit-codes.md) for code 78 and the other configuration errors.

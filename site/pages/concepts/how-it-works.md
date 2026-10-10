@@ -21,7 +21,7 @@ A missing capability becomes an issue against ocx, not a workaround in this modu
 5. Eager mode adds `ocx pull` or `ocx package install`. A foreign `PLATFORM` also composes the environment.
 A project uses `ocx env --pinned` and a package uses `ocx package env`, so the paths do not depend on the platform ocx rendered last.
 6. Each name in `BINS` is checked against what the package declares, using `ocx inspect --closure`. A name that does not exist stops the configure.
-7. The call exports `OCX_<NAME>_RUN` and the other [result variables](../reference/commands.md#ocx_project).
+7. The call exports `OCX_<NAME>_RUN` and the other [result variables](../reference/commands/ocx_project.md).
 8. With unchanged inputs, a later configure skips steps 4 to 7. [Lazy versus eager](lazy-vs-eager.md#memoized) explains how.
 
 ## What a command list is {#command-lists}

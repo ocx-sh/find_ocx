@@ -61,4 +61,4 @@ The `OCX_<NAME>_RUN` command list from `ocx_package` runs it from the pin, as [A
 
 - [Pin and freeze tag resolution](pin-and-freeze.md) fixes what the tag means.
 - [Use an ocx you already installed](use-system-ocx.md) covers `find_package(ocx)`.
-- [`ocx_package`](../reference/commands.md#ocx_package) lists every keyword.
+- [`ocx_package`](../reference/commands/ocx_package.md) lists every keyword.

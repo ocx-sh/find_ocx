@@ -83,4 +83,4 @@ Use `OCX_ALLOW_FLOATING` only once, to print the digests that you then pin.
 
 - [Pin and freeze tag resolution](pin-and-freeze.md) to pin a foreign `ocx_package`.
 - [Reproduce the build in CI](ci.md) to run the cross build on every push.
-- [Commands](../reference/commands.md#ocx_project) for the full signatures of `ocx_project` and `ocx_package`.
+- [`ocx_project`](../reference/commands/ocx_project.md) and [`ocx_package`](../reference/commands/ocx_package.md) list the full signatures.

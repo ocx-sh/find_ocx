@@ -84,4 +84,4 @@ When in doubt, use `ALWAYS`.
 
 - [Build behind a mirror or offline](mirror.md) covers machines that cannot reach the download host.
 - [Reproduce the build in CI](ci.md) pins one CLI for every runner.
-- [`ocx_bootstrap`](../reference/commands.md#ocx_bootstrap) lists the bootstrap keywords.
+- [`ocx_bootstrap`](../reference/commands/ocx_bootstrap.md) lists the bootstrap keywords.
