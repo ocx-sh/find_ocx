@@ -10,7 +10,7 @@
 #
 #   cmake -S . -B build -DOCX_BOOTSTRAP=ON && ctest --test-dir build
 
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(ocx_example_find_package LANGUAGES NONE)
 
 enable_testing()
