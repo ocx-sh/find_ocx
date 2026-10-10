@@ -1,8 +1,8 @@
 <!-- doc_type: explanation -->
-<!-- description: Why a floating tag without a snapshot or digest is a hard error, and how locks, index snapshots and digest pins keep resolution fixed. -->
+<!-- description: Why a floating tag without a snapshot or digest is a hard error, and how locks, index snapshots and image index digests keep resolution fixed. -->
 # Reproducible first
 
-This page explains why find_ocx fails a configure on an unpinned floating tag, and how locks, index snapshots and digest pins keep resolution fixed.
+This page explains why find_ocx fails a configure on an unpinned floating tag, and how locks, snapshots and index digests fix resolution.
 
 ## Why a floating tag is an error {#why-hard-error}
 
@@ -18,11 +18,11 @@ The configure fails unless something fixes what the tag means.
 |---|---|---|---|
 | Lock file | `ocx.lock` next to `ocx.toml` | Every tool of `ocx_project`, per platform | `ocx lock`, then commit |
 | Index snapshot | A committed `.ocx/` directory | Every tag of `ocx_package` that the snapshot lists | `ocx_index(UPDATE_COMMAND)`, then commit |
-| Digest | `@sha256:` in `PACKAGE`, or `PINS` | One reference | Edit the digest by hand |
+| Image index digest | `@sha256:` in `PACKAGE` | One reference, every platform | Edit the digest by hand |
 
-An `@sha256:` digest of the image index pins all platforms at once.
-`PINS` maps each platform to its own manifest digest, and stays valid when you need that granularity.
-For one pinned line that works on every platform, prefer `PACKAGE ocx.sh/jqlang/jq@sha256:<index digest>`.
+An `@sha256:` digest of the image index pins all platforms at once, and `ocx` selects the leaf for the building platform, features included, and verifies it.
+A digest of one leaf manifest would skip that selection, so find_ocx offers no keyword for it.
+For one pinned line that works on every platform, use `PACKAGE ocx.sh/jqlang/jq:1.8.2@sha256:<index digest>`.
 
 ## The index ladder {#index-ladder}
 
@@ -79,11 +79,12 @@ To prepare an offline build, fetch with `PULL` while online, as [Lazy versus eag
 ## Where the digests are visible {#digests}
 
 The snapshot files hold every digest, and the lock file holds those of a project.
-An eager install of a floating tag also logs a line that suggests the `PINS` entry for your platform.
+An eager install of a floating tag also logs how to pin it.
 A lazy configure of a floating tag only warns that the tag can drift, and it prints no digest.
+`ocx package inspect <ref>` prints the image index digest of a tag.
 
 The escape hatch is `-DOCX_ALLOW_FLOATING=ON`, which downgrades the error to a drift warning.
-It is useful for one run, to print the digests that seed `PINS`.
+It is useful for one run, to resolve a tag before you pin it.
 
 ## Related pages {#related}
 

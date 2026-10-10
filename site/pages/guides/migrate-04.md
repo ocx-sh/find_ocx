@@ -1,6 +1,6 @@
 ---
 title: Move from 0.3 to 0.4
-description: Fix the lines of your build files that find_ocx 0.4 breaks, in order, from the CMake floor to the ocx run rename.
+description: Fix the lines of your build files that find_ocx 0.4 breaks, in order, from the CMake floor to the removed PINS keyword and the ocx run rename.
 ---
 <!-- doc_type: how-to -->
 <!-- doc_tier: everyday -->
@@ -8,7 +8,8 @@ description: Fix the lines of your build files that find_ocx 0.4 breaks, in orde
 # Move from 0.3 to 0.4
 
 Your project builds with find_ocx 0.3, and 0.4 changes several things at once.
-The CMake floor rises, the pinned `ocx` jumps from 0.3.11 to 0.6.5, an exported `OCX_NO_VERIFY` or `OCX_ALLOW_YANKED` stops working, and a `PLATFORM` list from the unreleased main branch is an error.
+The CMake floor rises, and the pinned `ocx` jumps from 0.3.11 to 0.6.5.
+An exported `OCX_NO_VERIFY` or `OCX_ALLOW_YANKED` stops working, and `PINS` and `PLATFORM` lists are errors.
 This page lists each break in the order to fix it, so the upgrade lands in one change.
 The [changelog](https://github.com/ocx-sh/find_ocx/blob/main/CHANGELOG.md) has the full list of changes.
 
@@ -44,14 +45,30 @@ Pick the platform you really need.
 ```
 <!-- /doc-norun -->
 
-`PINS` still takes one digest per platform, so a project that pins digests for five platforms keeps its call.
+## Replace `PINS` with an index digest {#pins}
 
-## List every platform in `PINS` {#pins}
+0.4 removes the `PINS` keyword of `ocx_package`.
+A call that passes `PINS` stops the configure with `PINS was removed`, whether `PINS` stands before or after `BINS`.
+`PINS` mapped a platform key to one leaf manifest digest and rewrote the reference by string match, so `ocx` never checked that the leaf fits the platform.
+A wrong digest installed the wrong binary without a message, and a key such as `linux/amd64` cannot carry `+features`.
 
-In 0.3, a `PINS` list without an entry for the building platform left the tag floating.
-In 0.4 it is a configure error: `PINS has no entry for the effective platform ... (PINS keys: ...)`.
-The effective platform is `PLATFORM` when set, else the host.
-Add an entry for every platform you build for, as [Pin digests instead of a snapshot](pin-digests.md#pins) shows.
+Pin the image index digest in `PACKAGE` instead, or commit an index snapshot.
+One index digest covers every platform, and `ocx` selects the leaf for the building platform, features included.
+
+<!-- doc-norun: shows a rejected call, and the i3 tests pins_removed and pins_after_bins assert the error -->
+```diff
+ ocx_package(
+   NAME jq
+-  PACKAGE ocx.sh/jqlang/jq:1.8.2
+-  PINS
+-    "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
+-    "linux/arm64=sha256:81b771e5c4e9b70cfeb19c825ca2b00a5078c238e7d3175eee9d772cedda006b"
++  PACKAGE ocx.sh/jqlang/jq:1.8.2@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6
+ )
+```
+<!-- /doc-norun -->
+
+[Pin an image index digest](pin-digests.md#read-digest) shows how to read the index digest of a tag.
 
 ## Move `OCX_NO_VERIFY` and `OCX_ALLOW_YANKED` into `ocx_policy` {#policy}
 

@@ -1,6 +1,6 @@
 ---
 title: Pin and freeze tag resolution
-description: Freeze a floating package tag with a committed index snapshot or digests, refresh it on purpose, and run a frozen or offline configure.
+description: Freeze a floating package tag with a committed index snapshot or an image index digest, refresh it on purpose, and run a frozen or offline configure.
 ---
 <!-- doc_type: how-to -->
 <!-- doc_tier: everyday -->
@@ -10,7 +10,7 @@ description: Freeze a floating package tag with a committed index snapshot or di
 A configure stopped because `ocx_package` got a floating tag such as `:latest` and nothing fixes what that tag means.
 A moving tag builds one tool version today and another next month, and a host `find_program` has the same problem with whatever is installed.
 FetchContent hashes the sources it downloads, but a tool tag has no such hash until you record one.
-This page freezes the tag with an index snapshot or a digest, refreshes it on purpose, and runs a frozen configure.
+This page freezes the tag with an index snapshot or an image index digest, refreshes it on purpose, and runs a frozen configure.
 
 `ocx_project` builds are already frozen by `ocx.lock`, so this page covers `ocx_package`.
 
@@ -21,7 +21,7 @@ The recording shows it for a `jq:latest` package.
 
 <!-- cast: guides-pin-and-freeze/floating-fatal -->
 
-The three ways are a committed snapshot, a [digest](pin-digests.md), or `OCX_ALLOW_FLOATING=ON`.
+The three ways are a committed snapshot, an [image index digest](pin-digests.md), or `OCX_ALLOW_FLOATING=ON`.
 The last one accepts drift and belongs in throwaway experiments only.
 [Reproducible first](../concepts/reproducible-first.md) explains the reasoning.
 
@@ -80,7 +80,7 @@ Give `ocx_package` an `INDEX` directory to freeze against a snapshot outside the
 
 ## Next steps {#next-steps}
 
-- [Pin digests instead of a snapshot](pin-digests.md) fixes a tag without a snapshot directory.
+- [Pin an image index digest](pin-digests.md) fixes a tag without a snapshot directory.
 - [Add or change a pinned tool](add-a-tool.md) covers `ocx_project` and its lock.
 - [Route package pulls through a mirror](mirror-packages.md) covers mirrors and credentials.
 - [`ocx_index`](../reference/commands/ocx_index.md) lists every keyword.

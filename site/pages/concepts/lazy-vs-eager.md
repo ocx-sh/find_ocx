@@ -41,8 +41,8 @@ CI jobs often set `OCX_PULL=ON`, so a missing package fails the configure and wa
 
 <!-- snippet: examples/package/CMakeLists.txt#eager -->
 
-The `OCX_ALLOW_FLOATING` lines are there because this example resolves a floating tag live, to print its digest.
-With a lock file, an index snapshot or a digest, the `ocx_package` line stands alone.
+The `OCX_ALLOW_FLOATING` lines are there because this example resolves a floating tag live.
+With a lock file, an index snapshot or an image index digest, the `ocx_package` line stands alone.
 A lazy call pins the reference and waits for the first execution:
 
 <!-- snippet: examples/package/CMakeLists.txt#pinned-lazy -->

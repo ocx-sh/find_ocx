@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Production cast pipeline and nine cast scripts *(site)*
 - Docs-quality gate in site:check, file.rst support in rst.mjs *(site)*
 
+### Removed
+
+- Drop the PINS keyword of ocx_package *(commands)* **BREAKING**: PINS is an unknown-argument error; pin the image index digest in PACKAGE (`ocx package inspect <ref>`) or commit an index snapshot.
+
 ### Changed
 
 - Pass config env via ENV, keep empty ocx_index args *(commands)*
