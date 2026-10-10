@@ -7,9 +7,10 @@ on:
   repository_dispatch:
     types: [ocx-released]
 
+# The pull request is opened with DIST_UPDATE_TOKEN (see the last step); the
+# job token only reads, and is not persisted into .git for the scripts below.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: update-dist
@@ -22,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Guard unit tests
         run: python3 -I -m unittest discover -s scripts -p update_dist_test.py
       - name: Bump snapshot, __OCX_PIN_VERSION and setup-ocx pins
