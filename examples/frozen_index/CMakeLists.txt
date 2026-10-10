@@ -9,7 +9,7 @@
 #   cmake -S . -B build && ctest --test-dir build
 #   cmake --build build --target index-update   # deliberate refresh
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(ocx_example_frozen_index LANGUAGES NONE)
 
 enable_testing()
@@ -33,8 +33,10 @@ add_test(NAME jq_frozen COMMAND ${OCX_JQ_RUN_JQ} -n -e "1 == 1")
 # a refresh that runs on its own would paper over drift instead of
 # surfacing it.
 ocx_index(UPDATE_COMMAND refresh)
-add_custom_target(index-update
+add_custom_target(
+  index-update
   COMMAND ${refresh}
-  COMMAND ${CMAKE_COMMAND} -E echo
-    "index snapshot refreshed - review the diff and commit the result"
-  VERBATIM)
+  COMMAND
+    ${CMAKE_COMMAND} -E echo "index snapshot refreshed - review the diff and commit the result"
+  VERBATIM
+)

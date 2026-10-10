@@ -170,3 +170,14 @@ Reuse: `rules_ocx/scripts/bump_ocx.py`, `rules_ocx/ocx/private/repo_utils.bzl` (
 - Index digest pins all platforms → docs recommend `PACKAGE …@<index digest>`; `PINS` stay.
 - Friction: `jq_ROOT` became a multi-line JSON blob when the 0.6.5 CLI runs (fix parse); `ocx_package` in a toolchain file fails "duplicate NAME" on CMake's double include (make re-entry with identical args idempotent); `BINS` from a non-default group silently needs `GROUPS` (validate); `find_program` ignores `<name>_ROOT` (docs: `HINTS`); v0.3.0 bootstrap 0.3.11 rejects v3 locks (fixed by the bump).
 - Casts: `<Terminal>` needs `.mdx`; port-docs emits `.mdx` for pages with a `<!-- cast: key -->` directive; asciinema has no Windows build → cast ctests `if(NOT WIN32)`.
+
+## I4 status (2026-10-10, review round 1)
+- **Gap, follow-up after I1-I3 merge:** the new-behaviour tests named in the I4 paragraph are not delivered: ambient
+  `OCX_QUIET=1 OCX_GLOBAL=1`, `OCX_NO_CONFIG=1`, managed-config-unsynced 78 hint, BINS typo FATAL, PINS per platform,
+  `;`-PLATFORM FATAL, exit-75 retry (fake-ocx shim), second-copy version FATAL, fresh pin download reports 0.6.5. They
+  need the merged module; reuse `ocx_add_negative_test` for the FATAL cases. `foreign_toolchain` and `project_groups`
+  cover only part of the PLATFORM/PINS items.
+- **Gate item (base bug in `ocx.cmake`, owner I2/I3):** `string(REGEX REPLACE "^[^/]*/" "" index_path ...)` (~line
+  1162) re-applies `^` per global match, so `ocx.sh/jqlang/jq` becomes `jq`; the index leaf is never found and the
+  `memoize/*` tests fail (`JQ_FROZEN memoized=TRUE, expected FALSE`). Fix with `string(FIND)` + `string(SUBSTRING)`.
+  The I4 invalidation step is correct (passes with that patch); the merged-tree `memoize/*` tests are a hard gate item.

@@ -17,3 +17,6 @@ site/.lighthouseci/
 
 # Agent worktrees (disposable)
 .agents/worktrees/
+
+# Index snapshots: the registry catalog is a cache the CLI rebuilds, never committed.
+**/c/index.json
