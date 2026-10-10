@@ -23,11 +23,14 @@ include(ocx)
 # digests below were generated in the first place. Exports jq_ROOT
 # (CMP0074) - a subsequent find_package(jq)/find_program would search the
 # OCX-provisioned content.
+# region pull-root
 set(OCX_ALLOW_FLOATING ON)
 ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
 unset(OCX_ALLOW_FLOATING)
 message(STATUS "example: jq content at ${jq_ROOT}")
+# endregion pull-root
 
+# region find-program
 # find_program() ignores <name>_ROOT - only find_package() reads it - so hand
 # the content root over as HINTS. NO_DEFAULT_PATH keeps a host jq from
 # answering; NO_CACHE re-searches when jq_ROOT moves to another digest.
@@ -36,7 +39,9 @@ if(NOT JQ_EXECUTABLE)
   message(FATAL_ERROR "example: no jq under ${jq_ROOT}")
 endif()
 message(STATUS "example: find_program found ${JQ_EXECUTABLE}")
+# endregion find-program
 
+# region pins
 # Digest-pinned + lazy: per-platform manifest digests (from
 # `ocx package install -p <platform>` or the ocx.lock of a project);
 # nothing is fetched until the first execution.
@@ -52,6 +57,7 @@ ocx_package(
     "darwin/arm64=sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
     "windows/amd64=sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"
 )
+# endregion pins
 
 add_custom_target(
   pretty
@@ -76,6 +82,7 @@ add_test(
 # (auto-discovered; see the frozen_index example); an explicit INDEX
 # points anywhere. Refresh deliberately (compose the command with
 # ocx_index(UPDATE_COMMAND ...)), review the diff, commit.
+# region index-dir
 ocx_package(
   NAME jq_frozen
   PACKAGE ocx.sh/jqlang/jq:latest
@@ -83,6 +90,7 @@ ocx_package(
   NO_ROOT
   INDEX "${CMAKE_CURRENT_SOURCE_DIR}/index"
 )
+# endregion index-dir
 
 add_test(
   NAME jq_frozen_filter

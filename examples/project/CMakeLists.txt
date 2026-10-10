@@ -31,6 +31,7 @@ add_custom_target(
   VERBATIM
 )
 
+# region lazy-group
 # The lint group only materializes when someone builds the 'lint' target.
 ocx_project(NAME LINT GROUPS lint)
 add_custom_target(
@@ -38,8 +39,19 @@ add_custom_target(
   COMMAND ${OCX_LINT_RUN} shellcheck "${CMAKE_CURRENT_SOURCE_DIR}/hello.sh"
   VERBATIM
 )
+# endregion lazy-group
 
 add_test(
   NAME data_valid
   COMMAND ${OCX_TOOLS_RUN_JQ} -e ".greeting == \"hello\"" "${CMAKE_CURRENT_SOURCE_DIR}/data.json"
 )
+
+# region combined-groups
+# A BINS entry from a non-default group needs that group in GROUPS, and
+# 'default' keeps the top-level [tools] in the same environment.
+ocx_project(NAME DEV GROUPS default lint BINS jq shellcheck)
+add_test(
+  NAME shellcheck_hello
+  COMMAND ${OCX_DEV_RUN_SHELLCHECK} "${CMAKE_CURRENT_SOURCE_DIR}/hello.sh"
+)
+# endregion combined-groups
