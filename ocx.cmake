@@ -631,9 +631,6 @@ Launchers are ``ocx exec`` and the frozen ``package exec``, including the ``OCX_
 A find_ocx configure nested inside one, such as an ExternalProject or a test harness, inherits the outer resolution mode.
 Pass ``-DOCX_FROZEN=`` and ``-DOCX_INDEX=`` to opt out.
 
-Credentials
-^^^^^^^^^^^
-
 ``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are never snapshotted into the cache.
 Export them in the environment, and reconfigure after changing them.
 #]=]
@@ -1422,8 +1419,7 @@ endfunction()
     :variable:`OCX_INSTALL_MIRROR_URL` rewrites the artifact download to ``<mirror>/<tag>/<filename>``.
 
     The module verifies the archive against the sha256 of its manifest row before extraction, whichever manifest or URL served it.
-    The extracted binary must report the requested version.
-    A binary that reports another version is removed and the configure fails.
+    The extracted binary must report the requested version, else it is removed and the configure fails.
 
     Binaries land in the per-machine :variable:`OCX_BOOTSTRAP_CACHE`.
     They are downloaded once per machine and shared by all build trees.
