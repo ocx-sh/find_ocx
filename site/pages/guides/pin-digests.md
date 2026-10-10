@@ -29,7 +29,7 @@ Nothing downloads until the first build-time execution.
 A project's `ocx.lock` lists these per-platform digests under each tool.
 Without a project, an eager configure of the floating tag with `-DOCX_ALLOW_FLOATING=ON -DOCX_PULL=ON` logs the line to copy:
 
-```text
+```log
 -- find_ocx: DRIFTY resolved floating - pin it with PINS "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
 ```
 

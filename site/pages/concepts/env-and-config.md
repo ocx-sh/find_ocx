@@ -110,7 +110,7 @@ Add `PATCH_SNAPSHOT` when the config declares patches, so the patches stay pinne
 
 A `[managed]` block whose snapshot was never synced fails every `ocx` command with exit 78:
 
-```text
+```log
 error: managed config snapshot required for source 'ocx.sh/corp/config:1' but absent; run `ocx config update`
 ```
 

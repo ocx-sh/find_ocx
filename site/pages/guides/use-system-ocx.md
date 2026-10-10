@@ -61,7 +61,7 @@ The recording configures the example and prints the version it found.
 Pass `-DOCX_BOOTSTRAP=OFF` on machines where configure must never download.
 A missing CLI then stops the configure with this message:
 
-```text
+```log
 find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit bootstrap is disabled (OCX_BOOTSTRAP=OFF)
 hint: install ocx on PATH or set OCX_EXECUTABLE to an ocx binary
 ```

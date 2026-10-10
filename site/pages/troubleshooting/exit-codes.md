@@ -8,7 +8,7 @@ The table matches the hint table in `ocx.cmake`, and a test compares the two.
 
 The message has this shape:
 
-```text
+```log
 find_ocx: <what failed> failed (exit <code>): ocx <arguments>
 <the error text of ocx>
 hint: <the fix for this code>

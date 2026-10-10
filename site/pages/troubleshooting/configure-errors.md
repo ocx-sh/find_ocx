@@ -9,7 +9,7 @@ For a duplicate `NAME` or a second copy of the module, see [Fix a module conflic
 
 ## Error: the lock check fails {#stale-lock}
 
-```text
+```log
 find_ocx: checking <dir>/ocx.toml against its lockfile failed (exit 65): ocx --project <dir>/ocx.toml lock --check
 ocx.lock does not match ocx.toml; run `ocx lock` to update it
 hint: run 'ocx lock' next to <dir>/ocx.toml and commit the updated ocx.lock
@@ -24,7 +24,7 @@ Run `ocx lock` next to `ocx.toml`, review the diff and commit `ocx.lock`.
 
 **A missing or unusable lock** gives exit 78 and these lines:
 
-```text
+```log
 find_ocx: checking <dir>/ocx.toml against its lockfile failed (exit 78): ocx --project <dir>/ocx.toml lock --check
 ocx.lock not found at <dir>/ocx.lock; run `ocx lock` to create it
 hint: no ocx.lock next to <dir>/ocx.toml, a version 2 lock, or unusable config - run 'ocx lock' and commit it, or read the message above
@@ -33,7 +33,7 @@ hint: no ocx.lock next to <dir>/ocx.toml, a version 2 lock, or unusable config -
 The first case is `ocx.toml` with no `ocx.lock` beside it.
 A lock file of format version 2 gives the same exit code and a different second line:
 
-```text
+```log
 <dir>/ocx.lock: unsupported ocx.lock version 2; regenerate with `ocx lock`
 ```
 
@@ -45,7 +45,7 @@ On a machine with no `ocx`, [write the first lock with the downloaded CLI](../gu
 
 ## Error: a floating tag stops the configure {#floating-tag}
 
-```text
+```log
 find_ocx: ocx_package DRIFTY: 'ocx.sh/jqlang/jq:latest' is floating and no index snapshot is in effect - resolution is not reproducible
 fix (pick one): commit a snapshot ('ocx --index .ocx index update ocx.sh/jqlang/jq:latest' next to your CMakeLists, or set OCX_INDEX); pin digests with PINS or @sha256:; or accept drift explicitly with -DOCX_ALLOW_FLOATING=ON
 ```
@@ -67,7 +67,7 @@ A one-line `ocx_package(PACKAGE ...)` copied from an article often lacks it.
 
 ## Error: a nested configure fails with the exit-81 refresh hint {#nested-configure}
 
-```text
+```log
 find_ocx: installing ocx.sh/kitware/cmake:3.31 failed (exit 81): ocx --index <outer index> --frozen --format json package install ocx.sh/kitware/cmake:3.31
 failed to install package: ocx.sh/kitware/cmake:3.31 — frozen mode refused to resolve unpinned reference 'ocx.sh/kitware/cmake:3.31'; run `ocx index update` or pin a digest
 hint: package not in the committed index snapshot - refresh it with 'ocx --index <outer index> index update ocx.sh/kitware/cmake:3.31'
@@ -89,7 +89,7 @@ On a command line, append the same two options:
 
 <!-- doc-norun: fragment, the options go on the command line of the nested configure -->
 
-```console-norun
+```bash-norun
 cmake -DOCX_FROZEN= -DOCX_INDEX= ...
 ```
 
@@ -97,7 +97,7 @@ cmake -DOCX_FROZEN= -DOCX_INDEX= ...
 
 ## Error: a BINS name does not resolve {#bins}
 
-```text
+```log
 find_ocx: ocx_project TOOLS (<dir>/ocx.toml): BINS jqq: not a declared binary or entrypoint
 declared: jq
 hint: BINS names are executable names, check the spelling
@@ -109,7 +109,7 @@ The message names the unknown entry and lists the names that are declared.
 
 A name that exists only in a group that you did not select gets a different message:
 
-```text
+```log
 find_ocx: ocx_project TOOLS (<dir>/ocx.toml): BINS shellcheck: declared only in a group that was not requested
 hint: add the group to GROUPS (the [tools] table is the group 'default'), e.g.  GROUPS default <group>
 ```
@@ -134,7 +134,7 @@ Without the check, a copy of the tool on the host `PATH` would hide the mistake 
 
 Two cases skip the check and print a status line instead:
 
-```text
+```log
 find_ocx: <what>: BINS not validated (OCX_OFFLINE and the package is not in the local store)
 find_ocx: <what>: BINS <names> not validated (the package does not declare all of its binaries)
 ```

@@ -40,7 +40,7 @@ The recording shows that failure and the repair.
 `ocx lock` also asks you to add one line to `.gitattributes`.
 Add it, so two branches that each add a tool merge without a conflict in the lock.
 
-```text
+```ini
 ocx.lock merge=union
 ```
 
@@ -49,7 +49,7 @@ ocx.lock merge=union
 A configure checks the lock and never writes it.
 A project with an `ocx.toml` and no `ocx.lock` therefore stops the first configure with exit code 78 and this message:
 
-```text
+```log
 ocx.lock not found at <path>/ocx.lock; run `ocx lock` to create it
 ```
 

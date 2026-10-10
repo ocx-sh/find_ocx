@@ -6,8 +6,8 @@
     "port": "node scripts/port-docs.mjs",
     "dev": "pnpm run port && astro dev --host",
     "build": "pnpm run port && astro build",
-    "test": "node --test scripts/rst.test.mjs scripts/port-docs.test.mjs scripts/stubs.test.mjs scripts/lighthouse.test.mjs scripts/record-casts.test.mjs",
-    "check": "node scripts/check-anchors.mjs && node scripts/docs-gate.mjs && ocx-site check --dist dist",
+    "test": "node --test scripts/rst.test.mjs scripts/port-docs.test.mjs scripts/stubs.test.mjs scripts/lighthouse.test.mjs scripts/record-casts.test.mjs scripts/check-fences.test.mjs",
+    "check": "node scripts/check-anchors.mjs && node scripts/check-fences.mjs && node scripts/docs-gate.mjs && ocx-site check --dist dist",
     "docs:baseline": "node scripts/docs-gate.mjs --update-baseline",
     "lighthouse": "node scripts/lighthouse.mjs"
   },

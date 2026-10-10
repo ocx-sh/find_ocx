@@ -27,7 +27,7 @@ A tag that a snapshot resolves stops with exit 81 when its manifest is not cache
 The message names the command.
 A lazy call with a digest reference and `BINS` passes, and prints a status line instead of checking the names:
 
-```text
+```log
 find_ocx: ocx_package X (<ref>): BINS not validated (OCX_OFFLINE and the package is not in the local store)
 ```
 
@@ -58,7 +58,7 @@ Fill the store first, with a configure that pulls. Then configure offline agains
 
 <!-- doc-norun: workflow fragment, it needs a project with a lock file and network access -->
 
-```console-norun
+```bash-norun
 cmake -S . -B build -DOCX_PULL=ON
 cmake -S . -B build-offline -DOCX_OFFLINE=1 -DOCX_FROZEN=1
 ```

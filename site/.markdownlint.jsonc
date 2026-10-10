@@ -1,5 +1,5 @@
 // markdownlint for the expanded site pages (scripts/docs-gate.mjs). The docs-quality set's own config
-// (.claude/rules/docs-quality/checks/markdownlint.jsonc) with the fence languages this site uses; the site renders HTML
+// (.claude/rules/docs-quality/checks/markdownlint.jsonc) with the fence languages this site uses (all highlighted, see fence-langs.mjs: no text or console); the site renders HTML
 // and MDX components itself and writes one sentence per line, so MD013 and MD033 are off.
 {
   "default": true,
@@ -17,8 +17,8 @@
   // DOC-EX-05: every fence names a language; a tier suffix is one hyphen-joined token (DOC-EX-20).
   "MD040": {
     "allowed_languages": [
-      "bash", "bash-norun", "cmake", "cmake-norun", "cmake-run", "console", "console-norun",
-      "diff", "json", "sh", "text", "toml", "yaml", "markdown"
+      "bash", "bash-norun", "bash-run", "cmake", "cmake-norun", "cmake-run", "diff", "ini", "json", "log",
+      "markdown", "powershell", "sh", "toml", "yaml"
     ],
     "language_only": false
   }

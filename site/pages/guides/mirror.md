@@ -54,7 +54,7 @@ Prefer the embedded manifest whenever the pinned version is enough.
 
 A missing or locked manifest fails like this, and the message names the URL that was requested:
 
-```text
+```log
 find_ocx: failed to fetch the dist manifest from OCX_INSTALL_DIST_URL='<url>/dist.json': "HTTP response code said error"
 hint: the mirror must allow anonymous read; a manifest named <sha256>.json must match that digest
 ```

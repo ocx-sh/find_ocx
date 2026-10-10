@@ -27,8 +27,11 @@ const EDIT_URLS = {
 export const GENERATED = Object.keys(EDIT_URLS);
 export const isGenerated = (rel) => GENERATED.includes(rel) || /^reference\/commands\/[^/]+\.mdx?$/.test(rel);
 
-const LANGS = { '.cmake': 'cmake', '.toml': 'toml', '.lock': 'toml', '.yml': 'yaml', '.yaml': 'yaml', '.sh': 'bash', '.json': 'json', '.py': 'python', '.md': 'markdown', '.mjs': 'js', '.js': 'js', '.txt': 'text' };
-const langOf = (path) => (basename(path) === 'CMakeLists.txt' ? 'cmake' : (LANGS[extname(path)] ?? 'text'));
+const LANGS = { '.cmake': 'cmake', '.toml': 'toml', '.lock': 'toml', '.yml': 'yaml', '.yaml': 'yaml', '.sh': 'bash', '.json': 'json', '.py': 'python', '.md': 'markdown', '.mjs': 'js', '.js': 'js', '.ps1': 'powershell', '.ini': 'ini' };
+const fail = (path) => {
+  throw new Error(`snippet ${path}: no fence language for ${extname(path) || 'this file'}; add it to LANGS (plain text is not highlighted)`);
+};
+const langOf = (path) => (basename(path) === 'CMakeLists.txt' ? 'cmake' : (LANGS[extname(path)] ?? fail(path)));
 
 export function load(root = ROOT) {
   const rd = (rel) => readFileSync(join(root, rel), 'utf8');
