@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Script mode (cmake -P): runs the runtime-core cases of
 # tests/fixtures/runtime_core/case.cmake in child cmake processes and asserts
 # exit status and diagnostics for each.
@@ -28,13 +28,14 @@ endif()
 function(run_case case expect)
   cmake_parse_arguments(PARSE_ARGV 2 c "" "REGEX;REJECT" "DEFS;ENV")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" -E env ${c_ENV}
-      "${CMAKE_COMMAND}"
-      "-DCMAKE_MODULE_PATH=${MODULE_DIR}" "-DCASE=${case}" "-DSCRATCH=${SCRATCH}"
-      -DOCX_FROZEN= ${c_DEFS}
-      -P "${case_file}"
-    RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err
-    ENCODING UTF-8)
+    COMMAND
+      "${CMAKE_COMMAND}" -E env ${c_ENV} "${CMAKE_COMMAND}" "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
+      "-DCASE=${case}" "-DSCRATCH=${SCRATCH}" -DOCX_FROZEN= ${c_DEFS} -P "${case_file}"
+    RESULT_VARIABLE rc
+    OUTPUT_VARIABLE out
+    ERROR_VARIABLE err
+    ENCODING UTF-8
+  )
   set(all "${out}${err}")
   if(expect STREQUAL "OK" AND NOT rc EQUAL 0)
     message(FATAL_ERROR "i2_check: ${case} must pass, exit ${rc}:\n${all}")
@@ -50,8 +51,7 @@ function(run_case case expect)
 endfunction()
 
 # Env classes and helpers (no ocx involved).
-run_case(prefix_default OK
-  DEFS -DOCX_INDEX= -DOCX_JOBS=4 "-DOCX_EXECUTABLE=${shim}")
+run_case(prefix_default OK DEFS -DOCX_INDEX= -DOCX_JOBS=4 "-DOCX_EXECUTABLE=${shim}")
 run_case(prefix_policy OK)
 run_case(translucent OK)
 run_case(error_message OK)
@@ -66,33 +66,43 @@ run_case(policy_late FAIL REGEX "must be called before the first")
 # A [managed] block with no synced snapshot: exit 78 with the actionable
 # hint, no registry contacted (an empty OCX_HOME holds only that config).
 file(MAKE_DIRECTORY "${SCRATCH}/managed_home")
-file(WRITE "${SCRATCH}/managed_home/config.toml"
-  "[managed]\nsource = \"ocx.sh/corp/config:1\"\n")
-run_case(managed_unsynced FAIL
+file(WRITE "${SCRATCH}/managed_home/config.toml" "[managed]\nsource = \"ocx.sh/corp/config:1\"\n")
+run_case(
+  managed_unsynced
+  FAIL
   REGEX "exit 78.*ocx config update"
-  DEFS "-DOCX_EXECUTABLE=${OCX_EXE}" "-DOCX_HOME=${SCRATCH}/managed_home" -DOCX_INDEX=)
+  DEFS "-DOCX_EXECUTABLE=${OCX_EXE}" "-DOCX_HOME=${SCRATCH}/managed_home" -DOCX_INDEX=
+)
 # ... and OCX_NO_CONFIG=1 lifts the gate for the discovered tier: offline,
 # the same command now fails for another reason, never exit 78.
-run_case(managed_unsynced FAIL
+run_case(
+  managed_unsynced
+  FAIL
   REJECT "exit 78"
-  DEFS "-DOCX_EXECUTABLE=${OCX_EXE}" "-DOCX_HOME=${SCRATCH}/managed_home" -DOCX_INDEX=
+  DEFS
+    "-DOCX_EXECUTABLE=${OCX_EXE}"
+    "-DOCX_HOME=${SCRATCH}/managed_home"
+    -DOCX_INDEX=
     -DOCX_OFFLINE=1
-  ENV OCX_NO_CONFIG=1)
+  ENV OCX_NO_CONFIG=1
+)
 
 # ocx_bootstrap with an existing OCX_EXECUTABLE runs 'ocx version', which must
 # not freeze policy: a later ocx_policy is still allowed.
-run_case(bootstrap_then_policy OK
-  DEFS "-DOCX_EXECUTABLE=${OCX_EXE}")
+run_case(bootstrap_then_policy OK DEFS "-DOCX_EXECUTABLE=${OCX_EXE}")
 
 # A config file that exists at configure time is a regeneration dependency.
 file(WRITE "${SCRATCH}/watched.toml" "")
 set(watch_bin "${SCRATCH}/watch_build")
 execute_process(
-  COMMAND "${CMAKE_COMMAND}" -E env "OCX_CONFIG=${SCRATCH}/watched.toml"
-    "${CMAKE_COMMAND}" -S "${MODULE_DIR}/tests/fixtures/runtime_core/watch"
-    -B "${watch_bin}" "-DCMAKE_MODULE_PATH=${MODULE_DIR}"
-    "-DOCX_EXECUTABLE=${shim}" -DOCX_FROZEN=
-  RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+  COMMAND
+    "${CMAKE_COMMAND}" -E env "OCX_CONFIG=${SCRATCH}/watched.toml" "${CMAKE_COMMAND}" -S
+    "${MODULE_DIR}/tests/fixtures/runtime_core/watch" -B "${watch_bin}"
+    "-DCMAKE_MODULE_PATH=${MODULE_DIR}" "-DOCX_EXECUTABLE=${shim}" -DOCX_FROZEN=
+  RESULT_VARIABLE rc
+  OUTPUT_VARIABLE out
+  ERROR_VARIABLE err
+)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "i2_check: watch configure failed:\n${out}${err}")
 endif()
@@ -111,10 +121,13 @@ endif()
 # Retry policy against the fake ocx: exit 75 is retried, anything else is not.
 function(run_shim state_name fail_rc fail_count expect)
   set(state "${SCRATCH}/${state_name}.count")
-  run_case(shim_run ${expect} ${ARGN}
+  run_case(
+    shim_run
+    ${expect}
+    ${ARGN}
     DEFS "-DOCX_EXECUTABLE=${shim}"
-    ENV "FAKE_OCX_STATE=${state}" "FAKE_OCX_FAIL_RC=${fail_rc}"
-      "FAKE_OCX_FAIL_COUNT=${fail_count}")
+    ENV "FAKE_OCX_STATE=${state}" "FAKE_OCX_FAIL_RC=${fail_rc}" "FAKE_OCX_FAIL_COUNT=${fail_count}"
+  )
   file(STRINGS "${state}" calls LIMIT_COUNT 1)
   set(calls "${calls}" PARENT_SCOPE)
 endfunction()

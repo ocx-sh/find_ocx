@@ -14,10 +14,15 @@ if(NOT OCX_FROZEN)
   message(FATAL_ERROR "i3 update_command fixture: run with -DOCX_FROZEN=ON")
 endif()
 
-ocx_index(UPDATE_COMMAND refresh
-  INDEX "${CMAKE_BINARY_DIR}/index"
-  PACKAGES ocx.sh/jqlang/jq:1.8.2@sha256:0000000000000000000000000000000000000000000000000000000000000000
-           ocx.sh/kitware/cmake)
+ocx_index(
+  UPDATE_COMMAND
+  refresh
+  INDEX
+  "${CMAKE_BINARY_DIR}/index"
+  PACKAGES
+  ocx.sh/jqlang/jq:1.8.2@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  ocx.sh/kitware/cmake
+)
 
 foreach(entry IN LISTS refresh)
   if(entry MATCHES "^OCX_FROZEN=")

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Fixture: ocx.cmake in script mode (cmake -P) - no project(), no
 # generator, no persistent cache. Both tiers must provision and execute.
 #

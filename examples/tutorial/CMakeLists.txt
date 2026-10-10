@@ -15,8 +15,5 @@ include(ocx)
 
 ocx_project(NAME TOOLS BINS jq)
 
-add_custom_target(show_jq ALL
-  COMMAND ${OCX_TOOLS_RUN} jq --version
-  VERBATIM
-)
+add_custom_target(show_jq ALL COMMAND ${OCX_TOOLS_RUN} jq --version VERBATIM)
 # endregion

@@ -59,12 +59,15 @@ tasks:
     cmds:
       - for: { var: EXAMPLES }
         cmd: >-
-          {{.CMAKE}} -Werror=dev -DCMAKE_BUILD_TYPE={{.CONFIG}} -DOCX_BOOTSTRAP=ON -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
+          {{.CMAKE}} -Werror=dev -DCMAKE_BUILD_TYPE={{.CONFIG}} -DOCX_BOOTSTRAP=ON {{if eq .ITEM "cross_build"}}-DCMAKE_TOOLCHAIN_FILE=toolchain.cmake {{end}}-S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
           {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} --config {{.CONFIG}} &&
           {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} {{.CTEST_ARGS}}
     vars:
       # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables the
       # bootstrap fallback for the find_package one.
+      # Every examples/ directory but tutorial, whose project is assembled in an empty
+      # directory and run by the doc/tutorial__first-configure cast test (POSIX only).
+      # A new directory goes here and in the ci.yml example matrix.
       EXAMPLES: project package frozen_index find_package cross_build policy
 
   site:install:

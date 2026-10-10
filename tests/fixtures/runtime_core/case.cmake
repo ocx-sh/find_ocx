@@ -45,10 +45,22 @@ elseif(CASE STREQUAL "policy_relative_root")
 elseif(CASE STREQUAL "prefix_default")
   # The pinned set, explicit knobs removed, site knobs forwarded or removed.
   __ocx_env_prefix(prefix)
-  foreach(pin IN ITEMS OCX_PROJECT= OCX_GLOBAL=0 OCX_QUIET=0 OCX_NO_PROJECT=1
-      OCX_NO_CONFIG_REFRESH=1 OCX_NO_CONSENT=1 OCX_SELF_UPDATE=manual
-      --unset=OCX_NO_VERIFY --unset=OCX_ALLOW_YANKED --unset=OCX_INDEX
-      OCX_JOBS=4)
+  foreach(
+    pin
+    IN
+    ITEMS
+      OCX_PROJECT=
+      OCX_GLOBAL=0
+      OCX_QUIET=0
+      OCX_NO_PROJECT=1
+      OCX_NO_CONFIG_REFRESH=1
+      OCX_NO_CONSENT=1
+      OCX_SELF_UPDATE=manual
+      --unset=OCX_NO_VERIFY
+      --unset=OCX_ALLOW_YANKED
+      --unset=OCX_INDEX
+      OCX_JOBS=4
+  )
     expect_contains("prefix" "${prefix}" "${pin}")
   endforeach()
   expect_lacks("prefix" "${prefix}" "OCX_AUTH_[A-Z_]*=[^;]*")
@@ -88,7 +100,10 @@ elseif(CASE STREQUAL "translucent_relative")
 
 elseif(CASE STREQUAL "error_message")
   # Only `error:` lines survive, chain repeats collapse, semicolons stay.
-  __ocx_error_message(msg "Installing packages: a/b:1\npulling count=1\nerror: boom: x; y: boom: x; y\n")
+  __ocx_error_message(
+    msg
+    "Installing packages: a/b:1\npulling count=1\nerror: boom: x; y: boom: x; y\n"
+  )
   if(NOT msg STREQUAL "boom: x; y")
     message(FATAL_ERROR "case ${CASE}: got '${msg}'")
   endif()
@@ -96,7 +111,10 @@ elseif(CASE STREQUAL "error_message")
   if(NOT msg STREQUAL "one\ntwo")
     message(FATAL_ERROR "case ${CASE}: got '${msg}'")
   endif()
-  __ocx_error_message(msg "2026-10-10T17:06:40.092928Z ERROR gone: gone\n2026-10-10T17:06:40Z WARN noise\n")
+  __ocx_error_message(
+    msg
+    "2026-10-10T17:06:40.092928Z ERROR gone: gone\n2026-10-10T17:06:40Z WARN noise\n"
+  )
   if(NOT msg STREQUAL "gone")
     message(FATAL_ERROR "case ${CASE}: got '${msg}'")
   endif()
@@ -111,15 +129,22 @@ elseif(CASE STREQUAL "error_message")
   endif()
 
 elseif(CASE STREQUAL "hints")
-  foreach(code IN ITEMS 64 65 69 74 75 77 78 79 80 81 83 84 85 86 87)
+  foreach(
+    code
+    IN
+    ITEMS 64 65 69 74 75 77 78 79 80 81 83 84 85 86 87
+  )
     __ocx_default_hint(${code} hint)
     if(hint STREQUAL "")
       message(FATAL_ERROR "case ${CASE}: no default hint for exit ${code}")
     endif()
   endforeach()
   __ocx_default_hint(78 hint)
-  if(NOT hint MATCHES "ocx lock" OR NOT hint MATCHES "ocx config update"
-      OR NOT hint MATCHES "OCX_NO_CONFIG=1")
+  if(
+    NOT hint MATCHES "ocx lock"
+    OR NOT hint MATCHES "ocx config update"
+    OR NOT hint MATCHES "OCX_NO_CONFIG=1"
+  )
     message(FATAL_ERROR "case ${CASE}: exit 78 hint is incomplete: ${hint}")
   endif()
   __ocx_default_hint(79 hint)
@@ -129,8 +154,7 @@ elseif(CASE STREQUAL "hints")
 
 elseif(CASE STREQUAL "shim_run")
   # OCX_EXECUTABLE is the fake_ocx shim; failures and counter come from env.
-  __ocx_run(WHAT "running the shim" COMMAND package list RETRIES 2
-    OUTPUT_VARIABLE out)
+  __ocx_run(WHAT "running the shim" COMMAND package list RETRIES 2 OUTPUT_VARIABLE out)
   if(NOT out MATCHES "\"ok\":true")
     message(FATAL_ERROR "case ${CASE}: unexpected shim output '${out}'")
   endif()

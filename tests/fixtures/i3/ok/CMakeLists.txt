@@ -11,14 +11,21 @@ project(fixture_i3_ok LANGUAGES NONE)
 
 include(ocx)
 
-set(jq_index "ocx.sh/jqlang/jq@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6")
+set(
+  jq_index
+  "ocx.sh/jqlang/jq@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6"
+)
 
 # PINS: one distinct fake digest per platform, the host's must be selected
 # (a floating tag with no matching pin would be the reproducibility error).
 __ocx_host_info(host_triple host_platform host_ext)
 set(pins "")
 set(expected "")
-foreach(entry IN ITEMS linux/amd64=a linux/arm64=b darwin/amd64=c darwin/arm64=d windows/amd64=e windows/arm64=f)
+foreach(
+  entry
+  IN
+  ITEMS linux/amd64=a linux/arm64=b darwin/amd64=c darwin/arm64=d windows/amd64=e windows/arm64=f
+)
   string(REPLACE "=" ";" parts "${entry}")
   list(GET parts 0 pin_platform)
   list(GET parts 1 digit)
@@ -53,16 +60,25 @@ if(NOT EXISTS "${jqroot_ROOT}" OR jqroot_ROOT MATCHES "[\r\n{}]")
   message(FATAL_ERROR "i3 ok fixture: jqroot_ROOT is not a single existing path: '${jqroot_ROOT}'")
 endif()
 if(NOT "${jqroot_ROOT}" STREQUAL "${OCX_JQROOT_CONTENT}")
-  message(FATAL_ERROR "i3 ok fixture: jqroot_ROOT '${jqroot_ROOT}' != OCX_JQROOT_CONTENT '${OCX_JQROOT_CONTENT}'")
+  message(
+    FATAL_ERROR
+    "i3 ok fixture: jqroot_ROOT '${jqroot_ROOT}' != OCX_JQROOT_CONTENT '${OCX_JQROOT_CONTENT}'"
+  )
 endif()
 if(DEFINED CACHE{jqroot_DIR})
   message(FATAL_ERROR "i3 ok fixture: jqroot_DIR survived a changed jqroot_ROOT")
 endif()
 
 # CONFIG keywords land in the exported launcher's environment.
-ocx_package(NAME CFG PACKAGE "${jq_index}" NO_CONFIG
-  PATCH_SNAPSHOT "${CMAKE_CURRENT_LIST_DIR}/patches.json")
-if(NOT "${OCX_CFG_RUN}" MATCHES "(^|;)OCX_NO_CONFIG=1(;|$)"
-    OR NOT "${OCX_CFG_RUN}" MATCHES "(^|;)OCX_PATCH_SNAPSHOT=[^;]*/patches\\.json(;|$)")
+ocx_package(
+  NAME CFG
+  PACKAGE "${jq_index}"
+  NO_CONFIG
+  PATCH_SNAPSHOT "${CMAKE_CURRENT_LIST_DIR}/patches.json"
+)
+if(
+  NOT "${OCX_CFG_RUN}" MATCHES "(^|;)OCX_NO_CONFIG=1(;|$)"
+  OR NOT "${OCX_CFG_RUN}" MATCHES "(^|;)OCX_PATCH_SNAPSHOT=[^;]*/patches\\.json(;|$)"
+)
   message(FATAL_ERROR "i3 ok fixture: CONFIG keywords missing from '${OCX_CFG_RUN}'")
 endif()

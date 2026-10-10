@@ -11,7 +11,10 @@ project(fixture_i3_cases LANGUAGES NONE)
 include(ocx)
 
 # Image index digest of ocx.sh/jqlang/jq:latest: pins every platform.
-set(jq_index "ocx.sh/jqlang/jq@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6")
+set(
+  jq_index
+  "ocx.sh/jqlang/jq@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6"
+)
 
 if(I3_CASE STREQUAL "platform_list_keyword")
   ocx_package(NAME X PACKAGE "${jq_index}" PLATFORM linux/arm64 linux/amd64)
@@ -21,7 +24,11 @@ elseif(I3_CASE STREQUAL "default_platform_list")
   set(OCX_DEFAULT_PLATFORM "linux/arm64;linux/amd64")
   ocx_package(NAME X PACKAGE "${jq_index}")
 elseif(I3_CASE STREQUAL "project_platform_list")
-  ocx_project(NAME X TOML "${CMAKE_CURRENT_LIST_DIR}/../groups/ocx.toml" PLATFORM "linux/arm64;linux/amd64")
+  ocx_project(
+    NAME X
+    TOML "${CMAKE_CURRENT_LIST_DIR}/../groups/ocx.toml"
+    PLATFORM "linux/arm64;linux/amd64"
+  )
 elseif(I3_CASE STREQUAL "bins_foreign")
   ocx_package(NAME X PACKAGE "${jq_index}" PLATFORM linux/arm64 BINS jq)
 elseif(I3_CASE STREQUAL "unknown_keyword")
@@ -34,7 +41,12 @@ elseif(I3_CASE STREQUAL "reentry_differs")
   ocx_package(NAME X PACKAGE "${jq_index}")
   ocx_package(NAME X PACKAGE "${jq_index}" BINS jq)
 elseif(I3_CASE STREQUAL "config_missing")
-  ocx_package(NAME X PACKAGE "${jq_index}" PULL CONFIG "${CMAKE_CURRENT_LIST_DIR}/no-such-config.toml")
+  ocx_package(
+    NAME X
+    PACKAGE "${jq_index}"
+    PULL
+    CONFIG "${CMAKE_CURRENT_LIST_DIR}/no-such-config.toml"
+  )
 elseif(I3_CASE STREQUAL "index_empty_value")
   ocx_index(UPDATE_COMMAND refresh INDEX "${i3_unset_index}")
 elseif(I3_CASE STREQUAL "index_missing_value")

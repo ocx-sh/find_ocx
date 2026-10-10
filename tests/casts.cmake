@@ -15,7 +15,9 @@ foreach(script IN LISTS cast_scripts)
     message(FATAL_ERROR "casts: ${script} has no '# doc: <key>' header")
   endif()
   set(doc "${CMAKE_MATCH_1}")
-  add_test(NAME "doc/${doc}"
-    COMMAND "${CMAKE_CURRENT_LIST_DIR}/../site/scripts/run-cast-script.sh" "${script}")
+  add_test(
+    NAME "doc/${doc}"
+    COMMAND "${CMAKE_CURRENT_LIST_DIR}/../site/scripts/run-cast-script.sh" "${script}"
+  )
   set_tests_properties("doc/${doc}" PROPERTIES LABELS docs TIMEOUT 300)
 endforeach()

@@ -12,8 +12,10 @@ include(ocx)
 
 # A copy keeps the toolchain links ocx renders out of the source tree.
 set(project_dir "${CMAKE_BINARY_DIR}/project")
-file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/ocx.toml" "${CMAKE_CURRENT_SOURCE_DIR}/ocx.lock"
-  DESTINATION "${project_dir}")
+file(
+  COPY "${CMAKE_CURRENT_SOURCE_DIR}/ocx.toml" "${CMAKE_CURRENT_SOURCE_DIR}/ocx.lock"
+  DESTINATION "${project_dir}"
+)
 set(toml "${project_dir}/ocx.toml")
 
 if(I3_CASE STREQUAL "bins_typo")
@@ -45,7 +47,9 @@ if(NOT "${before}" STREQUAL "${OCX_G_RUN}")
   message(FATAL_ERROR "i3 groups fixture: identical re-entry changed OCX_G_RUN")
 endif()
 
-add_custom_target(run_tools ALL
+add_custom_target(
+  run_tools
+  ALL
   COMMAND ${OCX_G_RUN_JQ} --version
   COMMAND ${OCX_G_RUN_SHELLCHECK} --version
   VERBATIM

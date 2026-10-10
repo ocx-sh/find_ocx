@@ -6,9 +6,12 @@
 # configure and expose its launcher.
 
 # Work on a copy: the project tier renders .ocx/toolchain next to ocx.toml.
-file(COPY "${CMAKE_CURRENT_LIST_DIR}/project_run/ocx.toml"
-  "${CMAKE_CURRENT_LIST_DIR}/project_run/ocx.lock"
-  DESTINATION "${CMAKE_BINARY_DIR}/project")
+file(
+  COPY
+    "${CMAKE_CURRENT_LIST_DIR}/project_run/ocx.toml"
+    "${CMAKE_CURRENT_LIST_DIR}/project_run/ocx.lock"
+  DESTINATION "${CMAKE_BINARY_DIR}/project"
+)
 
 ocx_project(NAME AMBIENT TOML "${CMAKE_BINARY_DIR}/project/ocx.toml" BINS jq)
 

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Child of module_checks.cmake (script mode): the self-update entry is the
 # public command ocx_self_update (no private __ name) and rejects arguments.
 # Offline: the call fails before any download.

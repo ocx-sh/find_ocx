@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # doc: readme/quick-start
 # title: README quick start
 # expect_exit: 0
@@ -42,8 +42,10 @@ region_of("${ROOT}/examples/tutorial/CMakeLists.txt" full cmake_body)
 function(expect_fence lang body)
   string(FIND "${readme}" "```${lang}\n${body}```" at)
   if(at EQUAL -1)
-    message(FATAL_ERROR
-      "readme_check: the README ${lang} fence differs from examples/tutorial:\n${body}")
+    message(
+      FATAL_ERROR
+      "readme_check: the README ${lang} fence differs from examples/tutorial:\n${body}"
+    )
   endif()
 endfunction()
 

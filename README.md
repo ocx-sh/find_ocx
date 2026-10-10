@@ -32,10 +32,7 @@ include(ocx)
 
 ocx_project(NAME TOOLS BINS jq)
 
-add_custom_target(show_jq ALL
-  COMMAND ${OCX_TOOLS_RUN} jq --version
-  VERBATIM
-)
+add_custom_target(show_jq ALL COMMAND ${OCX_TOOLS_RUN} jq --version VERBATIM)
 ```
 
 Then `cmake -S . -B build && cmake --build build` ends with a line like `jq-1.8.2`.
