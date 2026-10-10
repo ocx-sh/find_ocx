@@ -57,6 +57,11 @@ run_case(translucent OK)
 run_case(error_message OK)
 run_case(hints OK)
 
+# OCX_INSTALL_CA_BUNDLE -> OCX_EXTRA_CA_CERTS hand-off.
+foreach(ca_case IN ITEMS unset explicit cleared)
+  run_case(ca_bundle_forward OK DEFS -DCA_CASE=${ca_case})
+endforeach()
+
 # Negative cases: exit status and diagnostic together.
 run_case(translucent_relative FAIL REGEX "CONFIG must be an absolute path")
 run_case(policy_relative_root FAIL REGEX "SIGSTORE_TRUSTED_ROOT must be an absolute path")
@@ -78,6 +83,17 @@ run_case(managed_unsynced FAIL
   DEFS "-DOCX_EXECUTABLE=${OCX_EXE}" "-DOCX_HOME=${SCRATCH}/managed_home" -DOCX_INDEX=
     -DOCX_OFFLINE=1
   ENV OCX_NO_CONFIG=1)
+
+# The translucent keywords reach every configure-time call and the exported
+# RUN lists of both tiers, and outrank the ambient OCX_CONFIG /
+# OCX_PATCH_SNAPSHOT (the recording wrapper is POSIX sh).
+if(NOT CMAKE_HOST_WIN32)
+  run_case(translucent_calls OK
+    DEFS "-DOCX_EXECUTABLE=${MODULE_DIR}/tests/fixtures/runtime_core/recording_ocx.sh" -DOCX_INDEX=
+    ENV "RECORD_OCX_REAL=${OCX_EXE}" "RECORD_OCX_LOG=${SCRATCH}/translucent.log"
+      OCX_CONFIG=/nonexistent/ambient-config.toml
+      OCX_PATCH_SNAPSHOT=/nonexistent/ambient-patches.json)
+endif()
 
 # ocx_bootstrap with an existing OCX_EXECUTABLE runs 'ocx version', which must
 # not freeze policy: a later ocx_policy is still allowed.
@@ -124,7 +140,7 @@ if(NOT calls EQUAL 3)
   message(FATAL_ERROR "i2_check: exit 75 twice then success must take 3 calls, got ${calls}")
 endif()
 
-run_shim(retry75_exhausted 75 9 FAIL REGEX "exit 75.*shim failure 3.*transient registry failure")
+run_shim(retry75_exhausted 75 9 FAIL REGEX "exit 75.*shim failure 3.*transient failure that outlasted the retries")
 if(NOT calls EQUAL 3)
   message(FATAL_ERROR "i2_check: RETRIES 2 must stop after 3 calls, got ${calls}")
 endif()

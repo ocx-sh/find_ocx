@@ -171,10 +171,24 @@ i1_case(dist_manifest ARGS DIST_MANIFEST "${SCRATCH}/direct.json")
 if(DEFINED zip_sha)
   i1_case(flat_zip ARGS DIST_MANIFEST "${SCRATCH}/flat_zip.json")
 endif()
-# OCX_INSTALL_DIST_URL wins over the keyword and the snapshot.
+# OCX_INSTALL_DIST_URL replaces the snapshot; the DIST_MANIFEST keyword wins over
+# it (a keyword beats the ambient value), so an unreachable URL is never fetched.
 i1_file_url("${SCRATCH}/direct.json" direct_url)
-i1_case(dist_url DEFINES "-DOCX_INSTALL_DIST_URL=${direct_url}"
-  ARGS DIST_MANIFEST "${SCRATCH}/does-not-exist.json")
+i1_case(dist_url DEFINES "-DOCX_INSTALL_DIST_URL=${direct_url}")
+i1_case(dist_manifest_over_url
+  DEFINES "-DOCX_INSTALL_DIST_URL=file://${SCRATCH}/no-such-dist.json"
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json")
+# OCX_INSTALL_CA_BUNDLE must name a file before the first download; an existing
+# file is accepted (file:// downloads ignore it).
+i1_case(ca_bundle_missing DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/no-such-ca.pem"
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
+  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*no-such-ca\\.pem' is not a readable file")
+i1_case(ca_bundle_dir DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}"
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json"
+  FAIL "OCX_INSTALL_CA_BUNDLE='[^']*' is not a readable file")
+file(WRITE "${SCRATCH}/ca.pem" "")
+i1_case(ca_bundle_file DEFINES "-DOCX_INSTALL_CA_BUNDLE=${SCRATCH}/ca.pem"
+  ARGS DIST_MANIFEST "${SCRATCH}/direct.json")
 # A <sha256>.json manifest whose name is its digest is verified and accepted...
 i1_file_url("${SCRATCH}/${manifest_sha}.json" named_url)
 i1_case(dist_url_sha_named DEFINES "-DOCX_INSTALL_DIST_URL=${named_url}")

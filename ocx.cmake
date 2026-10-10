@@ -75,14 +75,25 @@ snapshotted into the cache and stays sticky for the build directory
   Fetch the ocx release manifest (dist.json) from a mirror instead of the
   snapshot embedded in this file. A manifest named ``<sha256>.json`` is
   verified against that digest; any other name is fetched unverified.
-  Takes precedence over the ``DIST_MANIFEST`` keyword of
-  :command:`ocx_bootstrap`.
+  The ``DIST_MANIFEST`` keyword of :command:`ocx_bootstrap` takes
+  precedence over it.
 
 .. variable:: OCX_INSTALL_MIRROR_URL
 
   Rewrite the ocx binary download to ``<mirror>/<tag>/<filename>``. The
   manifest sha256 is still enforced — a mirror can move bytes, not change
   them.
+
+.. variable:: OCX_INSTALL_CA_BUNDLE
+
+  PEM CA bundle (a file path) that the CLI download trusts instead of the
+  system store, for a mirror behind a TLS-intercepting proxy: it is passed
+  as ``TLS_CAINFO`` to the manifest and archive downloads of
+  :command:`ocx_bootstrap` and to :command:`ocx_self_update`. A path that
+  is not a file is a configure error. Every ocx call also receives it as
+  ``OCX_EXTRA_CA_CERTS``, unless ``OCX_EXTRA_CA_CERTS`` is set (an empty
+  ``-DOCX_EXTRA_CA_CERTS=`` counts as set and removes it). Same knob as the
+  setup.ocx.sh installer.
 
 .. variable:: OCX_INSTALL_VERSION
 
@@ -105,9 +116,9 @@ snapshotted into the cache and stays sticky for the build directory
 .. variable:: OCX_DEFAULT_PLATFORM
 
   Default ``PLATFORM`` for :command:`ocx_project` / :command:`ocx_package`
-  (empty = host). For :command:`ocx_package` this is an ordered platform
-  preference list (first match wins) and may be a CMake ``;``-list; at the
-  :command:`ocx_project` tier only the first/single entry is meaningful.
+  (empty = host): one ocx platform such as ``linux/arm64``. A ``;``-list is
+  a configure error; call the command once per platform under its own
+  ``NAME``.
 
 .. variable:: OCX_INDEX
 
@@ -169,17 +180,44 @@ snapshotted into the cache and stays sticky for the build directory
   explicit ``OCX_SELF_UPDATE_VERSION`` (mirrors do not serve the releases
   API); the mirrored ``SHA256SUMS`` stays the trust root.
 
-Passthrough variables forwarded to every ocx invocation when set (same set
-as rules_ocx): ``OCX_HOME``, ``OCX_MIRRORS``, ``OCX_INSECURE_REGISTRIES``,
-``OCX_OFFLINE``, ``OCX_FROZEN``, ``OCX_REMOTE``, ``OCX_JOBS``,
-``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``. Clearing a knob with ``-DVAR=``
-actively removes it from the environment of every ocx invocation. That is
-the opt-out for launcher inheritance: ocx launchers (``ocx run``, frozen
-``package exec`` — including the ``OCX_<NAME>_RUN`` command lists this
-module exports) export ``OCX_FROZEN`` and ``OCX_INDEX`` into child
-processes, so a find_ocx configure nested inside one (ExternalProject,
-test harnesses) inherits the outer resolution mode unless it is given
-``-DOCX_FROZEN=`` ``-DOCX_INDEX=``.
+Every ocx call gets its environment from four classes of ``OCX_*``
+variable. The classes decide what an ambient value does, so a variable
+exported in the shell or by an outer launcher cannot change a build silently:
+
+===========  ================================  =========================================
+Class        Variables                         Behavior
+===========  ================================  =========================================
+site         ``OCX_HOME`` ``OCX_MIRRORS``      Snapshotted from the environment
+             ``OCX_INSECURE_REGISTRIES``       at the first configure and
+             ``OCX_OFFLINE`` ``OCX_FROZEN``    forwarded to every call.
+             ``OCX_REMOTE`` ``OCX_JOBS``       ``-DVAR=`` removes the variable
+             ``OCX_INDEX``                     from every call.
+             ``OCX_DEFAULT_REGISTRY``
+             ``OCX_MANAGED_CONFIG``
+             ``OCX_PATCHES``
+             ``OCX_EXTRA_CA_CERTS``
+translucent  ``OCX_CONFIG``                    The ambient value passes through
+             ``OCX_PATCH_SNAPSHOT``            unchanged. A keyword overrides it:
+             ``OCX_NO_CONFIG``                 ``CONFIG``, ``PATCH_SNAPSHOT`` and
+             ``OCX_SIGSTORE_TRUSTED_ROOT``     ``NO_CONFIG`` of :command:`ocx_project`
+                                               and :command:`ocx_package` (per command),
+                                               ``SIGSTORE_TRUSTED_ROOT`` of
+                                               :command:`ocx_policy`.
+explicit     ``OCX_NO_VERIFY``                 Removed from every call. Only
+             ``OCX_ALLOW_YANKED``              :command:`ocx_policy` sets them.
+pinned       ``OCX_PROJECT`` ``OCX_GLOBAL``    Forced to a fixed value on every
+             ``OCX_QUIET`` ``OCX_NO_PROJECT``  call (``OCX_PROJECT`` unset,
+             ``OCX_NO_CONFIG_REFRESH``         ``OCX_QUIET=0``,
+             ``OCX_NO_CONSENT``                ``OCX_SELF_UPDATE=manual``), so find_ocx
+             ``OCX_SELF_UPDATE``               can parse what ocx prints.
+===========  ================================  =========================================
+
+Both the configure-time calls and the exported ``OCX_<NAME>_RUN`` command
+lists carry the same environment. ocx launchers (``ocx run``, frozen
+``package exec``, including those ``OCX_<NAME>_RUN`` lists) export
+``OCX_FROZEN`` and ``OCX_INDEX`` into child processes, so a find_ocx
+configure nested inside one (ExternalProject, test harnesses) inherits the
+outer resolution mode unless it is given ``-DOCX_FROZEN=`` ``-DOCX_INDEX=``.
 
 ``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are deliberately
 **never** snapshotted into the cache — export them in the environment and
@@ -187,8 +225,7 @@ reconfigure after changing them.
 #]=]
 
 if(CMAKE_VERSION VERSION_LESS 3.25)
-  message(FATAL_ERROR
-    "find_ocx: ocx.cmake requires CMake >= 3.25; this is CMake ${CMAKE_VERSION}")
+  message(FATAL_ERROR "find_ocx: ocx.cmake requires CMake >= 3.25; this is CMake ${CMAKE_VERSION}")
 endif()
 
 include_guard(GLOBAL)
@@ -199,6 +236,12 @@ include_guard(GLOBAL)
 # behavior. Balanced by cmake_policy(POP) after the last definition.
 cmake_policy(PUSH)
 cmake_policy(VERSION 3.25...4.4)
+# cmake_parse_arguments() defines an empty single-value keyword (NEW) instead
+# of dropping it (OLD): the empty-argument checks below depend on seeing it.
+# CMP0174 exists from 3.31; the version range above already selects NEW there.
+if(POLICY CMP0174)
+  cmake_policy(SET CMP0174 NEW)
+endif()
 
 set(__OCX_MODULE_VERSION "0.3.0")
 
@@ -210,13 +253,17 @@ get_property(__ocx_loaded GLOBAL PROPERTY __OCX_MODULE_FILE SET)
 if(__ocx_loaded)
   get_property(__ocx_loaded_file GLOBAL PROPERTY __OCX_MODULE_FILE)
   get_property(__ocx_loaded_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
-  if(NOT __ocx_loaded_file STREQUAL __ocx_this_file
-      AND NOT __ocx_loaded_version STREQUAL __OCX_MODULE_VERSION)
-    message(FATAL_ERROR
+  if(
+    NOT __ocx_loaded_file STREQUAL __ocx_this_file
+    AND NOT __ocx_loaded_version STREQUAL __OCX_MODULE_VERSION
+  )
+    message(
+      FATAL_ERROR
       "find_ocx: two copies of ocx.cmake with different versions are loaded: "
       "${__ocx_loaded_version} from ${__ocx_loaded_file} and "
       "${__OCX_MODULE_VERSION} from ${__ocx_this_file}\n"
-      "hint: vendor one copy and point CMAKE_MODULE_PATH at it")
+      "hint: vendor one copy and point CMAKE_MODULE_PATH at it"
+    )
   endif()
 else()
   set_property(GLOBAL PROPERTY __OCX_MODULE_FILE "${__ocx_this_file}")
@@ -232,6 +279,7 @@ unset(__ocx_loaded_version)
 # exactly that version. Bump deliberately, together with the dist snapshot.
 set(__OCX_PIN_VERSION "0.6.5")
 
+# gersemi: off
 # --- BEGIN OCX DIST SNAPSHOT (generated by scripts/update_dist.py - do not edit) ---
 set(__OCX_DIST_JSON [=[
 {
@@ -523,6 +571,7 @@ set(__OCX_DIST_JSON [=[
 }
 ]=])
 # --- END OCX DIST SNAPSHOT ---
+# gersemi: on
 
 # ---------------------------------------------------------------------------
 # Environment classes
@@ -530,14 +579,19 @@ set(__OCX_DIST_JSON [=[
 
 function(__ocx_snapshot_env var)
   if(NOT DEFINED ${var} AND DEFINED ENV{${var}})
-    set(${var} "$ENV{${var}}" CACHE STRING
-      "find_ocx: snapshotted from the environment at first configure")
+    set(
+      ${var}
+      "$ENV{${var}}"
+      CACHE STRING
+      "find_ocx: snapshotted from the environment at first configure"
+    )
   endif()
 endfunction()
 
 # The OCX_* variables this module controls, one "<class>|<entry>" row each.
 # OCX_AUTH_* is in no class: credentials must never reach CMakeCache.txt.
-set(__ocx_rows
+set(
+  __ocx_rows
   # site: snapshotted env -> cache at the first configure and forwarded to
   # every call; -DVAR= removes it from every call.
   "site|OCX_HOME"
@@ -582,17 +636,22 @@ unset(__ocx_row)
 unset(__ocx_class)
 
 get_property(__ocx_site GLOBAL PROPERTY __OCX_ENV_SITE)
-foreach(__ocx_var IN ITEMS
+foreach(
+  __ocx_var
+  IN
+  ITEMS
     OCX_EXECUTABLE
     OCX_INSTALL_DIST_URL
     OCX_INSTALL_MIRROR_URL
     OCX_INSTALL_VERSION
+    OCX_INSTALL_CA_BUNDLE
     OCX_DEFAULT_PLATFORM
     OCX_BOOTSTRAP
     OCX_BOOTSTRAP_CACHE
     OCX_PROJECT_FILE
     OCX_ALLOW_FLOATING
-    ${__ocx_site})
+    ${__ocx_site}
+)
   __ocx_snapshot_env(${__ocx_var})
 endforeach()
 unset(__ocx_var)
@@ -626,11 +685,13 @@ function(__ocx_watch_config)
   else()
     set(home "$ENV{HOME}/.ocx")
   endif()
-  list(APPEND files
+  list(
+    APPEND files
     "${home}/config.toml"
     "${home}/state/managed-config/snapshot.json"
     "${home}/state/managed-config/config.toml"
-    "$ENV{OCX_CONFIG}")
+    "$ENV{OCX_CONFIG}"
+  )
   foreach(file IN LISTS files)
     if(IS_ABSOLUTE "${file}" AND EXISTS "${file}" AND NOT IS_DIRECTORY "${file}")
       set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${file}")
@@ -686,9 +747,11 @@ endfunction()
 function(__ocx_translucent_env out_var)
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "CONFIG;NO_CONFIG;PATCH_SNAPSHOT" "")
   if(arg_UNPARSED_ARGUMENTS OR arg_KEYWORDS_MISSING_VALUES)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: __ocx_translucent_env: bad arguments "
-      "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'")
+      "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'"
+    )
   endif()
   set(env "")
   if(arg_NO_CONFIG)
@@ -705,13 +768,11 @@ function(__ocx_translucent_env out_var)
       continue()
     endif()
     if(NOT IS_ABSOLUTE "${arg_${keyword}}")
-      message(FATAL_ERROR
-        "find_ocx: ${keyword} must be an absolute path, got '${arg_${keyword}}'")
+      message(FATAL_ERROR "find_ocx: ${keyword} must be an absolute path, got '${arg_${keyword}}'")
     endif()
     list(APPEND env "OCX_${keyword}=${arg_${keyword}}")
     if(NOT CMAKE_SCRIPT_MODE_FILE AND EXISTS "${arg_${keyword}}")
-      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${arg_${keyword}}")
+      set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${arg_${keyword}}")
     endif()
   endforeach()
   set(${out_var} "${env}" PARENT_SCOPE)
@@ -746,6 +807,12 @@ function(__ocx_env_entries out_var)
       list(APPEND entries "${var}=${${var}}")
     endif()
   endforeach()
+  # www-setup hands OCX_INSTALL_CA_BUNDLE to ocx the same way: one corporate CA
+  # covers the bootstrap download and every ocx call, unless the operator set
+  # OCX_EXTRA_CA_CERTS (also empty, which removes it) themselves.
+  if(NOT DEFINED OCX_EXTRA_CA_CERTS AND NOT "${OCX_INSTALL_CA_BUNDLE}" STREQUAL "")
+    list(APPEND entries "OCX_EXTRA_CA_CERTS=${OCX_INSTALL_CA_BUNDLE}")
+  endif()
   foreach(var IN LISTS explicit)
     list(APPEND entries "--unset=${var}")
   endforeach()
@@ -759,35 +826,80 @@ endfunction()
 function(__ocx_default_hint code out_var)
   set(hint "")
   if(code EQUAL 64)
-    set(hint "usage error - this ocx and find_ocx disagree on the command line, or a platform, group or reference was rejected; check OCX_EXECUTABLE / OCX_INSTALL_VERSION against the version this find_ocx release pins")
+    set(
+      hint
+      "usage error - ocx rejected the command line: run the tested binary with OCX_BOOTSTRAP=ALWAYS (a PATH ocx older than 0.6.0 or an old OCX_INSTALL_VERSION does not match this find_ocx), or pass one valid PLATFORM such as linux/arm64"
+    )
   elseif(code EQUAL 65)
-    set(hint "data error - ocx.lock is out of date with ocx.toml (run 'ocx lock' and commit the result), a reference or digest is malformed, the registry served bytes that fail verification, or a patch snapshot predates this ocx")
+    set(
+      hint
+      "data error - run 'ocx lock' and commit the result if ocx.lock is stale against ocx.toml, correct a malformed reference or digest, check BINS and GROUPS, or report a layer that ocx refused to extract to the publisher"
+    )
   elseif(code EQUAL 69)
-    set(hint "service unavailable - the registry or index answered but not usefully (a rerun will not help): check the network, OCX_MIRRORS and OCX_AUTH_*; behind an intercepting proxy set OCX_EXTRA_CA_CERTS")
+    set(
+      hint
+      "service unavailable - the registry or index answered but not usefully, and a rerun will not help: check the name, the network, OCX_MIRRORS and OCX_AUTH_*; behind an intercepting proxy set OCX_EXTRA_CA_CERTS to its CA file"
+    )
   elseif(code EQUAL 74)
-    set(hint "I/O error - a local read or write failed: check free space and permissions on OCX_HOME")
+    set(
+      hint
+      "I/O error - a local read or write failed: free disk space, fix the permissions on OCX_HOME, and check that the CA file is readable"
+    )
   elseif(code EQUAL 75)
-    set(hint "transient registry failure (timeout, throttling, short transfer) that outlasted the retries: rerun, or route through OCX_MIRRORS")
+    set(
+      hint
+      "transient failure that outlasted the retries (a PULL download is retried twice): rerun later, or route the registry through OCX_MIRRORS"
+    )
   elseif(code EQUAL 77)
-    set(hint "permission denied - the registry rejected the request, or OCX_HOME is not writable by this user")
+    set(
+      hint
+      "permission denied - make OCX_HOME writable for the current user, or point OCX_HOME at a directory that is"
+    )
   elseif(code EQUAL 78)
-    set(hint "configuration error - an unsupported or missing ocx.lock: regenerate with 'ocx lock' and commit it; a managed config that was never synced: run 'ocx config update', or set OCX_NO_CONFIG=1 to skip the managed tier; a malformed ocx.toml or config.toml: fix the file the message names")
+    set(
+      hint
+      "configuration error - read the message: run 'ocx lock' and commit it for a missing or version 2 ocx.lock, run 'ocx config update' for a managed config that was never synced (or set OCX_NO_CONFIG=1 to skip the managed tier), fix the TOML at the printed path, add a refused registry host to trusted_hosts, or narrow GROUPS"
+    )
   elseif(code EQUAL 79)
-    set(hint "not found - the name or tag is not in the registry or index, a required patch companion is missing (run 'ocx patch sync'), or an explicit OCX_CONFIG / config file does not exist; under OCX_OFFLINE the package may simply not be installed yet")
+    set(
+      hint
+      "not found - check the name and tag, fix the CONFIG path, run 'ocx patch sync' when a required patch companion is missing, or fill the store online first under OCX_OFFLINE"
+    )
   elseif(code EQUAL 80)
-    set(hint "authentication required - run 'ocx login <registry>' or export OCX_AUTH_<REGISTRY>_* and reconfigure")
+    set(
+      hint
+      "authentication required - export OCX_AUTH_<REGISTRY>_TYPE, _USER and _TOKEN or run 'ocx login <registry>', then reconfigure"
+    )
   elseif(code EQUAL 81)
-    set(hint "blocked by policy - OCX_OFFLINE, OCX_FROZEN or a frozen index refused to resolve this reference: pin it by digest, populate the index snapshot ('ocx index update'), or lift the setting")
+    set(
+      hint
+      "blocked by policy - OCX_FROZEN or OCX_OFFLINE refused an unpinned tag or a download: add the tag to the snapshot with ocx_index(UPDATE_COMMAND), pin a digest, or drop the flag; a nested configure passes -DOCX_FROZEN= -DOCX_INDEX="
+    )
   elseif(code EQUAL 83)
-    set(hint "the transparency log is unreachable, so the signature could not be verified: retry later, or accept unverified content with ocx_policy(ALLOW_UNVERIFIED)")
+    set(
+      hint
+      "the Rekor transparency log was unreachable while a required signature was verified: rerun later and check access to the log; ocx_policy(ALLOW_UNVERIFIED) accepts unverified content, which weakens the build"
+    )
   elseif(code EQUAL 84)
-    set(hint "the registry does not support the OCI Referrers API, so signatures cannot be discovered: use a registry that does, or opt out with ocx_policy(ALLOW_UNVERIFIED)")
+    set(
+      hint
+      "the registry has no OCI referrers API, so signatures and attestations cannot be attached or copied (only publishing commands raise this): use a registry or mirror that implements referrers; a rerun never helps"
+    )
   elseif(code EQUAL 85)
-    set(hint "the trust policy names a signing-key backend this ocx recognizes but does not implement: point it at a file key or a supported backend")
+    set(
+      hint
+      "the trust policy names a key backend such as awskms:// that ocx recognizes but has not implemented: point the trust configuration at a file key; a rerun never helps"
+    )
   elseif(code EQUAL 86)
-    set(hint "the forge lacks a capability this transport needs - an administrator of the index project must enable it")
+    set(
+      hint
+      "a forge lacks a capability the transport needs (only publishing commands raise this): ask an administrator of the index project to enable it"
+    )
   elseif(code EQUAL 87)
-    set(hint "the registry does not delete tags - a rerun never helps; use a registry that supports tag deletion")
+    set(
+      hint
+      "the registry does not delete tags (only 'ocx package prune' raises this): use a registry that supports tag deletion; a rerun never helps"
+    )
   endif()
   set(${out_var} "${hint}" PARENT_SCOPE)
 endfunction()
@@ -858,10 +970,11 @@ function(__ocx_run)
     if(NOT rc EQUAL 75 OR attempt EQUAL attempts)
       break()
     endif()
-    message(STATUS
-      "find_ocx: ${arg_WHAT}: transient failure (exit 75), retry ${attempt}/${arg_RETRIES}")
-    execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep ${attempt}
-      COMMAND_ERROR_IS_FATAL ANY)
+    message(
+      STATUS
+      "find_ocx: ${arg_WHAT}: transient failure (exit 75), retry ${attempt}/${arg_RETRIES}"
+    )
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep ${attempt} COMMAND_ERROR_IS_FATAL ANY)
   endforeach()
   set(hint "")
   foreach(entry IN LISTS arg_HINTS)
@@ -878,8 +991,25 @@ function(__ocx_run)
   endif()
   __ocx_error_message(reason "${stderr}")
   list(JOIN arg_COMMAND " " pretty)
-  message(FATAL_ERROR
-    "find_ocx: ${arg_WHAT} failed (exit ${rc}): ocx ${pretty}\n${reason}${hint}")
+  message(FATAL_ERROR "find_ocx: ${arg_WHAT} failed (exit ${rc}): ocx ${pretty}\n${reason}${hint}")
+endfunction()
+
+# TLS_CAINFO arguments for a file(DOWNLOAD) when OCX_INSTALL_CA_BUNDLE names a
+# CA bundle; empty otherwise. A path that is not a file fails here, not as an
+# opaque TLS error from the download.
+function(__ocx_tls_cainfo out_var)
+  set(${out_var} "" PARENT_SCOPE)
+  if("${OCX_INSTALL_CA_BUNDLE}" STREQUAL "")
+    return()
+  endif()
+  if(NOT EXISTS "${OCX_INSTALL_CA_BUNDLE}" OR IS_DIRECTORY "${OCX_INSTALL_CA_BUNDLE}")
+    message(
+      FATAL_ERROR
+      "find_ocx: OCX_INSTALL_CA_BUNDLE='${OCX_INSTALL_CA_BUNDLE}' is not a readable file\n"
+      "hint: point it at a PEM bundle, or clear it with -DOCX_INSTALL_CA_BUNDLE="
+    )
+  endif()
+  set(${out_var} TLS_CAINFO "${OCX_INSTALL_CA_BUNDLE}" PARENT_SCOPE)
 endfunction()
 
 # Host detection -> cargo-dist release triple, ocx platform key, exe suffix.
@@ -915,7 +1045,16 @@ endfunction()
 
 # Finds the manifest row for an exact version and target triple.
 # The manifest is the setup.ocx.sh dist.json (schema 1, flat rows).
-function(__ocx_select_release manifest version target out_url out_sha out_tag out_filename)
+function(
+  __ocx_select_release
+  manifest
+  version
+  target
+  out_url
+  out_sha
+  out_tag
+  out_filename
+)
   string(JSON schema ERROR_VARIABLE err GET "${manifest}" schema)
   if(err OR NOT schema EQUAL 1)
     message(FATAL_ERROR "find_ocx: unsupported dist.json schema '${schema}' ${err}")
@@ -943,10 +1082,12 @@ function(__ocx_select_release manifest version target out_url out_sha out_tag ou
       return()
     endforeach()
   endif()
-  message(FATAL_ERROR
+  message(
+    FATAL_ERROR
     "find_ocx: ocx ${version} for ${target} not found in the dist manifest - "
     "refresh the vendored snapshot (task dist:update) or point "
-    "OCX_INSTALL_DIST_URL at a manifest that contains it")
+    "OCX_INSTALL_DIST_URL at a manifest that contains it"
+  )
 endfunction()
 
 # Version of the ocx CLI at OCX_EXECUTABLE ('ocx version' prints a bare
@@ -970,13 +1111,11 @@ function(__ocx_cli_version out_var)
   )
   if(NOT rc EQUAL 0)
     __ocx_error_message(reason "${err}")
-    message(FATAL_ERROR
-      "find_ocx: '${OCX_EXECUTABLE} version' failed (exit ${rc})\n${reason}")
+    message(FATAL_ERROR "find_ocx: '${OCX_EXECUTABLE} version' failed (exit ${rc})\n${reason}")
   endif()
   string(STRIP "${out}" out)
   if(NOT out MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+")
-    message(FATAL_ERROR
-      "find_ocx: unexpected 'ocx version' output '${out}' from ${OCX_EXECUTABLE}")
+    message(FATAL_ERROR "find_ocx: unexpected 'ocx version' output '${out}' from ${OCX_EXECUTABLE}")
   endif()
   set_property(GLOBAL PROPERTY __OCX_CLI_VERSION "${out}")
   set_property(GLOBAL PROPERTY __OCX_CLI_VERSION_PATH "${OCX_EXECUTABLE}")
@@ -992,14 +1131,18 @@ function(__ocx_require_cli)
       find_program(OCX_EXECUTABLE NAMES ocx DOC "Path to the ocx CLI")
     endif()
     if(OCX_EXECUTABLE AND EXISTS "${OCX_EXECUTABLE}")
-      message(STATUS
+      message(
+        STATUS
         "find_ocx: using ocx from PATH (${OCX_EXECUTABLE}) - "
-        "OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead")
+        "OCX_BOOTSTRAP=ALWAYS forces the pinned bootstrap instead"
+      )
     elseif(DEFINED OCX_BOOTSTRAP AND NOT OCX_BOOTSTRAP)
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: no ocx on PATH, OCX_EXECUTABLE is not set, and implicit "
         "bootstrap is disabled (OCX_BOOTSTRAP=OFF)\n"
-        "hint: install ocx on PATH or set OCX_EXECUTABLE to an ocx binary")
+        "hint: install ocx on PATH or set OCX_EXECUTABLE to an ocx binary"
+      )
     else()
       ocx_bootstrap()
     endif()
@@ -1112,17 +1255,20 @@ endfunction()
   posture after ocx has already run, is a fatal error.
 #]=]
 function(ocx_policy)
-  cmake_parse_arguments(PARSE_ARGV 0 arg
-    "ALLOW_UNVERIFIED;ALLOW_YANKED" "SIGSTORE_TRUSTED_ROOT" "")
+  cmake_parse_arguments(PARSE_ARGV 0 arg "ALLOW_UNVERIFIED;ALLOW_YANKED" "SIGSTORE_TRUSTED_ROOT" "")
   if(arg_UNPARSED_ARGUMENTS OR arg_KEYWORDS_MISSING_VALUES)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_policy: bad arguments "
-      "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'")
+      "'${arg_UNPARSED_ARGUMENTS}${arg_KEYWORDS_MISSING_VALUES}'"
+    )
   endif()
   if(arg_SIGSTORE_TRUSTED_ROOT AND NOT IS_ABSOLUTE "${arg_SIGSTORE_TRUSTED_ROOT}")
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_policy: SIGSTORE_TRUSTED_ROOT must be an absolute path, "
-      "got '${arg_SIGSTORE_TRUSTED_ROOT}'")
+      "got '${arg_SIGSTORE_TRUSTED_ROOT}'"
+    )
   endif()
   set(unverified 0)
   set(yanked 0)
@@ -1138,18 +1284,22 @@ function(ocx_policy)
   if(known)
     get_property(current GLOBAL PROPERTY __OCX_POLICY_SIGNATURE)
     if(NOT signature STREQUAL current)
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: ocx_policy: conflicting second call - the policy is "
         "'${signature}' but an earlier call set '${current}' "
-        "(allow_unverified|allow_yanked|sigstore_trusted_root)")
+        "(allow_unverified|allow_yanked|sigstore_trusted_root)"
+      )
     endif()
     return()
   endif()
   get_property(frozen GLOBAL PROPERTY __OCX_POLICY_FROZEN)
   if(frozen AND NOT signature STREQUAL "0|0|")
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_policy must be called before the first ocx_project or "
-      "ocx_package - ocx has already run without it")
+      "ocx_package - ocx has already run without it"
+    )
   endif()
   set_property(GLOBAL PROPERTY __OCX_POLICY_SIGNATURE "${signature}")
   set_property(GLOBAL PROPERTY __OCX_POLICY_UNVERIFIED "${unverified}")
@@ -1188,9 +1338,9 @@ endfunction()
 
   No-op when ``OCX_EXECUTABLE`` already points at a binary of the requested
   version. The release row (URL + sha256) comes from the dist.json snapshot
-  embedded in this file. ``DIST_MANIFEST`` names a local dist.json file to
-  use instead, and ``OCX_INSTALL_DIST_URL`` fetches a mirrored manifest
-  instead of both. ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact download
+  embedded in this file. ``OCX_INSTALL_DIST_URL`` fetches a mirrored
+  manifest instead, and ``DIST_MANIFEST`` names a local dist.json file that
+  wins over both. ``OCX_INSTALL_MIRROR_URL`` rewrites the artifact download
   to ``<mirror>/<tag>/<filename>``. The archive is verified against the
   sha256 of its manifest row before extraction, whichever manifest or URL
   served it, and the extracted binary must report the requested version.
@@ -1204,12 +1354,10 @@ endfunction()
 function(ocx_bootstrap)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "VERSION;TRIPLE;DIST_MANIFEST" "")
   if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR
-      "find_ocx: ocx_bootstrap: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
+    message(FATAL_ERROR "find_ocx: ocx_bootstrap: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
   endif()
   if(arg_KEYWORDS_MISSING_VALUES)
-    message(FATAL_ERROR
-      "find_ocx: ocx_bootstrap: missing value for ${arg_KEYWORDS_MISSING_VALUES}")
+    message(FATAL_ERROR "find_ocx: ocx_bootstrap: missing value for ${arg_KEYWORDS_MISSING_VALUES}")
   endif()
 
   set(version "${__OCX_PIN_VERSION}")
@@ -1225,8 +1373,7 @@ function(ocx_bootstrap)
     if(have VERSION_EQUAL version)
       return()
     endif()
-    message(STATUS
-      "find_ocx: OCX_EXECUTABLE is ocx ${have}, want ${version} - bootstrapping")
+    message(STATUS "find_ocx: OCX_EXECUTABLE is ocx ${have}, want ${version} - bootstrapping")
     set_property(GLOBAL PROPERTY __OCX_CLI_VERSION "")
   endif()
 
@@ -1256,7 +1403,26 @@ function(ocx_bootstrap)
   set(fresh FALSE)
   if(NOT EXISTS "${binary}")
     set(fresh TRUE)
-    if(DEFINED OCX_INSTALL_DIST_URL AND NOT "${OCX_INSTALL_DIST_URL}" STREQUAL "")
+    __ocx_tls_cainfo(ca_args)
+    if(arg_DIST_MANIFEST)
+      cmake_path(
+        ABSOLUTE_PATH arg_DIST_MANIFEST
+        BASE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+        NORMALIZE
+        OUTPUT_VARIABLE dist_manifest
+      )
+      if(NOT EXISTS "${dist_manifest}")
+        message(
+          FATAL_ERROR
+          "find_ocx: ocx_bootstrap: DIST_MANIFEST '${arg_DIST_MANIFEST}' does not exist "
+          "(looked for ${dist_manifest})"
+        )
+      endif()
+      if(NOT CMAKE_SCRIPT_MODE_FILE)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${dist_manifest}")
+      endif()
+      file(READ "${dist_manifest}" manifest)
+    elseif(DEFINED OCX_INSTALL_DIST_URL AND NOT "${OCX_INSTALL_DIST_URL}" STREQUAL "")
       set(dist_file "${CMAKE_BINARY_DIR}/_ocx/dist.json")
       # A <sha256>.json name is the manifest's own digest: enforce it.
       # Any other name is fetched unverified (documented trust boundary).
@@ -1265,34 +1431,28 @@ function(ocx_bootstrap)
       if(NOT manifest_sha STREQUAL "")
         set(manifest_hash EXPECTED_HASH "SHA256=${manifest_sha}")
       endif()
-      file(DOWNLOAD "${OCX_INSTALL_DIST_URL}" "${dist_file}"
+      file(
+        DOWNLOAD "${OCX_INSTALL_DIST_URL}"
+        "${dist_file}"
         ${manifest_hash}
+        ${ca_args}
         TLS_VERIFY ON
         TIMEOUT 120
         INACTIVITY_TIMEOUT 30
-        STATUS status)
+        STATUS status
+      )
       list(GET status 0 status_code)
       if(NOT status_code EQUAL 0)
         list(GET status 1 status_msg)
-        message(FATAL_ERROR
+        message(
+          FATAL_ERROR
           "find_ocx: failed to fetch the dist manifest from "
           "OCX_INSTALL_DIST_URL='${OCX_INSTALL_DIST_URL}': ${status_msg}\n"
           "hint: the mirror must allow anonymous read; a manifest named "
-          "<sha256>.json must match that digest")
+          "<sha256>.json must match that digest"
+        )
       endif()
       file(READ "${dist_file}" manifest)
-    elseif(arg_DIST_MANIFEST)
-      cmake_path(ABSOLUTE_PATH arg_DIST_MANIFEST BASE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
-        NORMALIZE OUTPUT_VARIABLE dist_manifest)
-      if(NOT EXISTS "${dist_manifest}")
-        message(FATAL_ERROR
-          "find_ocx: ocx_bootstrap: DIST_MANIFEST '${arg_DIST_MANIFEST}' does not exist "
-          "(looked for ${dist_manifest})")
-      endif()
-      if(NOT CMAKE_SCRIPT_MODE_FILE)
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${dist_manifest}")
-      endif()
-      file(READ "${dist_manifest}" manifest)
     else()
       set(manifest "${__OCX_DIST_JSON}")
     endif()
@@ -1303,9 +1463,11 @@ function(ocx_bootstrap)
     # archive): a custom manifest must not walk out of either directory.
     foreach(field IN ITEMS tag filename)
       if(NOT "${${field}}" MATCHES "^[A-Za-z0-9._+-]+$" OR "${${field}}" MATCHES "^\\.\\.?$")
-        message(FATAL_ERROR
+        message(
+          FATAL_ERROR
           "find_ocx: dist manifest row for ocx ${version} (${triple}) has an unusable "
-          "${field} '${${field}}' - not a single path segment")
+          "${field} '${${field}}' - not a single path segment"
+        )
       endif()
     endforeach()
 
@@ -1317,23 +1479,31 @@ function(ocx_bootstrap)
     set(scratch "${CMAKE_BINARY_DIR}/_ocx")
     set(archive "${scratch}/${filename}")
     message(STATUS "find_ocx: downloading ocx ${version} (${triple}) from ${url}")
-    message(STATUS
+    message(
+      STATUS
       "find_ocx:   version knob: OCX_INSTALL_VERSION (pin: "
       "${__OCX_PIN_VERSION}); cache: ${cache_root}; opt out: "
-      "OCX_BOOTSTRAP=OFF + OCX_EXECUTABLE")
-    file(DOWNLOAD "${url}" "${archive}"
+      "OCX_BOOTSTRAP=OFF + OCX_EXECUTABLE"
+    )
+    file(
+      DOWNLOAD "${url}"
+      "${archive}"
       EXPECTED_HASH SHA256=${sha}
+      ${ca_args}
       TLS_VERIFY ON
       TIMEOUT 900
       INACTIVITY_TIMEOUT 60
-      STATUS status)
+      STATUS status
+    )
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: download of ${url} failed: ${status_msg}\n"
         "hint: corporate networks - set OCX_INSTALL_MIRROR_URL (artifacts) "
-        "and/or OCX_INSTALL_DIST_URL (manifest); mirrors must allow anonymous read")
+        "and/or OCX_INSTALL_DIST_URL (manifest); mirrors must allow anonymous read"
+      )
     endif()
     set(extract_dir "${scratch}/extract-${version}-${triple}")
     file(REMOVE_RECURSE "${extract_dir}")
@@ -1347,8 +1517,10 @@ function(ocx_bootstrap)
     elseif(EXISTS "${flat}")
       set(source "${flat}")
     else()
-      message(FATAL_ERROR
-        "find_ocx: 'ocx${exe_ext}' not found in the extracted archive from ${url}")
+      message(
+        FATAL_ERROR
+        "find_ocx: 'ocx${exe_ext}' not found in the extracted archive from ${url}"
+      )
     endif()
     file(COPY "${source}" DESTINATION "${cache_root}/${version}/${triple}")
     file(REMOVE_RECURSE "${extract_dir}")
@@ -1365,9 +1537,11 @@ function(ocx_bootstrap)
     __ocx_cli_version(reported)
     if(NOT reported VERSION_EQUAL version)
       file(REMOVE "${binary}")
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: the bootstrapped ocx reports version ${reported}, expected ${version} "
-        "(removed ${binary}) - check OCX_INSTALL_DIST_URL / DIST_MANIFEST")
+        "(removed ${binary}) - check OCX_INSTALL_DIST_URL / DIST_MANIFEST"
+      )
     endif()
   endif()
   message(STATUS "find_ocx: using bootstrapped ocx ${reported} (${binary})")
@@ -1376,6 +1550,15 @@ endfunction()
 # ---------------------------------------------------------------------------
 # Command helpers (shared by ocx_project and ocx_package)
 # ---------------------------------------------------------------------------
+
+# An empty argument (`INDEX "${unset_var}"`) is an error, not a missing
+# optional: cmake_parse_arguments under policy 3.19 drops it silently. Pass
+# the caller's ARGC and "${ARGV}".
+function(__ocx_reject_empty_args caller argc argv)
+  if(argc GREATER 0 AND ";${argv};" MATCHES ";;")
+    message(FATAL_ERROR "find_ocx: ${caller}: empty argument in '${argv}' - is a variable unset?")
+  endif()
+endfunction()
 
 # Claims NAME for one command. A repeat call with the identical command and
 # arguments (CMake includes a toolchain file twice) sets <out_var> TRUE and
@@ -1405,10 +1588,12 @@ function(__ocx_single_platform out_var caller keyword_value)
   endif()
   list(LENGTH platform count)
   if(count GREATER 1)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ${caller}: ${source} takes a single ocx platform, got "
       "'${platform}'\n"
-      "hint: call ${caller} once per platform, each under its own NAME")
+      "hint: call ${caller} once per platform, each under its own NAME"
+    )
   endif()
   set(${out_var} "${platform}" PARENT_SCOPE)
 endfunction()
@@ -1418,7 +1603,14 @@ endfunction()
 # resolve against the calling directory; existing files retrigger the configure.
 # Only given keywords reach __ocx_translucent_env: a keyword overrides its env
 # var, an absent one leaves the environment alone.
-function(__ocx_config_env out_env out_fingerprint config no_config patch_snapshot)
+function(
+  __ocx_config_env
+  out_env
+  out_fingerprint
+  config
+  no_config
+  patch_snapshot
+)
   set(fingerprint "")
   set(translucent_args "")
   foreach(keyword IN ITEMS CONFIG PATCH_SNAPSHOT)
@@ -1480,7 +1672,14 @@ function(__ocx_closure_names json out_names out_complete)
   if(count GREATER 0)
     math(EXPR last "${count} - 1")
     foreach(i RANGE 0 ${last})
-      set(surface packages ${i} closure surface interface)
+      set(
+        surface
+        packages
+        ${i}
+        closure
+        surface
+        interface
+      )
       string(JSON flag ERROR_VARIABLE err GET "${json}" ${surface} binaries_complete)
       if(err OR NOT flag)
         set(complete FALSE)
@@ -1510,7 +1709,13 @@ endfunction()
 # OCX_OFFLINE, exit 79 (package not in the local store) skips the check.
 function(__ocx_validate_bins)
   # gersemi: hints { COMMAND: command_line, WIDER_COMMAND: command_line }
-  cmake_parse_arguments(PARSE_ARGV 0 arg "" "WHAT;WIDER_HINT" "BINS;COMMAND;WIDER_COMMAND;ENV;HINTS")
+  cmake_parse_arguments(
+    PARSE_ARGV 0
+    arg
+    ""
+    "WHAT;WIDER_HINT"
+    "BINS;COMMAND;WIDER_COMMAND;ENV;HINTS"
+  )
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "find_ocx: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
@@ -1520,9 +1725,11 @@ function(__ocx_validate_bins)
   if(OCX_OFFLINE)
     __ocx_probe(rc json ENV ${arg_ENV} COMMAND ${arg_COMMAND})
     if(rc EQUAL 79)
-      message(STATUS
+      message(
+        STATUS
         "find_ocx: ${arg_WHAT}: BINS not validated (OCX_OFFLINE and the "
-        "package is not in the local store)")
+        "package is not in the local store)"
+      )
       return()
     endif()
     if(rc EQUAL 0)
@@ -1551,9 +1758,11 @@ function(__ocx_validate_bins)
     return()
   endif()
   if(NOT complete)
-    message(STATUS
+    message(
+      STATUS
       "find_ocx: ${arg_WHAT}: BINS ${missing} not validated (the package "
-      "does not declare all of its binaries)")
+      "does not declare all of its binaries)"
+    )
     return()
   endif()
 
@@ -1568,18 +1777,22 @@ function(__ocx_validate_bins)
         endif()
       endforeach()
       if(elsewhere)
-        message(FATAL_ERROR
+        message(
+          FATAL_ERROR
           "find_ocx: ${arg_WHAT}: BINS ${elsewhere}: declared only in a "
-          "group that was not requested\n${arg_WIDER_HINT}")
+          "group that was not requested\n${arg_WIDER_HINT}"
+        )
       endif()
     endif()
   endif()
   list(JOIN missing ", " missing_text)
   list(JOIN declared ", " declared_text)
-  message(FATAL_ERROR
+  message(
+    FATAL_ERROR
     "find_ocx: ${arg_WHAT}: BINS ${missing_text}: not a declared binary or "
     "entrypoint\ndeclared: ${declared_text}\n"
-    "hint: BINS names are executable names, check the spelling")
+    "hint: BINS names are executable names, check the spelling"
+  )
 endfunction()
 
 # ---------------------------------------------------------------------------
@@ -1616,10 +1829,12 @@ function(__ocx_default_toml out_var)
     endif()
     set(dir "${parent}")
   endwhile()
-  message(FATAL_ERROR
+  message(
+    FATAL_ERROR
     "find_ocx: no ocx.toml found searching upward from "
     "${CMAKE_CURRENT_SOURCE_DIR} - pass TOML <path>, set OCX_PROJECT_FILE, "
-    "or create an ocx.toml")
+    "or create an ocx.toml"
+  )
 endfunction()
 
 #[=[.rst:
@@ -1683,16 +1898,23 @@ endfunction()
   with different arguments is an error.
 #]=]
 function(ocx_project)
-  cmake_parse_arguments(PARSE_ARGV 0 arg
+  __ocx_reject_empty_args("ocx_project" ${ARGC} "${ARGV}")
+  cmake_parse_arguments(
+    PARSE_ARGV 0
+    arg
     "PULL;NO_CONFIG"
     "NAME;TOML;LOCK;PLATFORM;CONFIG;PATCH_SNAPSHOT"
-    "GROUPS;BINS")
+    "GROUPS;BINS"
+  )
   if(arg_UNPARSED_ARGUMENTS)
     set(hint "")
     if(arg_PLATFORM)
       set(hint " (PLATFORM takes a single ocx platform)")
     endif()
-    message(FATAL_ERROR "find_ocx: ocx_project: unknown arguments '${arg_UNPARSED_ARGUMENTS}'${hint}")
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_project: unknown arguments '${arg_UNPARSED_ARGUMENTS}'${hint}"
+    )
   endif()
   if(arg_KEYWORDS_MISSING_VALUES)
     message(FATAL_ERROR "find_ocx: ocx_project: ${arg_KEYWORDS_MISSING_VALUES} need a value")
@@ -1703,10 +1925,21 @@ function(ocx_project)
   endif()
   string(TOUPPER "${arg_NAME}" name)
   string(MAKE_C_IDENTIFIER "${name}" name)
-  string(JOIN "|" signature
-    "${CMAKE_CURRENT_SOURCE_DIR}" "${arg_NAME}" "${arg_TOML}" "${arg_LOCK}"
-    "${arg_GROUPS}" "${arg_BINS}" "${arg_PLATFORM}" "${arg_PULL}"
-    "${arg_CONFIG}" "${arg_NO_CONFIG}" "${arg_PATCH_SNAPSHOT}")
+  string(
+    JOIN "|"
+    signature
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${arg_NAME}"
+    "${arg_TOML}"
+    "${arg_LOCK}"
+    "${arg_GROUPS}"
+    "${arg_BINS}"
+    "${arg_PLATFORM}"
+    "${arg_PULL}"
+    "${arg_CONFIG}"
+    "${arg_NO_CONFIG}"
+    "${arg_PATCH_SNAPSHOT}"
+  )
   __ocx_claim(repeated "${name}" "ocx_project" "${signature}")
   if(repeated)
     message(VERBOSE "find_ocx: ${name}: identical ocx_project call, nothing to do")
@@ -1732,14 +1965,16 @@ function(ocx_project)
 
   __ocx_single_platform(platform "ocx_project" "${arg_PLATFORM}")
   if(platform AND arg_BINS)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_project: PLATFORM is incompatible with BINS - foreign "
-      "binaries cannot execute on this host")
+      "binaries cannot execute on this host"
+    )
   endif()
 
   set(pull ${arg_PULL})
   if(OCX_PULL OR platform)
-    set(pull TRUE)  # foreign platforms: the pulled content IS the product
+    set(pull TRUE) # foreign platforms: the pulled content IS the product
   endif()
 
   __ocx_require_cli()
@@ -1753,8 +1988,13 @@ function(ocx_project)
     endif()
   endif()
 
-  __ocx_config_env(config_env config_fingerprint
-    "${arg_CONFIG}" "${arg_NO_CONFIG}" "${arg_PATCH_SNAPSHOT}")
+  __ocx_config_env(
+    config_env
+    config_fingerprint
+    "${arg_CONFIG}"
+    "${arg_NO_CONFIG}"
+    "${arg_PATCH_SNAPSHOT}"
+  )
 
   __ocx_cli_version(cli_version)
   file(SHA256 "${toml}" toml_sha)
@@ -1763,8 +2003,10 @@ function(ocx_project)
     file(SHA256 "${lock}" lock_sha)
   endif()
   __ocx_env_prefix(prefix ${config_env})
-  string(SHA256 fingerprint
-    "project|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${toml}|${toml_sha}|${lock_sha}|${arg_GROUPS}|${arg_BINS}|${platform}|${pull}|${prefix}|${config_fingerprint}")
+  string(
+    SHA256 fingerprint
+    "project|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${toml}|${toml_sha}|${lock_sha}|${arg_GROUPS}|${arg_BINS}|${platform}|${pull}|${prefix}|${config_fingerprint}"
+  )
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
   if(hit)
     message(STATUS "find_ocx: ${name} up to date (memoized)")
@@ -1797,7 +2039,8 @@ function(ocx_project)
       ENV ${config_env}
       COMMAND --project "${toml}" pull --lazy-mode never ${platform_args} ${groups_args}
       RETRIES 2
-      HINTS "78=a tool in scope ships no '${platform}' leaf in ocx.lock - narrow GROUPS or drop the platform"
+      HINTS
+        "78=a tool in scope ships no '${platform}' leaf in ocx.lock - narrow GROUPS or drop the platform"
     )
   endif()
 
@@ -1809,14 +2052,37 @@ function(ocx_project)
     __ocx_run(
       WHAT "composing the ${platform} environment of ${toml}"
       ENV ${config_env}
-      COMMAND --format json --project "${toml}" env --pinned --lazy-mode never ${platform_args} ${groups_args}
+      COMMAND
+        --format
+        json
+        --project
+        "${toml}"
+        env
+        --pinned
+        --lazy-mode
+        never
+        ${platform_args}
+        ${groups_args}
       OUTPUT_VARIABLE env_json
-      HINTS "78=a tool in scope ships no '${platform}' leaf in ocx.lock - narrow GROUPS or drop the platform"
+      HINTS
+        "78=a tool in scope ships no '${platform}' leaf in ocx.lock - narrow GROUPS or drop the platform"
     )
     __ocx_export_env("${name}" "${env_json}")
     set(guard_paths "${OCX_${name}_PATHS}")
   else()
-    set(run ${prefix} "${OCX_EXECUTABLE}" --project "${toml}" exec ${groups_args} --lazy-mode never --pinned --)
+    set(
+      run
+      ${prefix}
+      "${OCX_EXECUTABLE}"
+      --project
+      "${toml}"
+      exec
+      ${groups_args}
+      --lazy-mode
+      never
+      --pinned
+      --
+    )
     __ocx_set_result(OCX_${name}_RUN "${run}")
     foreach(bin IN LISTS arg_BINS)
       string(TOUPPER "${bin}" bin_id)
@@ -1828,7 +2094,17 @@ function(ocx_project)
   if(arg_BINS)
     set(wider_command "")
     if(NOT "${groups_csv}" MATCHES "(^|,)all(,|$)")
-      set(wider_command --format json --project "${toml}" inspect --closure -g all)
+      set(
+        wider_command
+        --format
+        json
+        --project
+        "${toml}"
+        inspect
+        --closure
+        -g
+        all
+      )
     endif()
     __ocx_validate_bins(
       WHAT "ocx_project ${name} (${toml})"
@@ -1836,7 +2112,8 @@ function(ocx_project)
       BINS ${arg_BINS}
       COMMAND --format json --project "${toml}" inspect --closure ${groups_args}
       WIDER_COMMAND ${wider_command}
-      WIDER_HINT "hint: add the group to GROUPS (the [tools] table is the group 'default'), e.g. GROUPS default <group>"
+      WIDER_HINT
+        "hint: add the group to GROUPS (the [tools] table is the group 'default'), e.g. GROUPS default <group>"
     )
   endif()
 
@@ -1973,16 +2250,23 @@ endfunction()
   with different arguments is an error.
 #]=]
 function(ocx_package)
-  cmake_parse_arguments(PARSE_ARGV 0 arg
+  __ocx_reject_empty_args("ocx_package" ${ARGC} "${ARGV}")
+  cmake_parse_arguments(
+    PARSE_ARGV 0
+    arg
     "PULL;NO_ROOT;NO_INDEX;NO_CONFIG"
     "NAME;PACKAGE;INDEX;PLATFORM;CONFIG;PATCH_SNAPSHOT"
-    "PINS;BINS")
+    "PINS;BINS"
+  )
   if(arg_UNPARSED_ARGUMENTS)
     set(hint "")
     if(arg_PLATFORM)
       set(hint " (PLATFORM takes a single ocx platform)")
     endif()
-    message(FATAL_ERROR "find_ocx: ocx_package: unknown arguments '${arg_UNPARSED_ARGUMENTS}'${hint}")
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_package: unknown arguments '${arg_UNPARSED_ARGUMENTS}'${hint}"
+    )
   endif()
   if(arg_KEYWORDS_MISSING_VALUES)
     message(FATAL_ERROR "find_ocx: ocx_package: ${arg_KEYWORDS_MISSING_VALUES} need a value")
@@ -1992,11 +2276,23 @@ function(ocx_package)
   endif()
   string(TOUPPER "${arg_NAME}" name)
   string(MAKE_C_IDENTIFIER "${name}" name)
-  string(JOIN "|" signature
-    "${CMAKE_CURRENT_SOURCE_DIR}" "${arg_NAME}" "${arg_PACKAGE}" "${arg_PINS}"
-    "${arg_INDEX}" "${arg_NO_INDEX}" "${arg_BINS}" "${arg_PLATFORM}"
-    "${arg_PULL}" "${arg_NO_ROOT}" "${arg_CONFIG}" "${arg_NO_CONFIG}"
-    "${arg_PATCH_SNAPSHOT}")
+  string(
+    JOIN "|"
+    signature
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${arg_NAME}"
+    "${arg_PACKAGE}"
+    "${arg_PINS}"
+    "${arg_INDEX}"
+    "${arg_NO_INDEX}"
+    "${arg_BINS}"
+    "${arg_PLATFORM}"
+    "${arg_PULL}"
+    "${arg_NO_ROOT}"
+    "${arg_CONFIG}"
+    "${arg_NO_CONFIG}"
+    "${arg_PATCH_SNAPSHOT}"
+  )
   __ocx_claim(repeated "${name}" "ocx_package" "${signature}")
   if(repeated)
     message(VERBOSE "find_ocx: ${name}: identical ocx_package call, nothing to do")
@@ -2004,14 +2300,18 @@ function(ocx_package)
   endif()
 
   if(arg_INDEX AND arg_NO_INDEX)
-    message(FATAL_ERROR
-      "find_ocx: ocx_package ${arg_NAME}: INDEX and NO_INDEX are mutually exclusive")
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_package ${arg_NAME}: INDEX and NO_INDEX are mutually exclusive"
+    )
   endif()
   __ocx_single_platform(platform "ocx_package" "${arg_PLATFORM}")
   if(platform AND arg_BINS)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_package: PLATFORM is incompatible with BINS - foreign "
-      "binaries cannot execute on this host")
+      "binaries cannot execute on this host"
+    )
   endif()
 
   __ocx_require_cli()
@@ -2027,12 +2327,14 @@ function(ocx_package)
   set(ref "${arg_PACKAGE}")
   foreach(entry IN LISTS arg_PINS)
     if(NOT entry MATCHES "^([^=]+)=(sha256:[0-9a-f]+)$")
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: ocx_package ${arg_NAME}: PINS entry '${entry}' is not "
-        "'<platform>=sha256:<digest>'")
+        "'<platform>=sha256:<digest>'"
+      )
     endif()
     if(CMAKE_MATCH_1 STREQUAL "${pin_platform}")
-      set(digest "${CMAKE_MATCH_2}")  # the REPLACE below clobbers CMAKE_MATCH_*
+      set(digest "${CMAKE_MATCH_2}") # the REPLACE below clobbers CMAKE_MATCH_*
       string(REGEX REPLACE "@.*$" "" ref "${ref}")
       set(ref "${ref}@${digest}")
     endif()
@@ -2056,13 +2358,15 @@ function(ocx_package)
   # Reproducible-first: a floating tag with no index in effect and no
   # digest pin would resolve differently over time - fail instead.
   if(NOT index_dir AND NOT ref MATCHES "@sha256:" AND NOT OCX_ALLOW_FLOATING)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_package ${arg_NAME}: '${ref}' is floating and no "
       "index snapshot is in effect - resolution is not reproducible\n"
       "fix (pick one): commit a snapshot ('ocx --index .ocx index update "
       "${arg_PACKAGE}' next to your CMakeLists, or set OCX_INDEX); pin "
       "digests with PINS or @sha256:; or accept drift explicitly with "
-      "-DOCX_ALLOW_FLOATING=ON")
+      "-DOCX_ALLOW_FLOATING=ON"
+    )
   endif()
 
   set(index_args "")
@@ -2080,8 +2384,17 @@ function(ocx_package)
     # The flag string alone would memoize across snapshot refreshes: hash
     # the <repo>.json leaf into the fingerprint and retrigger on edits.
     # CLI >= 0.6 layout: <registry>/p/<repo path>.json
-    string(REGEX REPLACE "/.*$" "" index_registry "${index_repo}")
-    string(REGEX REPLACE "^[^/]*/" "" index_path "${index_repo}")
+    # REGEX REPLACE "^[^/]*/" would re-anchor per global match ('ocx.sh/jqlang/jq'
+    # -> 'jq'), so cut at the first '/' by position.
+    string(FIND "${index_repo}" "/" index_slash)
+    if(index_slash EQUAL -1)
+      set(index_registry "${index_repo}")
+      set(index_path "")
+    else()
+      string(SUBSTRING "${index_repo}" 0 ${index_slash} index_registry)
+      math(EXPR index_slash "${index_slash} + 1")
+      string(SUBSTRING "${index_repo}" ${index_slash} -1 index_path)
+    endif()
     set(index_leaf "${index_dir}/${index_registry}/p/${index_path}.json")
     if(EXISTS "${index_leaf}")
       file(SHA256 "${index_leaf}" index_leaf_sha)
@@ -2100,13 +2413,20 @@ function(ocx_package)
     set(pull TRUE)
   endif()
 
-  __ocx_config_env(config_env config_fingerprint
-    "${arg_CONFIG}" "${arg_NO_CONFIG}" "${arg_PATCH_SNAPSHOT}")
+  __ocx_config_env(
+    config_env
+    config_fingerprint
+    "${arg_CONFIG}"
+    "${arg_NO_CONFIG}"
+    "${arg_PATCH_SNAPSHOT}"
+  )
 
   __ocx_cli_version(cli_version)
   __ocx_env_prefix(prefix ${config_env})
-  string(SHA256 fingerprint
-    "package|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}")
+  string(
+    SHA256 fingerprint
+    "package|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}"
+  )
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
   if(hit)
     message(STATUS "find_ocx: ${name} up to date (memoized)")
@@ -2114,11 +2434,15 @@ function(ocx_package)
   endif()
 
   if(index_dir)
-    set(index_hint
-      "81=package not in the committed index snapshot - refresh it with 'ocx --index ${index_dir} index update ${index_ref}'")
+    set(
+      index_hint
+      "81=package not in the committed index snapshot - refresh it with 'ocx --index ${index_dir} index update ${index_ref}'"
+    )
   else()
-    set(index_hint
-      "81=frozen resolution refused the floating tag - is OCX_FROZEN set without a usable index?")
+    set(
+      index_hint
+      "81=frozen resolution refused the floating tag - is OCX_FROZEN set without a usable index?"
+    )
   endif()
 
   set(guard_paths "")
@@ -2135,9 +2459,11 @@ function(ocx_package)
       string(JSON member MEMBER "${install_json}" 0)
       string(JSON identifier GET "${install_json}" "${member}" identifier)
       if(identifier MATCHES "@(sha256:[0-9a-f]+)$")
-        message(STATUS
+        message(
+          STATUS
           "find_ocx: ${arg_NAME} resolved floating - pin it with PINS "
-          "\"${pin_platform}=${CMAKE_MATCH_1}\"")
+          "\"${pin_platform}=${CMAKE_MATCH_1}\""
+        )
       endif()
     endif()
     __ocx_run(
@@ -2153,7 +2479,7 @@ function(ocx_package)
     if(which_type STREQUAL "OBJECT")
       string(JSON store_root GET "${which_json}" "${member}" path)
     else()
-      string(JSON store_root GET "${which_json}" "${member}")  # CLI < 0.6: bare path
+      string(JSON store_root GET "${which_json}" "${member}") # CLI < 0.6: bare path
     endif()
     set(content "${store_root}/content")
     __ocx_set_result(OCX_${name}_CONTENT "${content}")
@@ -2162,15 +2488,22 @@ function(ocx_package)
       if(NOT "$CACHE{${arg_NAME}_ROOT}" STREQUAL "${content}")
         unset(${arg_NAME}_DIR CACHE)
       endif()
-      set(${arg_NAME}_ROOT "${content}" CACHE PATH
-        "find_ocx: content root of ${ref} (CMP0074 search hint)" FORCE)
+      set(
+        ${arg_NAME}_ROOT
+        "${content}"
+        CACHE PATH
+        "find_ocx: content root of ${ref} (CMP0074 search hint)"
+        FORCE
+      )
     endif()
   elseif(NOT ref MATCHES "@sha256:" AND NOT index_dir)
     # only reachable with OCX_ALLOW_FLOATING (the gate above fails otherwise)
-    message(WARNING
+    message(
+      WARNING
       "find_ocx: ocx_package ${arg_NAME}: '${ref}' is lazy AND floating - "
       "the tag resolves on first execution and can drift; add PINS, an "
-      "index snapshot, or an @sha256: digest (or PULL to resolve now)")
+      "index snapshot, or an @sha256: digest (or PULL to resolve now)"
+    )
   endif()
 
   if(platform)
@@ -2185,7 +2518,18 @@ function(ocx_package)
     __ocx_export_env("${name}" "${env_json}")
     list(APPEND guard_paths ${OCX_${name}_PATHS})
   else()
-    set(run ${prefix} "${OCX_EXECUTABLE}" ${index_args} package exec --lazy-mode never "${ref}" --)
+    set(
+      run
+      ${prefix}
+      "${OCX_EXECUTABLE}"
+      ${index_args}
+      package
+      exec
+      --lazy-mode
+      never
+      "${ref}"
+      --
+    )
     __ocx_set_result(OCX_${name}_RUN "${run}")
     foreach(bin IN LISTS arg_BINS)
       string(TOUPPER "${bin}" bin_id)
@@ -2211,39 +2555,32 @@ endfunction()
 # ocx_index
 # ---------------------------------------------------------------------------
 
-# An empty argument (`INDEX "${unset_var}"`) is an error, not a missing
-# optional: cmake_parse_arguments under policy 3.19 drops it silently. Pass
-# the caller's ARGC and "${ARGV}".
-function(__ocx_reject_empty_args caller argc argv)
-  if(argc GREATER 0 AND ";${argv};" MATCHES ";;")
-    message(FATAL_ERROR
-      "find_ocx: ${caller}: empty argument in '${argv}' - is a variable unset?")
-  endif()
-endfunction()
-
 # ocx_index(FIND [REQUIRED]): the discovery result lands in <out_var> ("" when
 # none); the facade relays it into OCX_INDEX.
 function(__ocx_index_find out_var)
   __ocx_reject_empty_args("ocx_index(FIND)" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 1 arg "REQUIRED" "" "")
   if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR
-      "find_ocx: ocx_index(FIND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+    message(FATAL_ERROR "find_ocx: ocx_index(FIND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
   set(${out_var} "" PARENT_SCOPE)
   if(CMAKE_SCRIPT_MODE_FILE)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_index(FIND) needs a project() search bound and "
-      "script mode has none - set OCX_INDEX instead")
+      "script mode has none - set OCX_INDEX instead"
+    )
   endif()
   __ocx_find_index(dir)
   if(NOT dir)
     if(arg_REQUIRED)
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: ocx_index(FIND REQUIRED): no .ocx index snapshot "
         "between ${CMAKE_CURRENT_SOURCE_DIR} and ${PROJECT_SOURCE_DIR}\n"
         "hint: create one with 'ocx --index .ocx index update "
-        "<package>...' and commit it")
+        "<package>...' and commit it"
+      )
     endif()
     return()
   endif()
@@ -2256,12 +2593,16 @@ function(__ocx_index_update_command out_var)
   __ocx_reject_empty_args("ocx_index(UPDATE_COMMAND)" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "INDEX" "PACKAGES")
   if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR
-      "find_ocx: ocx_index(UPDATE_COMMAND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_index(UPDATE_COMMAND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'"
+    )
   endif()
   if(arg_KEYWORDS_MISSING_VALUES)
-    message(FATAL_ERROR
-      "find_ocx: ocx_index(UPDATE_COMMAND): ${arg_KEYWORDS_MISSING_VALUES} need a value")
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_index(UPDATE_COMMAND): ${arg_KEYWORDS_MISSING_VALUES} need a value"
+    )
   endif()
 
   if(arg_INDEX)
@@ -2272,9 +2613,11 @@ function(__ocx_index_update_command out_var)
     __ocx_find_index(dir)
   endif()
   if(NOT dir)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_index(UPDATE_COMMAND): no index in effect - pass "
-      "INDEX <dir>, set OCX_INDEX, or commit a .ocx snapshot")
+      "INDEX <dir>, set OCX_INDEX, or commit a .ocx snapshot"
+    )
   endif()
 
   # repo:tag records that tag only, a bare repo every tag.
@@ -2294,9 +2637,11 @@ function(__ocx_index_update_command out_var)
     endforeach()
     list(REMOVE_DUPLICATES refs)
     if(NOT refs)
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: ocx_index(UPDATE_COMMAND): no ocx_package call is "
-        "frozen against '${dir}' - pass PACKAGES <ref>... explicitly")
+        "frozen against '${dir}' - pass PACKAGES <ref>... explicitly"
+      )
     endif()
   endif()
 
@@ -2306,9 +2651,17 @@ function(__ocx_index_update_command out_var)
   # OCX_FROZEN and unset an inherited one.
   list(FILTER prefix EXCLUDE REGEX "^(OCX_FROZEN=.*|--unset=OCX_FROZEN)$")
   list(APPEND prefix "--unset=OCX_FROZEN")
-  set(${out_var}
-    ${prefix} "${OCX_EXECUTABLE}" --index "${dir}" index update ${refs}
-    PARENT_SCOPE)
+  set(
+    ${out_var}
+    ${prefix}
+    "${OCX_EXECUTABLE}"
+    --index
+    "${dir}"
+    index
+    update
+    ${refs}
+    PARENT_SCOPE
+  )
 endfunction()
 
 #[=[.rst:
@@ -2394,15 +2747,16 @@ function(ocx_index op)
     endif()
   elseif(op STREQUAL "UPDATE_COMMAND")
     if(ARGC LESS 2)
-      message(FATAL_ERROR
-        "find_ocx: ocx_index(UPDATE_COMMAND) requires an <out-var>")
+      message(FATAL_ERROR "find_ocx: ocx_index(UPDATE_COMMAND) requires an <out-var>")
     endif()
     cmake_language(EVAL CODE "__ocx_index_update_command(refresh_command${quoted})")
     set(${ARGV1} "${refresh_command}" PARENT_SCOPE)
   else()
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_index: unknown operation '${op}' "
-      "(expected FIND or UPDATE_COMMAND)")
+      "(expected FIND or UPDATE_COMMAND)"
+    )
   endif()
 endfunction()
 
@@ -2430,13 +2784,17 @@ endfunction()
 function(ocx_self_update)
   cmake_parse_arguments(PARSE_ARGV 0 arg "" "" "")
   if(arg_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR
-      "find_ocx: ocx_self_update: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}")
+    message(
+      FATAL_ERROR
+      "find_ocx: ocx_self_update: unexpected arguments: ${arg_UNPARSED_ARGUMENTS}"
+    )
   endif()
   if(NOT CMAKE_SCRIPT_MODE_FILE)
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ocx_self_update rewrites the vendored files and runs in script "
-      "mode only\nhint: cmake [-DOCX_SELF_UPDATE_VERSION=vX.Y.Z] -P <dir>/ocx.cmake")
+      "mode only\nhint: cmake [-DOCX_SELF_UPDATE_VERSION=vX.Y.Z] -P <dir>/ocx.cmake"
+    )
   endif()
   get_property(module_file GLOBAL PROPERTY __OCX_MODULE_FILE)
   get_property(module_version GLOBAL PROPERTY __OCX_MODULE_VERSION)
@@ -2449,11 +2807,15 @@ function(ocx_self_update)
       set(tag "v${tag}")
     endif()
   elseif(DEFINED OCX_SELF_UPDATE_URL AND NOT "${OCX_SELF_UPDATE_URL}" STREQUAL "")
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: OCX_SELF_UPDATE_URL is set but OCX_SELF_UPDATE_VERSION is "
       "not - a mirror cannot serve the GitHub releases API, pass the tag "
-      "explicitly (-DOCX_SELF_UPDATE_VERSION=vX.Y.Z)")
+      "explicitly (-DOCX_SELF_UPDATE_VERSION=vX.Y.Z)"
+    )
   endif()
+
+  __ocx_tls_cainfo(ca_args)
 
   # Sibling temp dir: same filesystem, so the final file(RENAME) is atomic.
   set(tmp "${module_dir}/.ocx-self-update-tmp")
@@ -2461,21 +2823,26 @@ function(ocx_self_update)
 
   if(tag STREQUAL "")
     # The API only names the tag; SHA256SUMS below is what is trusted.
-    file(DOWNLOAD "https://api.github.com/repos/ocx-sh/find_ocx/releases/latest"
+    file(
+      DOWNLOAD "https://api.github.com/repos/ocx-sh/find_ocx/releases/latest"
       "${tmp}/latest.json"
+      ${ca_args}
       TLS_VERIFY ON
       TIMEOUT 60
       INACTIVITY_TIMEOUT 30
-      STATUS status)
+      STATUS status
+    )
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
       file(REMOVE_RECURSE "${tmp}")
-      message(FATAL_ERROR
+      message(
+        FATAL_ERROR
         "find_ocx: failed to discover the latest release from the GitHub "
         "API: ${status_msg}\n"
         "hint: pass -DOCX_SELF_UPDATE_VERSION=vX.Y.Z (plus "
-        "-DOCX_SELF_UPDATE_URL=<mirror> on restricted networks)")
+        "-DOCX_SELF_UPDATE_URL=<mirror> on restricted networks)"
+      )
     endif()
     file(READ "${tmp}/latest.json" api_json)
     string(JSON tag GET "${api_json}" tag_name)
@@ -2492,18 +2859,24 @@ function(ocx_self_update)
   endif()
 
   # Trust root of the update: its hashes gate both files below.
-  file(DOWNLOAD "${base}/${tag}/SHA256SUMS" "${tmp}/SHA256SUMS"
+  file(
+    DOWNLOAD "${base}/${tag}/SHA256SUMS"
+    "${tmp}/SHA256SUMS"
+    ${ca_args}
     TLS_VERIFY ON
     TIMEOUT 60
     INACTIVITY_TIMEOUT 30
-    STATUS status)
+    STATUS status
+  )
   list(GET status 0 status_code)
   if(NOT status_code EQUAL 0)
     list(GET status 1 status_msg)
     file(REMOVE_RECURSE "${tmp}")
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: failed to fetch ${base}/${tag}/SHA256SUMS: ${status_msg}\n"
-      "hint: a mirror must allow anonymous read")
+      "hint: a mirror must allow anonymous read"
+    )
   endif()
 
   file(READ "${tmp}/SHA256SUMS" sums)
@@ -2521,27 +2894,32 @@ function(ocx_self_update)
   endforeach()
   if(module_sha STREQUAL "" OR find_sha STREQUAL "")
     file(REMOVE_RECURSE "${tmp}")
-    message(FATAL_ERROR
+    message(
+      FATAL_ERROR
       "find_ocx: ${base}/${tag}/SHA256SUMS lacks hashes for ocx.cmake and "
-      "Findocx.cmake - not a find_ocx release?")
+      "Findocx.cmake - not a find_ocx release?"
+    )
   endif()
 
   # Both-or-neither: nothing is renamed until both verified downloads exist.
   set(names ocx.cmake Findocx.cmake)
   set(shas "${module_sha}" "${find_sha}")
   foreach(name sha IN ZIP_LISTS names shas)
-    file(DOWNLOAD "${base}/${tag}/${name}" "${tmp}/${name}"
+    file(
+      DOWNLOAD "${base}/${tag}/${name}"
+      "${tmp}/${name}"
       EXPECTED_HASH SHA256=${sha}
+      ${ca_args}
       TLS_VERIFY ON
       TIMEOUT 120
       INACTIVITY_TIMEOUT 30
-      STATUS status)
+      STATUS status
+    )
     list(GET status 0 status_code)
     if(NOT status_code EQUAL 0)
       list(GET status 1 status_msg)
       file(REMOVE_RECURSE "${tmp}")
-      message(FATAL_ERROR
-        "find_ocx: download of ${base}/${tag}/${name} failed: ${status_msg}")
+      message(FATAL_ERROR "find_ocx: download of ${base}/${tag}/${name} failed: ${status_msg}")
     endif()
   endforeach()
 
@@ -2561,9 +2939,11 @@ function(ocx_self_update)
   if(EXISTS "${findocx}")
     file(RENAME "${tmp}/Findocx.cmake" "${findocx}")
   else()
-    message(STATUS
+    message(
+      STATUS
       "find_ocx: no Findocx.cmake next to this file - skipped "
-      "(ocx.cmake-only vendoring is supported)")
+      "(ocx.cmake-only vendoring is supported)"
+    )
   endif()
   file(REMOVE_RECURSE "${tmp}")
 endfunction()

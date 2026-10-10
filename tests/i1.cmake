@@ -41,5 +41,5 @@ foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
   set_tests_properties(
     bootstrap_dist/${OCX_CMAKE_${v}_TEST_LABEL}
     module_checks/${OCX_CMAKE_${v}_TEST_LABEL}
-    PROPERTIES TIMEOUT 300)
+    PROPERTIES TIMEOUT 300 FIXTURES_REQUIRED ocx_fixtures)
 endforeach()
