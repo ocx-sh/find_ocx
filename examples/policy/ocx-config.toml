@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The OCX Authors
+
+# region config
+# Organisation rules for every build of this repository. ocx reads this file
+# instead of the config files of the machine that runs the build.
+[registry]
+default = "ocx.sh"
+# endregion
