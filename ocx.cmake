@@ -490,7 +490,6 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
   The module remembers a path that it chose itself and chooses again on every configure.
   A changed :variable:`OCX_INSTALL_VERSION`, a changed pin or ``OCX_BOOTSTRAP=ALWAYS`` therefore reaches an existing build directory.
   A path that you set stays as it is.
-  An explicit :command:`ocx_bootstrap` call is the one command that replaces a path of another version.
 
   The value must not contain ``;``, which a CMake list cannot carry.
 
@@ -575,14 +574,11 @@ Override it with ``-DVAR=...`` and clear it with ``-DVAR=``.
 
 .. variable:: OCX_BOOTSTRAP_CACHE
 
-  Cache directory for bootstrapped ocx binaries.
-  A relative path resolves against the top-level source directory.
-  The default is per machine: ``%LOCALAPPDATA%/find_ocx`` on Windows, else ``$XDG_CACHE_HOME/find_ocx``, else ``~/.cache/find_ocx``.
-  Without a home directory the module falls back to ``<build>/_ocx/cache``.
+  Cache directory for bootstrapped ocx binaries, where a relative path resolves against the top-level source directory.
+  The default is per machine: ``%LOCALAPPDATA%/find_ocx`` on Windows, else ``$XDG_CACHE_HOME/find_ocx``, else ``~/.cache/find_ocx``, else ``<build>/_ocx/cache``.
   Point the variable into the workspace on CI runners where the home directory is unreliable, and restore it with the CI cache.
-
-  The module copies a binary into place atomically and runs a cached one once per configure.
-  A binary that does not run or reports another version is removed and downloaded again.
+  The module copies a binary in atomically and runs a cached one once per configure.
+  It downloads again a binary that does not run or reports another version.
 
 .. variable:: OCX_PROJECT_FILE
 
@@ -648,11 +644,8 @@ pinned       ``OCX_PROJECT`` ``OCX_GLOBAL``    Forced to a fixed value on every
 ===========  ================================  =========================================
 
 The configure-time calls and the exported ``OCX_<NAME>_RUN`` command lists carry the same environment.
-A value, a path or a site variable must not contain ``;``, because a CMake list cannot carry it.
-The module stops the configure when one does.
-
-The ambient value and the file content of the translucent variables are part of the reconfigure fingerprint.
-Changing ``OCX_CONFIG`` or a config file therefore runs ocx again.
+A value, a path or a site variable must not contain ``;``, and the module stops the configure when one does.
+Changing ``OCX_CONFIG`` or a config file runs ocx again, because their content is part of the reconfigure fingerprint.
 
 ocx launchers export ``OCX_FROZEN`` and ``OCX_INDEX`` into child processes.
 Launchers are ``ocx exec`` and the frozen ``package exec``, including the ``OCX_<NAME>_RUN`` lists.

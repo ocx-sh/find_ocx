@@ -8,12 +8,8 @@
 # region workflow
 name: Build
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+on: [push, pull_request]
 
-# The build needs to read the repository and nothing else.
 permissions:
   contents: read
 
@@ -25,23 +21,16 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     env:
-      # Keep both ocx caches inside the workspace so one cache step restores them.
       OCX_HOME: ${{ github.workspace }}/.cache/ocx-home
       OCX_BOOTSTRAP_CACHE: ${{ github.workspace }}/.cache/ocx-bootstrap
     steps:
-      # Pin actions to a commit SHA, as checkout is here: a tag can move, a SHA
-      # cannot. Resolve a tag with `git ls-remote <action repo> <tag>`.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-
       - uses: actions/cache@v4.3.0
         with:
           path: .cache
           key: ocx-${{ runner.os }}-${{ hashFiles('ocx.lock') }}
-
-      # -Werror=dev fails the configure on a CMake author warning. --no-tests=error
-      # fails a run that finds no tests, and --timeout cuts off a hung one.
       - name: Configure
         shell: bash
         run: cmake -Werror=dev -S . -B build -DCMAKE_BUILD_TYPE=Release -DOCX_BOOTSTRAP=ALWAYS -DOCX_PULL=ON
@@ -56,5 +45,5 @@ jobs:
         shell: bash
         env:
           OCX_OFFLINE: "1"
-        run: cmake -Werror=dev -S . -B build/offline -DCMAKE_BUILD_TYPE=Release -DOCX_BOOTSTRAP=ALWAYS -DOCX_PULL=ON
+        run: cmake -Werror=dev -S . -B build/offline -DOCX_BOOTSTRAP=ALWAYS -DOCX_PULL=ON
 # endregion

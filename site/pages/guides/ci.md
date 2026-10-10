@@ -56,8 +56,8 @@ This GitHub Actions workflow applies all four settings on three operating system
 
 <!-- snippet: examples/ci/github-actions.yml#workflow -->
 
+The workflow pins checkout to a commit SHA, because a tag can move.
 The job token is read-only and checkout does not persist it.
-The downloaded `ocx` would otherwise run with whatever the job can write.
 The configure fails on a CMake author warning.
 The test run fails when it finds no tests.
 A hung test is cut off after 300 seconds.
