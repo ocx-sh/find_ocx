@@ -100,6 +100,19 @@ ocx_i3_add_test(toolchain_not_index cases VERSIONS ${i3_versions}
   EXPECT_FAIL "no \\.ocx index snapshot")
 ocx_i3_add_test(index_coexist index_coexist VERSIONS ${i3_versions})
 
+# ocx_index keeps empty arguments on the way to the verb and rejects them.
+ocx_i3_add_test(index_empty_value cases VERSIONS ${i3_versions}
+  CASE index_empty_value
+  EXPECT_FAIL "ocx_index\\(UPDATE_COMMAND\\): empty argument")
+ocx_i3_add_test(index_missing_value cases VERSIONS ${i3_versions}
+  CASE index_missing_value
+  # CMake 4 under -Werror=dev trips CMP0174 inside cmake_parse_arguments
+  # first; either way the configure fails on the dangling keyword.
+  EXPECT_FAIL "INDEX need a value|INDEX keyword was followed by an empty string or no value")
+ocx_i3_add_test(index_find_empty cases VERSIONS ${i3_versions}
+  CASE index_find_empty
+  EXPECT_FAIL "ocx_index\\(FIND\\): empty argument")
+
 # CONFIG reaches the CLI: a missing file is the CLI's own error.
 ocx_i3_add_test(config_missing cases VERSIONS ${i3_versions}
   CASE config_missing

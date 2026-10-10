@@ -1115,27 +1115,6 @@ endfunction()
 # Command helpers (shared by ocx_project and ocx_package)
 # ---------------------------------------------------------------------------
 
-# stub: replaced by I2
-if(NOT COMMAND __ocx_translucent_env)
-  function(__ocx_translucent_env out_var)
-    cmake_parse_arguments(PARSE_ARGV 1 arg "" "CONFIG;NO_CONFIG;PATCH_SNAPSHOT" "")
-    if(arg_UNPARSED_ARGUMENTS)
-      message(FATAL_ERROR "find_ocx: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
-    endif()
-    set(env "")
-    if(arg_CONFIG)
-      list(APPEND env "OCX_CONFIG=${arg_CONFIG}")
-    endif()
-    if(arg_NO_CONFIG)
-      list(APPEND env "OCX_NO_CONFIG=1")
-    endif()
-    if(arg_PATCH_SNAPSHOT)
-      list(APPEND env "OCX_PATCH_SNAPSHOT=${arg_PATCH_SNAPSHOT}")
-    endif()
-    set(${out_var} "${env}" PARENT_SCOPE)
-  endfunction()
-endif()
-
 # Claims NAME for one command. A repeat call with the identical command and
 # arguments (CMake includes a toolchain file twice) sets <out_var> TRUE and
 # changes nothing; a different one is the duplicate-NAME error.
@@ -1205,62 +1184,15 @@ function(__ocx_config_env out_env out_fingerprint config no_config patch_snapsho
   set(${out_fingerprint} "${fingerprint}" PARENT_SCOPE)
 endfunction()
 
-# Applies "VAR=value" / "--unset=VAR" assignments to this process's
-# environment so the configure-time ocx calls inherit them (__ocx_run takes no
-# env argument), and returns the touched names for __ocx_env_pop.
-function(__ocx_env_push out_names)
-  set(names "")
-  foreach(assignment IN LISTS ARGN)
-    if(assignment MATCHES "^--unset=(.+)$")
-      set(var "${CMAKE_MATCH_1}")
-      set(new_value "")
-      set(has_value FALSE)
-    elseif(assignment MATCHES "^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
-      set(var "${CMAKE_MATCH_1}")
-      set(new_value "${CMAKE_MATCH_2}")
-      set(has_value TRUE)
-    else()
-      continue()
-    endif()
-    # "v:" keeps an empty saved value distinguishable from no property.
-    if(DEFINED ENV{${var}})
-      set_property(GLOBAL PROPERTY __OCX_ENV_WAS_${var} TRUE)
-      set_property(GLOBAL PROPERTY __OCX_ENV_SAVED_${var} "v:$ENV{${var}}")
-    else()
-      set_property(GLOBAL PROPERTY __OCX_ENV_WAS_${var} FALSE)
-    endif()
-    if(has_value)
-      set(ENV{${var}} "${new_value}")
-    else()
-      unset(ENV{${var}})
-    endif()
-    list(APPEND names "${var}")
-  endforeach()
-  set(${out_names} "${names}" PARENT_SCOPE)
-endfunction()
-
-function(__ocx_env_pop)
-  foreach(var IN LISTS ARGN)
-    get_property(was GLOBAL PROPERTY __OCX_ENV_WAS_${var})
-    if(was)
-      get_property(saved GLOBAL PROPERTY __OCX_ENV_SAVED_${var})
-      string(REGEX REPLACE "^v:" "" saved "${saved}")
-      set(ENV{${var}} "${saved}")
-    else()
-      unset(ENV{${var}})
-    endif()
-  endforeach()
-endfunction()
-
 # Non-fatal ocx call for the one probe whose refusal is a valid answer
 # (exit 79 while offline); every other caller goes through __ocx_run.
 function(__ocx_probe out_rc out_stdout)
   # gersemi: hints { COMMAND: command_line }
-  cmake_parse_arguments(PARSE_ARGV 2 arg "" "" "COMMAND")
+  cmake_parse_arguments(PARSE_ARGV 2 arg "" "" "COMMAND;ENV")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "find_ocx: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
-  __ocx_env_prefix(prefix)
+  __ocx_env_prefix(prefix ${arg_ENV})
   execute_process(
     COMMAND ${prefix} "${OCX_EXECUTABLE}" ${arg_COMMAND}
     RESULT_VARIABLE rc
@@ -1316,7 +1248,7 @@ endfunction()
 # OCX_OFFLINE, exit 79 (package not in the local store) skips the check.
 function(__ocx_validate_bins)
   # gersemi: hints { COMMAND: command_line, WIDER_COMMAND: command_line }
-  cmake_parse_arguments(PARSE_ARGV 0 arg "" "WHAT;WIDER_HINT" "BINS;COMMAND;WIDER_COMMAND;HINTS")
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "WHAT;WIDER_HINT" "BINS;COMMAND;WIDER_COMMAND;ENV;HINTS")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR "find_ocx: unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
   endif()
@@ -1324,7 +1256,7 @@ function(__ocx_validate_bins)
   set(json "")
   set(have_json FALSE)
   if(OCX_OFFLINE)
-    __ocx_probe(rc json COMMAND ${arg_COMMAND})
+    __ocx_probe(rc json ENV ${arg_ENV} COMMAND ${arg_COMMAND})
     if(rc EQUAL 79)
       message(STATUS
         "find_ocx: ${arg_WHAT}: BINS not validated (OCX_OFFLINE and the "
@@ -1339,6 +1271,7 @@ function(__ocx_validate_bins)
     __ocx_run(
       WHAT "inspecting ${arg_WHAT}"
       COMMAND ${arg_COMMAND}
+      ENV ${arg_ENV}
       OUTPUT_VARIABLE json
       RETRIES 2
       HINTS ${arg_HINTS}
@@ -1363,7 +1296,7 @@ function(__ocx_validate_bins)
   endif()
 
   if(arg_WIDER_COMMAND)
-    __ocx_probe(rc wider_json COMMAND ${arg_WIDER_COMMAND})
+    __ocx_probe(rc wider_json ENV ${arg_ENV} COMMAND ${arg_WIDER_COMMAND})
     if(rc EQUAL 0)
       __ocx_closure_names("${wider_json}" wider wider_complete)
       set(elsewhere "")
@@ -1567,8 +1500,7 @@ function(ocx_project)
   if(EXISTS "${lock}")
     file(SHA256 "${lock}" lock_sha)
   endif()
-  __ocx_env_prefix(prefix)
-  list(APPEND prefix ${config_env})
+  __ocx_env_prefix(prefix ${config_env})
   string(SHA256 fingerprint
     "project|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${toml}|${toml_sha}|${lock_sha}|${arg_GROUPS}|${arg_BINS}|${platform}|${pull}|${prefix}|${config_fingerprint}")
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
@@ -1588,9 +1520,9 @@ function(ocx_project)
     set(platform_args -p "${platform}")
   endif()
 
-  __ocx_env_push(pushed_env ${config_env})
   __ocx_run(
     WHAT "checking ${toml} against its lockfile"
+    ENV ${config_env}
     COMMAND --project "${toml}" lock --check
     HINTS
       "65=run 'ocx lock' next to ${toml} and commit the updated ocx.lock"
@@ -1600,6 +1532,7 @@ function(ocx_project)
   if(pull)
     __ocx_run(
       WHAT "pulling packages for ${toml}"
+      ENV ${config_env}
       COMMAND --project "${toml}" pull --lazy-mode never ${platform_args} ${groups_args}
       RETRIES 2
       HINTS "78=a tool in scope ships no '${platform}' leaf in ocx.lock - narrow GROUPS or drop the platform"
@@ -1613,6 +1546,7 @@ function(ocx_project)
     # silently turn them into host binaries.
     __ocx_run(
       WHAT "composing the ${platform} environment of ${toml}"
+      ENV ${config_env}
       COMMAND --format json --project "${toml}" env --pinned --lazy-mode never ${platform_args} ${groups_args}
       OUTPUT_VARIABLE env_json
       HINTS "78=a tool in scope ships no '${platform}' leaf in ocx.lock - narrow GROUPS or drop the platform"
@@ -1636,13 +1570,13 @@ function(ocx_project)
     endif()
     __ocx_validate_bins(
       WHAT "ocx_project ${name} (${toml})"
+      ENV ${config_env}
       BINS ${arg_BINS}
       COMMAND --format json --project "${toml}" inspect --closure ${groups_args}
       WIDER_COMMAND ${wider_command}
       WIDER_HINT "hint: add the group to GROUPS (the [tools] table is the group 'default'), e.g. GROUPS default <group>"
     )
   endif()
-  __ocx_env_pop(${pushed_env})
 
   __ocx_memo_store("${name}" "${fingerprint}" ${guard_paths})
 endfunction()
@@ -1908,8 +1842,7 @@ function(ocx_package)
     "${arg_CONFIG}" "${arg_NO_CONFIG}" "${arg_PATCH_SNAPSHOT}")
 
   __ocx_cli_version(cli_version)
-  __ocx_env_prefix(prefix)
-  list(APPEND prefix ${config_env})
+  __ocx_env_prefix(prefix ${config_env})
   string(SHA256 fingerprint
     "package|${__OCX_MODULE_VERSION}|${cli_version}|${OCX_EXECUTABLE}|${ref}|${arg_PINS}|${arg_BINS}|${platform}|${index_args}|${index_leaf_sha}|${pull}|${arg_NO_ROOT}|${prefix}|${config_fingerprint}")
   __ocx_memo_hit("${name}" "${fingerprint}" hit)
@@ -1926,11 +1859,11 @@ function(ocx_package)
       "81=frozen resolution refused the floating tag - is OCX_FROZEN set without a usable index?")
   endif()
 
-  __ocx_env_push(pushed_env ${config_env})
   set(guard_paths "")
   if(pull)
     __ocx_run(
       WHAT "installing ${ref}"
+      ENV ${config_env}
       COMMAND ${index_args} --format json package install ${platform_args} "${ref}"
       OUTPUT_VARIABLE install_json
       RETRIES 2
@@ -1947,6 +1880,7 @@ function(ocx_package)
     endif()
     __ocx_run(
       WHAT "locating ${ref} in the store"
+      ENV ${config_env}
       COMMAND ${index_args} --format json package which ${platform_args} "${ref}"
       OUTPUT_VARIABLE which_json
       HINTS "${index_hint}"
@@ -1980,6 +1914,7 @@ function(ocx_package)
   if(platform)
     __ocx_run(
       WHAT "composing the ${platform} environment of ${ref}"
+      ENV ${config_env}
       COMMAND ${index_args} --format json package env --lazy-mode never ${platform_args} "${ref}"
       OUTPUT_VARIABLE env_json
       RETRIES 2
@@ -2000,12 +1935,12 @@ function(ocx_package)
   if(arg_BINS)
     __ocx_validate_bins(
       WHAT "ocx_package ${arg_NAME} (${ref})"
+      ENV ${config_env}
       BINS ${arg_BINS}
       COMMAND ${index_args} --format json package inspect --closure "${ref}"
       HINTS "${index_hint}"
     )
   endif()
-  __ocx_env_pop(${pushed_env})
 
   __ocx_memo_store("${name}" "${fingerprint}" ${guard_paths})
 endfunction()
@@ -2014,9 +1949,20 @@ endfunction()
 # ocx_index
 # ---------------------------------------------------------------------------
 
+# An empty argument (`INDEX "${unset_var}"`) is an error, not a missing
+# optional: cmake_parse_arguments under policy 3.19 drops it silently. Pass
+# the caller's ARGC and "${ARGV}".
+function(__ocx_reject_empty_args caller argc argv)
+  if(argc GREATER 0 AND ";${argv};" MATCHES ";;")
+    message(FATAL_ERROR
+      "find_ocx: ${caller}: empty argument in '${argv}' - is a variable unset?")
+  endif()
+endfunction()
+
 # ocx_index(FIND [REQUIRED]): the discovery result lands in <out_var> ("" when
 # none); the facade relays it into OCX_INDEX.
 function(__ocx_index_find out_var)
+  __ocx_reject_empty_args("ocx_index(FIND)" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 1 arg "REQUIRED" "" "")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR
@@ -2045,10 +1991,15 @@ endfunction()
 
 # ocx_index(UPDATE_COMMAND <out-var> ...): composes the refresh command.
 function(__ocx_index_update_command out_var)
+  __ocx_reject_empty_args("ocx_index(UPDATE_COMMAND)" ${ARGC} "${ARGV}")
   cmake_parse_arguments(PARSE_ARGV 1 arg "" "INDEX" "PACKAGES")
   if(arg_UNPARSED_ARGUMENTS)
     message(FATAL_ERROR
       "find_ocx: ocx_index(UPDATE_COMMAND): unknown arguments '${arg_UNPARSED_ARGUMENTS}'")
+  endif()
+  if(arg_KEYWORDS_MISSING_VALUES)
+    message(FATAL_ERROR
+      "find_ocx: ocx_index(UPDATE_COMMAND): ${arg_KEYWORDS_MISSING_VALUES} need a value")
   endif()
 
   if(arg_INDEX)
@@ -2160,21 +2111,32 @@ endfunction()
     the command, review the diff, commit.
 #]=]
 function(ocx_index op)
+  # Forward the verb's arguments (after the <out-var> of UPDATE_COMMAND)
+  # quoted, so an empty one reaches the verb's own check instead of vanishing.
+  # cmake_language(EVAL) runs in this scope.
+  set(first 1)
+  if(op STREQUAL "UPDATE_COMMAND")
+    set(first 2)
+  endif()
+  set(quoted "")
+  if(ARGC GREATER first)
+    math(EXPR last "${ARGC} - 1")
+    foreach(i RANGE ${first} ${last})
+      string(APPEND quoted " [==[${ARGV${i}}]==]")
+    endforeach()
+  endif()
   if(op STREQUAL "FIND")
-    # Empty arguments are dropped on the way to the verb; no keyword takes one.
-    __ocx_index_find(found ${ARGN})
+    cmake_language(EVAL CODE "__ocx_index_find(found${quoted})")
     if(found)
       set(OCX_INDEX "${found}" PARENT_SCOPE)
     endif()
   elseif(op STREQUAL "UPDATE_COMMAND")
-    set(args ${ARGN})
-    if(NOT args)
+    if(ARGC LESS 2)
       message(FATAL_ERROR
         "find_ocx: ocx_index(UPDATE_COMMAND) requires an <out-var>")
     endif()
-    list(POP_FRONT args out_var)
-    __ocx_index_update_command(refresh_command ${args})
-    set(${out_var} "${refresh_command}" PARENT_SCOPE)
+    cmake_language(EVAL CODE "__ocx_index_update_command(refresh_command${quoted})")
+    set(${ARGV1} "${refresh_command}" PARENT_SCOPE)
   else()
     message(FATAL_ERROR
       "find_ocx: ocx_index: unknown operation '${op}' "
