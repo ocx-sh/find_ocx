@@ -1,10 +1,11 @@
 <!-- doc_type: troubleshooting -->
-<!-- description: Fixes for a configure that fails on a stale lock, floating tag, nested launcher, BINS name, duplicate NAME or second module copy. -->
+<!-- description: Fixes for a configure that fails on a stale lock, floating tag, nested launcher or BINS name. -->
 # Fix a failing configure
 
 Each entry below starts with the message you see, then names the cause and the fix.
 A failing `ocx` call reports its exit status and ends with a `hint:` line.
 [Exit codes](exit-codes.md) maps every status to a cause.
+For a duplicate `NAME` or a second copy of the module, see [Fix a module conflict](module-conflicts.md).
 
 ## Error: the lock check fails with exit 65 {#stale-lock}
 
@@ -74,11 +75,11 @@ cmake -DOCX_FROZEN= -DOCX_INDEX= ...
 ## Error: a BINS name does not resolve {#bins}
 
 This issue occurs when `BINS` lists a name that the package or the selected groups do not expose.
-The message names the unknown entry and lists the names that are declared.
+The message names the unknown entry.
 
 Two causes cover most cases:
 
-- The name is misspelled. Compare it with the declared names in the message.
+- The name is misspelled. Compare it with the names that the package exposes.
 - The tool lives in a group other than the default one. `ocx_project` selects only the default group unless `GROUPS` lists more, so `GROUPS lint` alone also drops the top-level tools.
 
 Name the default group next to the others:
@@ -93,24 +94,3 @@ ocx_project(NAME TOOLS GROUPS default lint BINS jq shellcheck)
 
 find_ocx checks `BINS` against the packages for this reason.
 Without the check, a copy of the tool on the host `PATH` would hide the mistake and the build would pass on your machine only.
-
-## Error: duplicate NAME {#duplicate-name}
-
-```text
-find_ocx: duplicate ocx_package NAME 'SYSROOT'
-```
-
-This issue occurs when two calls share a `NAME` but differ in their arguments.
-`NAME` prefixes the result variables, so it must be unique in a whole configure, including every `add_subdirectory`.
-
-Give one of the calls another `NAME`.
-A repeat with identical arguments is accepted, and that matters in a toolchain file.
-CMake reads a toolchain file more than once, so an `ocx_package` or `ocx_project` call in it runs twice with the same arguments.
-
-## Error: a second copy of ocx.cmake at another version {#second-copy}
-
-This issue occurs when a subproject or a dependency vendors its own `ocx.cmake`, and that copy differs in version from the one already included.
-Two versions would define the same commands with different behaviour, so find_ocx stops the configure.
-
-Bring the copies to one version.
-Update the vendored files in place with `cmake -DOCX_SELF_UPDATE_VERSION=vX.Y.Z -P cmake/ocx.cmake`, as [Update the vendored module](../guides/update-vendored.md) shows.
