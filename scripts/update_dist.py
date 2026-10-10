@@ -302,6 +302,13 @@ def index_rows(manifest, where):
     second row would be invisible to every guard and still be what gets
     downloaded.
     """
+    schema = manifest.get("schema")
+    # type() because json.loads gives True for `true`, and True == 1.
+    if type(schema) is not int or schema != 1:
+        die(
+            f"{where} declares schema {schema!r}, and ocx_bootstrap() reads schema 1 only - "
+            f"teach __ocx_select_release() the new schema before embedding a manifest that uses it"
+        )
     rows = manifest.get("releases")
     if not isinstance(rows, list):
         die(f"{where} has no 'releases' list ({type(rows).__name__}) - refusing to guess its shape")

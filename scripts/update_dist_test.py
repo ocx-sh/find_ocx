@@ -38,7 +38,7 @@ TARGETS = (
     "x86_64-unknown-linux-musl",
 )
 
-# Every field of a shared row that a rewrite could move (F2). The key is
+# Every field of a shared row that a rewrite could move. The key is
 # (version, target), so those two are excluded.
 ROW_FIELDS = ("sha256", "url", "filename", "tag", "channel")
 
@@ -197,11 +197,11 @@ def snapshot_untouched():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-# --- F1: the manifest server must not choose the channel we pin -------------
+# --- the manifest server must not choose the channel we pin -------------
 
 
 def test_f1_latest_pointer_must_be_stable():
-    """F1(a): auto-select trusts manifest.latest — a prerelease pointer there
+    """Auto-select trusts manifest.latest — a prerelease pointer there
     would silently move the pin onto a beta."""
     update_dist.assert_latest_stable(manifest("0.5.2"))
     for ch in ("beta", "rc", "nightly", "next"):
@@ -209,14 +209,14 @@ def test_f1_latest_pointer_must_be_stable():
 
 
 def test_f1_latest_pointer_without_a_channel_is_refused():
-    """F1(a), fail-closed: an absent channel is not evidence of stable."""
+    """Fail-closed: an absent channel is not evidence of stable."""
     m = manifest("0.5.2")
     del m["latest"]["channel"]
     dies(update_dist.assert_latest_stable, m, why="a latest pointer with no channel")
 
 
 def test_f1_latest_next_does_not_block_a_stable_latest():
-    """F1(a): only `latest` feeds auto-select — a prerelease parked in
+    """Only `latest` feeds auto-select — a prerelease parked in
     latest_next is normal upstream traffic. Refusing it would be an
     over-refusal; *following* it would be the vulnerability, so both halves
     are asserted."""
@@ -226,7 +226,7 @@ def test_f1_latest_next_does_not_block_a_stable_latest():
 
 
 def test_f1_an_absent_latest_pointer_falls_back_instead_of_dying():
-    """F1(a): with no pointer there is nothing to distrust — newest_stable()
+    """With no pointer there is nothing to distrust — newest_stable()
     filters `releases` by channel instead, which is the safer path. Making
     this branch die() would break a manifest that simply has no `latest`."""
     m = manifest("0.5.1", "0.5.2")
@@ -236,7 +236,7 @@ def test_f1_an_absent_latest_pointer_falls_back_instead_of_dying():
 
 
 def test_f1_newest_stable_dies_when_there_is_nothing_stable_to_pick():
-    """F1(a): with no `latest` pointer, newest_stable() falls back to filtering
+    """With no `latest` pointer, newest_stable() falls back to filtering
     `releases` by channel — and a manifest that is entirely prerelease leaves
     that filter empty, so there is no version to auto-select at all. It has to
     die() with a message: max() over the empty list raises a bare ValueError,
@@ -249,7 +249,7 @@ def test_f1_newest_stable_dies_when_there_is_nothing_stable_to_pick():
 
 
 def test_f1_validate_refuses_a_non_stable_row():
-    """F1(b): the per-row channel check runs on auto-select, on --version and
+    """The per-row channel check runs on auto-select, on --version and
     on --check, so it also catches a beta the operator named by hand."""
     good = manifest("0.5.2")
     assert len(update_dist.validate(good, "0.5.2")) == len(TARGETS)
@@ -263,7 +263,7 @@ def test_f1_validate_refuses_a_non_stable_row():
 
 
 def test_f1_validate_refuses_a_partial_target_set():
-    """F1(b): the pinned version must be present for
+    """The pinned version must be present for
     all 8 targets, or ocx_bootstrap() has no row at all on the hosts that are
     missing. Asserting the *return* length does not pin this: an 8-row fixture
     returns 8 whether the count check runs or not, so the fixture has to be
@@ -279,7 +279,7 @@ def test_f1_validate_refuses_a_partial_target_set():
 
 
 def test_f1_validate_tolerates_a_target_upstream_adds():
-    """F1(b): the count check is one-sided deliberately. It exists to catch a
+    """The count check is one-sided deliberately. It exists to catch a
     release that is still publishing — *fewer* rows than targets — and
     upstream adding a 9th target (riscv64, loongarch) is a normal release day,
     not an attack. Under an equality check that release turns `task dist:check`
@@ -298,7 +298,7 @@ def test_f1_validate_tolerates_a_target_upstream_adds():
 
 
 def test_f1_validate_refuses_a_version_that_drops_a_committed_target():
-    """F1(b): a row *count* is not target coverage. Nine rows that skip
+    """A row *count* is not target coverage. Nine rows that skip
     aarch64-apple-darwin clear the floor, and the refresh path cannot catch it
     either — a brand-new version has no committed rows for
     assert_additions_only() to compare against — so __ocx_select_release() is left to fail() on the host that lost its row.
@@ -326,7 +326,7 @@ def test_f1_validate_refuses_a_version_that_drops_a_committed_target():
 
 
 def test_f1_validate_refuses_a_sha256_that_is_not_lowercase_hex():
-    """F1(b): a length check is not a hex check — "z"*64 passes it, and a
+    """A length check is not a hex check — "z"*64 passes it, and a
     64-element list passes it too and then reaches ocx_bootstrap() as a
     non-string."""
     for bad in ("z" * 64, "A" * 64, ["0"] * 64, None, "abc"):
@@ -336,7 +336,7 @@ def test_f1_validate_refuses_a_sha256_that_is_not_lowercase_hex():
 
 
 def test_f1_validate_refuses_an_artifact_url_off_the_release_host():
-    """F1(b): a fabricated row must not name an off-host url.
+    """A fabricated row must not name an off-host url.
 
     ocx_bootstrap() uses row["url"] verbatim; mirrors go through
     OCX_INSTALL_MIRROR_URL. startswith() is no host check: github.com
@@ -377,7 +377,7 @@ def test_f1_validate_refuses_an_artifact_url_off_the_release_host():
 
 
 def test_f1_url_guard_allowlists_the_asset_shape_instead_of_blocking_separators():
-    """F1(b): separators are refused by allowlisting the asset shape.
+    """Separators are refused by allowlisting the asset shape.
 
     The url must be `<tag>/<filename>`, one separator-free segment each;
     github.com turns "\\" into "/", so blocklisting separators is an open
@@ -434,7 +434,7 @@ def test_f1_url_guard_allowlists_the_asset_shape_instead_of_blocking_separators(
 
 
 def test_f1_validate_refuses_a_filename_it_cannot_type():
-    """F1(b): an extension ocx_bootstrap() cannot extract
+    """An extension ocx_bootstrap() cannot extract
     fails at extraction rather than at download — and a row with no filename
     at all has to die() with a message, not KeyError out of the guard."""
     for bad in ("ocx.tar.bz2", "ocx", None, 7, ["ocx.tar.gz"]):
@@ -448,7 +448,7 @@ def test_f1_validate_refuses_a_filename_it_cannot_type():
 
 
 def test_f1_validate_refuses_a_tag_or_filename_that_is_not_one_path_segment():
-    """F1(b), the mirror path: tag and filename are single path segments.
+    """The mirror path: tag and filename are single path segments.
 
     ocx_bootstrap() builds the mirror url as <mirror>/<tag>/<filename>, so
     tag="../../../.." walks out of the release directory of a shared proxy.
@@ -477,11 +477,11 @@ def test_f1_validate_refuses_a_tag_or_filename_that_is_not_one_path_segment():
         dies(update_dist.validate, m, "0.5.2", why=f"{field}={bad!r}")
 
 
-# --- F1b: the pin only ever moves forward -----------------------------------
+# --- the pin only ever moves forward -----------------------------------
 
 
 def test_f1b_pin_only_moves_forward():
-    """F1b: comparison is by version_key(), not string order — 0.5.10 is
+    """Comparison is by version_key(), not string order — 0.5.10 is
     newer than 0.5.9, and a lexicographic guard gets both cases wrong."""
     update_dist.assert_forward("0.5.2", "0.5.3")
     update_dist.assert_forward("0.5.9", "0.5.10")
@@ -492,11 +492,11 @@ def test_f1b_pin_only_moves_forward():
     dies(update_dist.assert_forward, "0.5.10", "0.5.9", why="a rollback string compare would accept")
 
 
-# --- F2: a refresh may only add rows ----------------------------------------
+# --- a refresh may only add rows ----------------------------------------
 
 
 def test_f2_additions_are_the_only_permitted_change():
-    """F2: no change, a new version, and a new target for a known version are
+    """No change, a new version, and a new target for a known version are
     all legitimate — the guard must not over-refuse a normal upstream day."""
     base = manifest("0.5.1", "0.5.2")
     update_dist.assert_additions_only(base, base)
@@ -508,7 +508,7 @@ def test_f2_additions_are_the_only_permitted_change():
 
 
 def test_f2_rewritten_row_is_refused():
-    """F2: sha256 is the value ocx_bootstrap() enforces against, but any
+    """sha256 is the value ocx_bootstrap() enforces against, but any
     field moving under an already-committed (version, target) is a rewrite."""
     base = manifest("0.5.1", "0.5.2")
     for field in ROW_FIELDS:
@@ -534,7 +534,7 @@ def test_f2_rewritten_row_is_refused():
 
 
 def test_f2_dropped_row_is_refused_and_named():
-    """F2: a version disappearing upstream must not silently vanish from our
+    """A version disappearing upstream must not silently vanish from our
     snapshot, and the message has to name the rows that went, not just the
     versions — one target of a live release can drop on its own."""
     base = manifest("0.5.1", "0.5.2")
@@ -548,7 +548,7 @@ def test_f2_dropped_row_is_refused_and_named():
 
 
 def test_f2_a_duplicate_row_is_refused_on_both_sides():
-    """F2, the bypass: indexing by (version, target) keeps the LAST row per
+    """The bypass: indexing by (version, target) keeps the LAST row per
     key, but __ocx_select_release() returns the FIRST.
     Serve the poisoned row first and the honest row last and a last-wins index
     compares the honest one, passes, and commits both — after which
@@ -571,7 +571,7 @@ def test_f2_a_duplicate_row_is_refused_on_both_sides():
 
 
 def test_f2_a_new_upstream_column_is_refused():
-    """F2: rows are compared over the union of their fields, so a column
+    """Rows are compared over the union of their fields, so a column
     appearing upstream trips the guard — the likeliest real trigger, and
     deliberate: a new column changes what an already-committed row means."""
     base = manifest("0.5.1", "0.5.2")
@@ -583,7 +583,7 @@ def test_f2_a_new_upstream_column_is_refused():
 
 
 def test_f2_added_rows_face_the_same_per_row_bar():
-    """F2 x F1(b): validate() only ever inspects the rows of the version being
+    """validate() only ever inspects the rows of the version being
     pinned, but the *whole* manifest is written. ocx.download(version = ...)
     lets a consumer select any row in it, and no Starlark checks the host or
     the channel — so a refresh of 0.5.3 must not be able to smuggle in rows
@@ -609,7 +609,7 @@ def test_f2_added_rows_face_the_same_per_row_bar():
 
 
 def test_f2_a_malformed_manifest_dies_instead_of_tracebacking():
-    """F2: setup.ocx.sh serving something only manifest-shaped-ish is a
+    """setup.ocx.sh serving something only manifest-shaped-ish is a
     failure the operator has to act on, so it exits with a message rather
     than a KeyError/AttributeError out of the guard's internals."""
     base = manifest("0.5.2")
@@ -624,11 +624,30 @@ def test_f2_a_malformed_manifest_dies_instead_of_tracebacking():
         dies(update_dist.assert_additions_only, m, base, why=f"committed {m!r}")
 
 
-# --- F3: nothing is written before the guards have run ----------------------
+def test_an_unsupported_schema_dies_before_any_guard_accepts_it():
+    """ocx_bootstrap() rejects every schema but 1 (__ocx_select_release), so a
+    manifest that declares another one must fail here, not at the first cold
+    bootstrap: it would pass every row guard and be embedded."""
+    base = manifest("0.5.2")
+    for schema in (2, 0, "1", True, None):
+        bad = dict(manifest("0.5.2"), schema=schema)
+        dies(update_dist.index_rows, bad, "incoming", why=f"schema {schema!r}")
+        dies(update_dist.assert_additions_only, base, bad, why=f"incoming schema {schema!r}")
+        dies(update_dist.assert_additions_only, bad, base, why=f"committed schema {schema!r}")
+    no_schema = manifest("0.5.2")
+    del no_schema["schema"]
+    dies(update_dist.index_rows, no_schema, "incoming", why="a manifest without a schema")
+    assert update_dist.index_rows(manifest("0.5.2"), "incoming"), "schema 1 must pass"
+    with sandbox("0.5.2", dict(manifest("0.5.2"), schema=2), argv=["--check"]):
+        msg = dies(update_dist.main, why="a committed schema 2 under --check")
+    assert "schema" in msg, f"--check must name the schema; got: {msg}"
+
+
+# --- nothing is written before the guards have run ----------------------
 
 
 def test_f3_fetch_snapshot_parses_without_writing():
-    """F3: fetch returns (body, manifest) for the caller to validate; the
+    """Fetch returns (body, manifest) for the caller to validate; the
     write happens last, after every guard passes."""
     body = json.dumps(manifest("0.5.2")).encode()
     with snapshot_untouched(), served(body):
@@ -638,7 +657,7 @@ def test_f3_fetch_snapshot_parses_without_writing():
 
 
 def test_f3_unparseable_response_leaves_the_snapshot_intact():
-    """F3: the failure that most wants a write-first implementation — an
+    """The failure that most wants a write-first implementation — an
     error page served in place of the manifest must leave disk untouched."""
     with snapshot_untouched(), served(b"<html>503 Service Unavailable</html>"):
         dies(update_dist.fetch_snapshot, why="an HTML error page")
@@ -665,7 +684,7 @@ GUARDS = ("assert_latest_stable", "assert_forward", "assert_additions_only", "va
 
 
 def test_wiring_every_guard_runs_on_the_auto_select_path():
-    """F1/F1b/F2: the default `task dist:update`-style run is the path the
+    """The default `task dist:update`-style run is the path the
     scheduled update-dist.yml takes, so every guard has to fire on it."""
     committed = manifest("0.5.1", "0.5.2")
     with sandbox("0.5.2", committed, argv=[]), served(json.dumps(manifest("0.5.1", "0.5.2", "0.5.3")).encode()):
@@ -689,7 +708,7 @@ def test_wiring_explicit_version_skips_auto_select_but_keeps_the_row_guards():
 
 
 def test_wiring_check_path_validates_the_committed_snapshot():
-    """F1(b): --check is offline and writes nothing, but it is where CI notices
+    """The --check run is offline and writes nothing, but it is where CI notices
     that a committed row has drifted off the stable channel — or that a
     duplicate got into the file by some route other than a refresh."""
     tainted = manifest("0.5.2")
@@ -705,9 +724,9 @@ def test_wiring_check_path_validates_the_committed_snapshot():
 
 
 def test_wiring_check_validates_every_committed_row_not_just_the_pinned_one():
-    """F1(b) x the committed file. --check is the only guard a PR that *edits*
+    """--check covers the committed file. It is the only guard a PR that *edits*
     the embedded snapshot ever meets: `task lint` runs it, and the refresh guards
-    (F2) only run when the script fetches. Scoping check_row() to the pinned
+    only run when the script fetches. Scoping check_row() to the pinned
     version left every other row unexamined — a hand-edited row for a version
     nobody pins today is still a url+sha256 pair ocx.download(version = ...)
     selects, and the file is linguist-generated, so GitHub collapses the diff
@@ -739,7 +758,7 @@ def test_wiring_check_on_an_unreadable_snapshot_dies_instead_of_tracebacking():
 
 
 def test_wiring_snapshot_only_writes_the_snapshot_and_leaves_the_pin():
-    """F3: the write lands after the guards; --snapshot-only is a refresh.
+    """The write lands after the guards; --snapshot-only is a refresh.
 
     The pin, the CI pin and the incoming latest are three different versions
     on purpose: with equal values a regression that rewrote the CI pins
@@ -774,7 +793,7 @@ def test_wiring_a_scheduled_run_with_nothing_new_upstream_exits_clean():
 
 
 def test_wiring_a_poisoned_added_row_blocks_both_write_paths():
-    """F2 end-to-end. 8 rows of a version nobody pins — channel nightly,
+    """End to end: 8 rows of a version nobody pins — channel nightly,
     "z"*64, an off-host url — used to land in the committed snapshot on both
     write paths, because validate() only ever inspects the pinned version and
     --check then re-validates only the pin, so they persisted. the embedded snapshot
@@ -813,7 +832,7 @@ def test_wiring_the_bump_path_measures_coverage_against_the_outgoing_pin():
 
 
 def test_wiring_a_validate_failure_also_blocks_the_write():
-    """F3, ordering. Every added row here is clean, so assert_additions_only()
+    """Ordering. Every added row here is clean, so assert_additions_only()
     passes and validate() is the guard that dies — 4 of 8 targets on the
     version `latest` points at, i.e. a normal mid-publish release day. Pinning
     the write against the *poisoned-row* test alone leaves the module write
@@ -865,7 +884,7 @@ def test_wiring_ci_pins_cover_yaml_and_refuse_to_miss_a_step():
 
 
 def test_wiring_the_bump_path_writes_the_fetched_bytes_verbatim():
-    """F3: the embedded snapshot is 184 rows of security boundary. Re-serialising it
+    """The embedded snapshot is 184 rows of security boundary. Re-serialising it
     through json.dumps would reformat every line and make the one diff that
     matters — a changed sha256 — unreadable. Byte-for-byte, on the bump path
     as well as under --snapshot-only."""
@@ -883,7 +902,7 @@ def test_wiring_the_bump_path_writes_the_fetched_bytes_verbatim():
 
 
 def test_version_key_orders_numerically_and_dies_on_junk():
-    """Underpins F1b. A non-numeric component exits with a message rather
+    """The forward-only check relies on it. A non-numeric component exits with a message rather
     than raising a raw ValueError at the caller."""
     assert update_dist.version_key("0.5.2") == (0, 5, 2)
     assert update_dist.version_key("0.5.10") > update_dist.version_key("0.5.9")
