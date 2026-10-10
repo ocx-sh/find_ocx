@@ -1,0 +1,48 @@
+diff --git a/src/components/terminal.mjs b/src/components/terminal.mjs
+index 4992767f54e1daf9ec03cee9954ec761adf5d15a..73293cb277b61b5732faf75855f074773595f800 100644
+--- a/src/components/terminal.mjs
++++ b/src/components/terminal.mjs
+@@ -252,7 +252,14 @@ export function mountTerminal(root, loadPlayer = loadDefault) {
+   const opts = /** @type {PlayerOptions} */ (parsed);
+   // Prefetch on mount, collapsed or not, so expanding is instant (ocx 2210983da).
+   // Low priority: many casts on one page must not compete with the main content.
+-  const data = fetch(root.dataset['src'] ?? '', { priority: 'low' }).then((r) => {
++  // Starts a second after the window load event: a request issued while the page paints joins the critical
++  // path of the first paint in Lighthouse's simulation (largest-contentful-paint 1.8 s instead of 1.7 s).
++  const loaded = new Promise((done) => {
++    const later = () => setTimeout(done, 1000);
++    if (document.readyState === 'complete') later();
++    else addEventListener('load', later, { once: true });
++  });
++  const data = loaded.then(() => fetch(root.dataset['src'] ?? '', { priority: 'low' })).then((r) => {
+     if (!r.ok) throw new Error(`HTTP ${r.status}`);
+     return r.text();
+   });
+diff --git a/src/starlight/Head.astro b/src/starlight/Head.astro
+index a5a76f487f5fe89ef310f4af02224c1e981f9803..a4ae1dd77f2de01e3244382cf218247e20cc482c 100644
+--- a/src/starlight/Head.astro
++++ b/src/starlight/Head.astro
+@@ -1,8 +1,9 @@
+ ---
+ // Starlight `Head` override: the default head plus the Fonts API faces for the
+ // two families the plugin registers (their cssVariables are the theme tokens).
+-// Preloads the four upright faces, the only weights the theme loads (sans and
+-// mono at 400/600, tokens.css): Lighthouse counts each font fetched before LCP.
++// Preloads the two upright sans faces; the mono faces are not preloaded, and the consumer holds their
++// fetch until after the load event (see the site's fonts.css): a mono face that ends before the first
++// paint or LCP of the trace joins Lighthouse's simulation, and whether it does is a race (FCP +300 ms).
+ // Italics are never preloaded and use font-display: optional (fonts.mjs): no block, no late swap.
+ import Default from '@astrojs/starlight/components/Head.astro';
+ import { Font } from 'astro:assets';
+@@ -22,10 +23,4 @@ import { PLATFORM_SCRIPT } from '../head-scripts.mjs';
+     { weight: 600, style: 'normal' },
+   ]}
+ />
+-<Font
+-  cssVariable="--ocx-font-mono"
+-  preload={[
+-    { weight: 400, style: 'normal' },
+-    { weight: 600, style: 'normal' },
+-  ]}
+-/>
++<Font cssVariable="--ocx-font-mono" />

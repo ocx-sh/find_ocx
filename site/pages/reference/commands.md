@@ -1,9 +1,8 @@
 <!-- doc_type: reference -->
-<!-- doc_tier: everyday -->
-<!-- description: Signatures and behavior of ocx_bootstrap, ocx_project, ocx_package and ocx_index. -->
+<!-- description: Synopsis, options, result variables and examples of the six commands that ocx.cmake defines. -->
 # Commands
 
-Reference for the four commands that `ocx.cmake` defines.
-This page is generated from the `.. command::` blocks in the module source.
+Reference for the six commands that `ocx.cmake` defines.
+This page is generated from the module source, and each command has a page of its own.
 
 <!-- cmake: commands -->

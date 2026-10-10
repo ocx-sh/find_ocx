@@ -1,4 +1,6 @@
 # Windows runners check out with autocrlf; CRLF breaks sh scripts.
 *.sh text eol=lf
+# The shipped modules stay byte-identical on every OS (SHA256SUMS, the snapshot splice).
+*.cmake text eol=lf
 
 ocx.lock merge=union

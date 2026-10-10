@@ -1,5 +1,4 @@
 <!-- doc_type: reference -->
-<!-- doc_tier: everyday -->
 <!-- description: Every OCX_* variable that ocx.cmake reads, with its default and effect. -->
 # Variables
 

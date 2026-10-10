@@ -1,0 +1,9 @@
+# Link check for the repo docs and the site sources: task lint (lychee reads this file from the repo root).
+# ocx.sh/integrations/cmake/ answers 404 until the site's first deploy and the edge flip; drop the exclude then.
+
+no_progress = true
+# Re-checking an unchanged link within a day costs nothing but time (.lycheecache is gitignored).
+cache = true
+max_cache_age = "1d"
+# This repo's own blob/tree URLs answer 503 to bots; the files they name are in the checkout.
+exclude = ['^https://ocx\.sh/integrations/cmake/', '^https://github\.com/ocx-sh/find_ocx/(blob|tree)/']

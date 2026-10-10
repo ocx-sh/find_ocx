@@ -1,11 +1,66 @@
+---
+title: Update the vendored files
+description: Move the vendored ocx.cmake and Findocx.cmake to another find_ocx release in script mode, checked against the SHA256SUMS from the same host.
+---
 <!-- doc_type: how-to -->
 <!-- doc_tier: everyday -->
-<!-- description: Update the vendored ocx.cmake and Findocx.cmake in script mode, verified against the release SHA256SUMS. -->
+
 # Update the vendored files
 
-Use the self-update in script mode to move `ocx.cmake` and `Findocx.cmake` to another find_ocx release.
+You copied `ocx.cmake` and `Findocx.cmake` into `cmake/`, and a later release has fixes or pins a later `ocx`.
+Copying the files by hand gives you no check that they arrived whole.
+Fetching them at configure time with no hash trusts the network on every build.
+The module can update itself in script mode and check both files against the `SHA256SUMS` fetched from the same host before it replaces anything.
 
-<!-- port: index.rst "Updating the vendored files" -->
+You need network access to GitHub, or to a mirror of the release files.
+The commands below run in your project root.
 
-Review the diff and commit the new files.
-Needs addressed: problem 2 of the [use-case research](https://github.com/ocx-sh/find_ocx/blob/main/.agents/research/docs-use-cases.md).
+## Update to the latest release {#latest}
+
+Run `cmake -P cmake/ocx.cmake`.
+Script mode starts no project and writes no build cache.
+The module asks the GitHub releases API for the newest tag, downloads the files, verifies them and replaces both.
+
+It prints one line with the old and the new version, for example `-- find_ocx: 0.3.0 -> 0.4.0 (v0.4.0)`.
+
+## Choose a release {#version}
+
+Pass the tag to move to a specific release, or to roll back.
+Run `cmake -DOCX_SELF_UPDATE_VERSION=v0.4.0 -P cmake/ocx.cmake`.
+The leading `v` is optional, and a lower tag is accepted because the printed line shows the direction.
+
+## Update behind a mirror {#mirror}
+
+Host the release files at `<url>/<tag>/<filename>` for `ocx.cmake`, `Findocx.cmake` and `SHA256SUMS`.
+Then run `cmake -DOCX_SELF_UPDATE_VERSION=v0.4.0 -DOCX_SELF_UPDATE_URL=https://mirror.corp/find_ocx -P cmake/ocx.cmake`.
+
+A mirror cannot answer the releases API, so the version is required.
+Without it the update stops and names `OCX_SELF_UPDATE_VERSION`.
+A mirror that lacks the files fails like this:
+
+```log
+find_ocx: failed to fetch http://mirror.corp/find_ocx/v0.4.0/SHA256SUMS: "HTTP response code said error"
+hint: a mirror must allow anonymous read
+```
+
+The module fetches `SHA256SUMS` from the same mirror, so the check catches corruption and partial downloads but not a mirror that serves an altered pair.
+If you do not trust the mirror, compare its `SHA256SUMS` against the GitHub release, or verify the signed tag, before you commit.
+
+## Know what is verified {#verified}
+
+The update downloads `SHA256SUMS` first and reads the hashes for both files.
+It downloads each file against its hash into a temporary directory next to the module.
+Only when both downloads match does it rename the files into place, so a failed update leaves your vendored copy untouched.
+A directory without `Findocx.cmake` is updated for `ocx.cmake` alone.
+
+## Review and commit {#commit}
+
+Look at the diff, because the release may pin a different `ocx` or change behaviour.
+Commit both files in one change.
+Update every vendored copy in the same change, because a configure that loads two copies at different versions stops with an error.
+
+## Next steps {#next-steps}
+
+- [Move from 0.3 to 0.4](migrate-04.md) lists the lines a major update breaks.
+- [Build behind a mirror or offline](mirror.md) covers the other mirror settings.
+- [`OCX_SELF_UPDATE_VERSION`](../reference/variables.md#ocx_self_update_version) and [`OCX_SELF_UPDATE_URL`](../reference/variables.md#ocx_self_update_url) are the two knobs.

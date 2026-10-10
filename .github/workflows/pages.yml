@@ -4,9 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "docs/**"
-      - "ocx.cmake"
-      - "Findocx.cmake"
+      - "site/scripts/stubs.mjs"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -27,24 +25,23 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: ocx-sh/setup-ocx@v1
+      - uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
+          version: "0.6.5"
 
-      # Sphinx + the CMake domain, extracted from the .rst blocks in the
-      # module sources (see docs/reference.rst).
-      - name: Build docs
-        run: ocx run -- task docs
+      # The docs live at https://ocx.sh/integrations/cmake/; this site only forwards the old URLs.
+      - name: Write the forwarding stubs
+        run: ocx exec -- node site/scripts/stubs.mjs stubs
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
         with:
           enablement: true
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: docs/_build/html
+          path: stubs
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

@@ -1,0 +1,659 @@
+# find_ocx discovery artifact (docs-plan steps 1-13). One file, diffable on the next run.
+# Companion: docs/discovery/ia-plan.md (human render: coverage table, page table, nav, declaration patch).
+# Evidence: docs/discovery/notes.md (surface, shortlist, inventory) and docs/discovery/friction-logs/*.md.
+#
+# Baseline for every friction log: the published find_ocx v0.3.0 module on a host with ocx 0.6.5.
+# Items the P2 pipelines are expected to remove are listed under `fixed_by_plan` and must be re-verified
+# after the P2 merge; they are not documentation obligations until they are confirmed to remain.
+
+product_shape: library
+sub_shape: wrapper-over-cli     # precondition sentence required above the first fence (CMake, network or mirror)
+signal: friction-log-severity
+# Why not a higher-priority signal: gh issue list for ocx-sh/find_ocx is empty, four pull requests exist, no
+# invocation telemetry, no search logs. None of them can rank anything.
+# Rank rule: more blocker items first, then more major items, from the friction log of the task. Tasks with no
+# friction log yet rank below every logged task, in shortlist order (notes.md section 4). A tier is NOT derived
+# from rank: the first-steps task is T02, rank 2, because T01 depends on it.
+generated: 2026-10-10
+surface_sources:                # where candidates came from, never docs page titles
+  - entry-point                 # ocx.cmake commands and variable blocks, Findocx.cmake, the plan's target API table
+  - readme-heading
+  - changelog
+  - issue-title                 # pull request titles only; there are no issues
+out_of_scope:                   # enumerated surface entries deliberately not tasks
+  - id: X01
+    surface: "run the repository's own test matrix across CMake versions (C27)"
+    why: "contributor task; CONTRIBUTING.md, not a reader task of the module"
+  - id: X02
+    surface: "refresh the embedded dist snapshot and bump the pin (C28)"
+    why: "maintainer task, owned by .claude/rules/dist-snapshot.md"
+  - id: X03
+    surface: "script mode (cmake -P) as its own page (C22)"
+    why: "one sentence in T09 and T10; no task of its own"
+  - id: X04
+    surface: "OCX_REFRESH (C24)"
+    why: "one generated variable entry plus a sentence under T11"
+  - id: X05
+    surface: "private __ocx_* helpers, taskfile.yml tasks, renovate.json"
+    why: "internals, not exported entry points"
+  - id: X06
+    surface: "write an ocx package or publish to a registry"
+    why: "owned by the ocx documentation, not by find_ocx"
+surface_coverage:               # every exported entry point maps to a task or an out-of-scope row
+  ocx_project: [T02, T04, T05]
+  ocx_package: [T01, T04, T06]
+  ocx_index: [T06]
+  ocx_bootstrap: [T03, T07, T09]
+  ocx_self_update: [T10]
+  ocx_policy: [T13]
+  "include(ocx)": [T02, T09]
+  "find_package(ocx), ocx::ocx": [T09]
+  "OCX_* variables": [T03, T07, T11, T15]
+
+tasks:
+  - id: T01
+    task: "make the build find a library or tool that the build itself provisioned"
+    source: entry-point
+    source_detail: "ocx_package PULL and <name>_ROOT (ocx.cmake); examples/package; README"
+    signal: friction-log-severity
+    rank: 1
+    rank_basis: "2 blocker, 2 major, 4 minor"
+    tier: everyday
+    depends_on: [T02, T06]
+    friction_log: docs/discovery/friction-logs/find-package-sees-ocx-content.md
+    user_need:
+      as_a: "CMake author whose build also needs a tool or library to be located through the usual CMake search"
+      i_need_to: "have that search return the copy the build provisioned, never a copy already on the host"
+      so_that: "the build behaves the same on my machine, a teammate's machine and a CI runner"
+    solution_shaped: false
+    existing_page: site/pages/guides/find-package.md
+    page_word_count: 189
+    page_status: adequate       # but the page promises more than the module does; see must_cover
+    action: expand
+    must_cover:
+      - "which search commands honour <name>_ROOT (find_package does, a top-level find_program does not)"
+      - "a recipe that locates a program inside provisioned content, and where the binary sits in that content"
+      - "what find_package(<tool>) means for a package that ships no find or config module"
+      - "how to list per-platform digests for PINS (the plain install table omits them)"
+    fixed_by_plan:
+      - "PATH ocx 0.6 makes <name>_ROOT a multi-line JSON value with a newline-truncation warning and exit 0 (module reads 0.3 JSON shapes)"
+      - "docs and README name ocx run, which 0.6 renamed to ocx exec"
+  - id: T02
+    task: "run a specific version of a command-line tool from a build step on a machine that does not have it installed"
+    source: entry-point
+    source_detail: "ocx_project BINS and OCX_<NAME>_RUN (ocx.cmake); examples/project; README quick start"
+    signal: friction-log-severity
+    rank: 2
+    rank_basis: "1 blocker, 2 major"
+    tier: first-steps
+    depends_on: []
+    friction_log: docs/discovery/friction-logs/first-tool-in-build.md
+    user_need:
+      as_a: "CMake author whose build needs a command-line tool such as a JSON processor that is not installed on my machine"
+      i_need_to: "run an exact version of that tool from a build step"
+      so_that: "a teammate or a CI runner builds with nothing installed beyond CMake"
+    solution_shaped: false
+    existing_page: site/pages/tutorial.md
+    page_word_count: 321
+    page_status: adequate
+    action: expand
+    must_cover:
+      - "precondition sentence above the first fence: CMake and network access or a mirror"
+      - "the lock file must come from a CLI the module can read; blocked-network readers cannot install a CLI first (open question O1 in ia-plan.md)"
+      - "the quick start's custom command is attached to a target and prints the tool's output when built"
+      - "the quick start states that an ocx.toml and an ocx.lock must exist, and ends on observed jq output"
+    fixed_by_plan:
+      - "bootstrapped ocx 0.3.11 rejects the lock_version 3 file that ocx 0.6.5 writes; the error then wrongly says to run ocx lock"
+      - "the README pairs ocx_project with a floating ocx_package line that stops configure"
+  - id: T03
+    task: "configure and build behind a corporate mirror or with no network, with credentials kept out of build outputs"
+    source: entry-point
+    source_detail: "OCX_INSTALL_DIST_URL, OCX_INSTALL_MIRROR_URL, OCX_MIRRORS, OCX_AUTH_*, OCX_BOOTSTRAP, OCX_OFFLINE (ocx.cmake)"
+    signal: friction-log-severity
+    rank: 3
+    rank_basis: "0 blocker, 4 major, 5 minor"
+    tier: integration
+    depends_on: [T02, T06]
+    friction_log: docs/discovery/friction-logs/configure-behind-mirror.md
+    user_need:
+      as_a: "platform engineer whose build machines can reach only an internal mirror, or nothing"
+      i_need_to: "serve every download from inside my network and keep registry credentials out of caches and project files"
+      so_that: "the build passes security review and keeps working when the public hosts are unreachable"
+    solution_shaped: false
+    existing_page: site/pages/guides/mirror.md
+    page_word_count: 253
+    page_status: adequate
+    action: expand
+    must_cover:
+      - "which files to host: the manifest URL, the musl target, archive extension by version"
+      - "how a registry name becomes the OCX_AUTH_<REGISTRY> variable name, and how to confirm a credential was used"
+      - "which upstream hosts leave the network after the CLI download (registry pulls) and what OCX_MIRRORS replaces"
+      - "the knobs are sticky per build directory, so a changed setting needs a fresh build directory or a cache edit"
+      - "going offline needs a prior eager pull, otherwise the offline exec fails with exit 81"
+      - "a private CA bundle for the mirror's certificate (OCX_EXTRA_CA_CERTS), named in the plan's mirror how-to"
+    fixed_by_plan:
+      - "download failure message hides HTTP status and target (file DOWNLOAD cannot compute hash)"
+      - "version status line prints the old pin next to the new download"
+      - "ocx run deprecation warning on every launcher run"
+  - id: T04
+    task: "build for another platform using that platform's content resolved from the same pins as the host build"
+    source: entry-point
+    source_detail: "PLATFORM, OCX_<NAME>_PATHS, OCX_<NAME>_ENV_<KEY> (ocx.cmake); tests/fixtures/foreign_platform"
+    signal: friction-log-severity
+    rank: 4
+    rank_basis: "0 blocker, 3 major, 1 minor"
+    tier: integration
+    depends_on: [T02, T05]
+    friction_log: docs/discovery/friction-logs/cross-build-foreign-content.md
+    user_need:
+      as_a: "engineer building for a different CPU or operating system than the machine I build on"
+      i_need_to: "get the target platform's tool and library content, resolved from the same lock as my native build"
+      so_that: "the cross build and the native build ship the same versions"
+    solution_shaped: false
+    existing_page: site/pages/guides/cross-build.md
+    page_word_count: 146
+    page_status: stub
+    action: expand
+    must_cover:
+      - "a toolchain file is included twice by CMake, so provisioning in it needs a once-only guard"
+      - "a toolchain-file example that hands the paths to CMAKE_FIND_ROOT_PATH or CMAKE_SYSROOT"
+      - "a worked ocx_project example with PLATFORM and a lock"
+      - "BINS with PLATFORM is an error; the page names the variable to read instead"
+      - "PLATFORM takes one platform; a list is an error"
+    fixed_by_plan:
+      - "newline-truncation warnings and a garbled cache entry on every foreign ocx_package configure"
+      - "page text copied from a test fixture with internal wording"
+  - id: T05
+    task: "add or change a pinned tool in the project's tool list and get the build green again for everyone"
+    source: entry-point
+    source_detail: "ocx_project GROUPS and BINS, ocx.toml, stale-lock exit 65 hint (ocx.cmake); tests/fixtures/stale_lock"
+    signal: friction-log-severity
+    rank: 5
+    rank_basis: "0 blocker, 2 major, 5 minor"
+    tier: everyday
+    depends_on: [T02]
+    friction_log: docs/discovery/friction-logs/add-tool-and-fix-stale-lock.md
+    user_need:
+      as_a: "developer on a team whose build already uses pinned tools"
+      i_need_to: "add or change a pinned tool and get the build green again for everyone"
+      so_that: "teammates pick the change up by pulling, without installing anything"
+    solution_shaped: false
+    existing_page: site/pages/guides/workspace-tools.md
+    page_word_count: 148
+    page_status: stub
+    action: expand
+    must_cover:
+      - "the loop: edit the tool list, refresh the lock, commit, reconfigure"
+      - "a BINS entry from a non-default group resolves only when that group is selected; the selection that keeps the top-level tools"
+      - "the tool resolves from the pinned set, not from the host PATH; how to prove it"
+      - "the local .ocx/toolchain directory is not the committed .ocx/ index snapshot"
+      - "the lock merge=union gitattributes advice that ocx lock prints"
+    fixed_by_plan:
+      - "ocx run deprecation warning on every launcher run, visible only on failures"
+  - id: T06
+    task: "freeze what a moving tag means and refresh it on purpose"
+    source: entry-point
+    source_detail: "floating-tag configure error, OCX_ALLOW_FLOATING, PINS, ocx_index, OCX_FROZEN (ocx.cmake); tests/fixtures/floating_fatal.cmake"
+    signal: friction-log-severity
+    rank: 6
+    rank_basis: "0 blocker, 1 major, 8 minor"
+    tier: everyday
+    depends_on: [T02]
+    friction_log: docs/discovery/friction-logs/fix-floating-tag-error.md
+    user_need:
+      as_a: "CMake author whose configure stopped on an unpinned package tag"
+      i_need_to: "freeze what the tag resolves to and refresh it deliberately"
+      so_that: "a build that is green today stays green tomorrow"
+    solution_shaped: false
+    existing_page: site/pages/guides/pin-and-freeze.md
+    page_word_count: 223
+    page_status: adequate
+    action: expand
+    must_cover:
+      - "the value OCX_FROZEN takes and how to run a frozen configure; what changes with it set"
+      - "preparing an offline build needs an eager pull; a lazy configure leaves the store empty"
+      - "where the digests are visible: the snapshot, the eager install, not the lazy warning"
+      - "the error text and the guide give the same command for creating the snapshot, run from the directory with CMakeLists.txt"
+      - "the example line a reader copies includes NAME"
+    fixed_by_plan: []
+  - id: T07
+    task: "run the same tool versions in CI on Linux, macOS and Windows as on a laptop, and fail early when one is missing"
+    source: entry-point
+    source_detail: "OCX_PULL, OCX_BOOTSTRAP=ALWAYS, OCX_BOOTSTRAP_CACHE (ocx.cmake); .github/workflows/ci.yml"
+    signal: friction-log-severity
+    rank: 7
+    rank_basis: "not logged; ranked below every logged task (shortlist S7)"
+    tier: integration
+    depends_on: [T02, T06]
+    friction_log: null
+    user_need:
+      as_a: "maintainer wiring the build into CI on Linux, macOS and Windows"
+      i_need_to: "run the same tool versions as on my laptop and fail the job early when one is missing"
+      so_that: "a CI result predicts what a local build does"
+    solution_shaped: false
+    existing_page: site/pages/guides/ci.md
+    page_word_count: 195
+    page_status: adequate
+    action: expand
+    must_cover:
+      - "cache location the CI cache can restore; remove the internal-research line"
+  - id: T08
+    task: "get a nested configure to succeed when another build launches it"
+    source: entry-point
+    source_detail: "OCX_FROZEN and OCX_INDEX inheritance (ocx.cmake header block); tests/fixtures/package/subproject"
+    signal: friction-log-severity
+    rank: 8
+    rank_basis: "not logged; ranked below every logged task (shortlist S8)"
+    tier: integration
+    depends_on: [T02]
+    friction_log: null
+    user_need:
+      as_a: "engineer whose build starts another build inside it, such as a superbuild or a test that configures a project"
+      i_need_to: "get the inner configure to succeed"
+      so_that: "the whole build finishes without special-casing the inner project"
+    solution_shaped: false
+    existing_page: site/pages/guides/nested-builds.md
+    page_word_count: 174
+    page_status: adequate
+    action: merge               # into troubleshooting/configure-errors.md; the slug does not match the title
+    must_cover:
+      - "the error is keyed by its exit-81 text and listed first only if it is the most frequent (log T06 item 2 found it first and unrelated)"
+  - id: T09
+    task: "use an ocx already installed on my machines, and tell which binary a configure will run"
+    source: entry-point
+    source_detail: "include(ocx), find_package(ocx), ocx::ocx, OCX_EXECUTABLE, OCX_BOOTSTRAP (ocx.cmake, Findocx.cmake)"
+    signal: friction-log-severity
+    rank: 9
+    rank_basis: "not logged; ranked below every logged task (shortlist S9)"
+    tier: everyday
+    depends_on: [T02]
+    friction_log: null
+    user_need:
+      as_a: "CMake author who already has the package manager installed on my machines"
+      i_need_to: "have the build use that installation and tell which binary a configure will run"
+      so_that: "tool versions and download policy stay under my control"
+    solution_shaped: false
+    existing_page: site/pages/concepts/entry-points.md
+    page_word_count: 55
+    page_status: stub
+    action: expand
+    must_cover:
+      - "a PATH ocx newer than the module's pin changes behaviour (friction T01 item 1, T02 item 1); state the supported range"
+  - id: T10
+    task: "move the vendored module files to another release and verify what arrived"
+    source: entry-point
+    source_detail: "ocx_self_update, OCX_SELF_UPDATE_VERSION, SHA256SUMS (ocx.cmake); tests/self_update_check.cmake"
+    signal: friction-log-severity
+    rank: 10
+    rank_basis: "not logged; ranked below every logged task (shortlist S10)"
+    tier: everyday
+    depends_on: [T02]
+    friction_log: null
+    user_need:
+      as_a: "maintainer of a project that vendors the two module files"
+      i_need_to: "move the vendored files to another release and verify what arrived"
+      so_that: "I get fixes without trusting an unverified download"
+    solution_shaped: false
+    existing_page: site/pages/guides/update-vendored.md
+    page_word_count: 56
+    page_status: stub
+    action: expand
+    must_cover:
+      - "script-mode command and the verification it performs; the page body currently lives only in the retired Sphinx source"
+  - id: T11
+    task: "tell when a configure touches the network and force a refresh of stale results"
+    source: entry-point
+    source_detail: "OCX_PULL, OCX_REFRESH, memoized results (ocx.cmake); tests/reconfigure_check.cmake"
+    signal: friction-log-severity
+    rank: 11
+    rank_basis: "not logged; ranked below every logged task (shortlist S11)"
+    tier: everyday
+    depends_on: [T02, T06]
+    friction_log: null
+    user_need:
+      as_a: "developer who reconfigures a project many times a day"
+      i_need_to: "tell when a configure touches the network and force a refresh of stale results"
+      so_that: "reconfigures stay fast and I can trust what they report"
+    solution_shaped: false
+    existing_page: site/pages/concepts/lazy-vs-eager.md
+    page_word_count: 52
+    page_status: stub
+    action: expand
+    must_cover: []
+  - id: T12
+    task: "map a failed configure or an unfamiliar warning to its cause and to the step that fixes it"
+    source: entry-point
+    source_detail: "exit-hint table 64-87, BINS validation, second-copy version guard (plan target API; ocx.cmake __ocx_default_hint)"
+    signal: friction-log-severity
+    rank: 12
+    rank_basis: "not logged; the 0.4 surface cannot be logged against v0.3.0 (shortlist S12); log after P2 merges"
+    tier: everyday
+    depends_on: [T02]
+    friction_log: null
+    user_need:
+      as_a: "developer looking at a failed configure or a warning I have not seen before"
+      i_need_to: "map the failure to its cause and to the step that fixes it"
+      so_that: "I unblock myself without reading the module source"
+    solution_shaped: false
+    existing_page: missing
+    page_word_count: 0
+    page_status: missing
+    action: write
+    must_cover:
+      - "exit code to cause to fix, asserted against the hint table by a test"
+      - "BINS typo error, duplicate NAME error, second ocx.cmake copy error, each with its verbatim text"
+  - id: T13
+    task: "apply organisation-wide download rules, a config file and a patch snapshot to every build"
+    source: entry-point
+    source_detail: "ocx_policy, CONFIG, NO_CONFIG, PATCH_SNAPSHOT, managed config (plan target API)"
+    signal: friction-log-severity
+    rank: 13
+    rank_basis: "not logged; planned surface only (shortlist S12); log after P2 merges"
+    tier: integration
+    depends_on: [T03]
+    friction_log: null
+    user_need:
+      as_a: "platform engineer who sets download rules for a whole organisation"
+      i_need_to: "allow only what my organisation permits, such as unsigned or withdrawn packages or a private signing root, in every build"
+      so_that: "builds follow the rules without each project repeating them"
+    solution_shaped: false
+    existing_page: missing
+    page_word_count: 0
+    page_status: missing
+    action: write
+    must_cover:
+      - "the four environment classes (forwarded, keyword-overridable, explicit-only, pinned) and which variable falls in which"
+  - id: T14
+    task: "move a project from the previous release to the new one and fix every build line it breaks"
+    source: changelog
+    source_detail: "plan breaking changes: floor 3.25, PLATFORM list gone, ocx exec, new keywords; CHANGELOG 0.3.0 BREAKING entry"
+    signal: friction-log-severity
+    rank: 14
+    rank_basis: "not logged; exists only after P2 (shortlist S13)"
+    tier: everyday
+    depends_on: [T02]
+    friction_log: null
+    user_need:
+      as_a: "maintainer of a project that builds on the previous release"
+      i_need_to: "find every line of my build files that the new release breaks and fix it"
+      so_that: "the upgrade lands in one change"
+    solution_shaped: false
+    existing_page: missing
+    page_word_count: 0
+    page_status: missing
+    action: write
+    must_cover: []
+  - id: T15
+    task: "look up one command signature or one variable and its default"
+    source: entry-point
+    source_detail: "command and variable blocks (ocx.cmake), Findocx.cmake"
+    signal: friction-log-severity
+    rank: 15
+    rank_basis: "not logged; lookup material, reached from every other page (shortlist S14)"
+    tier: everyday              # reference pages themselves carry no doc_tier
+    depends_on: [T02]
+    friction_log: null
+    user_need:
+      as_a: "CMake author in the middle of editing a build file"
+      i_need_to: "look up one command signature or one variable and its default"
+      so_that: "I finish the edit without guessing"
+    solution_shaped: false
+    existing_page: site/pages/reference/commands.md
+    page_word_count: 36
+    page_status: adequate       # generated from #[=[.rst: blocks; exempt from the stub test
+    action: keep
+    must_cover:
+      - "result variables _ENV_KEYS and _CONTENT documented; GROUPS, BINS, PLATFORM, NO_ROOT described (friction T05 item 2, T04 item 1)"
+
+# ------------------------------------------------------------------------------------------------------
+# Inventory (step 7). Prose words from .claude/rules/docs-quality/checks/strip_prose.py. Type source:
+# declared = a doc_type comment is already on the page, nav = sidebar group label, content = content read.
+# Pages whose body is a `<!-- port: ... -->` marker take their text from the retired Sphinx source, so
+# their word count under-states the rendered page and over-states nothing.
+inventory:
+  - {path: site/pages/index.md,                         words: 215, doc_type: landing,         type_source: declared, tier: first-steps, serves: [T02]}
+  - {path: site/pages/tutorial.md,                      words: 321, doc_type: tutorial,        type_source: declared, tier: first-steps, serves: [T02]}
+  - {path: site/pages/guides/workspace-tools.md,        words: 148, doc_type: how-to,          type_source: declared, tier: everyday,    serves: [T05]}
+  - {path: site/pages/guides/pin-and-freeze.md,         words: 223, doc_type: how-to,          type_source: declared, tier: everyday,    serves: [T06]}
+  - {path: site/pages/guides/find-package.md,           words: 189, doc_type: how-to,          type_source: declared, tier: everyday,    serves: [T01, T09]}
+  - {path: site/pages/guides/update-vendored.md,        words: 56,  doc_type: how-to,          type_source: declared, tier: everyday,    serves: [T10]}
+  - {path: site/pages/guides/ci.md,                     words: 195, doc_type: how-to,          type_source: declared, tier: integration, serves: [T07]}
+  - {path: site/pages/guides/mirror.md,                 words: 253, doc_type: how-to,          type_source: declared, tier: integration, serves: [T03]}
+  - {path: site/pages/guides/cross-build.md,            words: 146, doc_type: how-to,          type_source: declared, tier: integration, serves: [T04]}
+  - {path: site/pages/guides/nested-builds.md,          words: 174, doc_type: troubleshooting, type_source: content,  tier: none,        serves: [T05, T06, T08]}
+  - {path: site/pages/concepts/how-it-works.md,         words: 238, doc_type: explanation,     type_source: declared, tier: none,        serves: [T09]}
+  - {path: site/pages/concepts/entry-points.md,         words: 55,  doc_type: explanation,     type_source: declared, tier: none,        serves: [T09]}
+  - {path: site/pages/concepts/reproducible-first.md,   words: 62,  doc_type: explanation,     type_source: declared, tier: none,        serves: [T06]}
+  - {path: site/pages/concepts/lazy-vs-eager.md,        words: 52,  doc_type: explanation,     type_source: declared, tier: none,        serves: [T11]}
+  - {path: site/pages/reference/commands.md,            words: 36,  doc_type: reference,       type_source: declared, tier: none,        serves: [T15]}
+  - {path: site/pages/reference/variables.md,           words: 37,  doc_type: reference,       type_source: declared, tier: none,        serves: [T15]}
+  - {path: site/pages/reference/findocx.md,             words: 35,  doc_type: reference,       type_source: declared, tier: none,        serves: [T09, T15]}
+  - {path: site/pages/reference/examples.md,            words: 68,  doc_type: reference,       type_source: declared, tier: none,        serves: []}
+  - {path: site/pages/reference/examples-packages.md,   words: 37,  doc_type: reference,       type_source: declared, tier: none,        serves: []}
+  - {path: site/pages/reference/examples-discovery.md,  words: 47,  doc_type: reference,       type_source: declared, tier: none,        serves: []}
+  - {path: README.md,                                   words: 213, doc_type: readme,          type_source: declared, tier: none,        serves: [T02]}
+  - {path: CHANGELOG.md,                                words: null, doc_type: changelog,      type_source: content,  tier: none,        serves: [T14]}
+  - {path: docs/index.rst,                              words: null, doc_type: explanation,    type_source: content,  tier: none,        serves: []}   # Sphinx, retired by decision
+  - {path: docs/examples.rst,                           words: null, doc_type: reference,      type_source: content,  tier: none,        serves: []}   # Sphinx, retired by decision
+  - {path: docs/reference.rst,                          words: null, doc_type: reference,      type_source: content,  tier: none,        serves: []}   # Sphinx, retired by decision
+
+# ------------------------------------------------------------------------------------------------------
+# IA plan (step 11). Sidebar of site/astro.config.mjs, base /integrations/cmake/. The first-steps group and
+# the everyday group are different top-level groups. Every `write` page traces to a task id.
+# casts: file under site/casts/ (scripts with `# cast: true`; `# doc:` is the page path plus the cast name);
+#        status planned = named in the plan's D2, proposed = added by this discovery, drop if budget bites.
+# backed_by: files that make every code fence on the page a tested one (DOC-EX-01/02); `new` = to be created.
+ia_plan:
+  groups:
+    - label: "Get started"
+      tier: first-steps
+      pages:
+        - path: site/pages/index.md
+          doc_type: landing
+          doc_tier: first-steps
+          action: expand
+          serves: [T02]
+          casts: []
+          backed_by: [examples/project/CMakeLists.txt]
+        - path: site/pages/tutorial.md
+          doc_type: tutorial
+          doc_tier: first-steps
+          action: expand
+          serves: [T02]
+          casts:
+            - {file: site/casts/tutorial__first-configure.sh, status: exists}
+          backed_by: [site/casts/tutorial__first-configure.sh, examples/project/ocx.toml, examples/project/CMakeLists.txt]
+    - label: "Everyday"
+      tier: everyday
+      pages:
+        - path: site/pages/guides/index.md
+          doc_type: landing
+          doc_tier: everyday
+          action: write
+          serves: [T01, T05, T06, T09, T10, T11, T12, T14]
+          casts: []
+          backed_by: []
+        - path: site/pages/guides/add-a-tool.md
+          renamed_from: site/pages/guides/workspace-tools.md
+          doc_type: how-to
+          doc_tier: everyday
+          action: expand
+          serves: [T05]
+          casts:
+            - {file: site/casts/guides-add-a-tool__stale-lock.sh, status: proposed}
+            - {file: site/casts/guides-add-a-tool__bins-typo.sh, status: planned}
+          backed_by: [examples/project/ocx.toml, examples/project/ocx.lock, examples/project/CMakeLists.txt, examples/project/hello.sh, tests/fixtures/stale_lock/CMakeLists.txt, tests/fixtures/project_run/CMakeLists.txt, "new: BINS-typo fixture from I4", "new: tests/fixtures/project_groups (GROUPS default lint, no host shellcheck)"]
+        - path: site/pages/guides/pin-and-freeze.md
+          doc_type: how-to
+          doc_tier: everyday
+          action: expand
+          serves: [T06]
+          casts:
+            - {file: site/casts/guides-pin-and-freeze__floating-fatal.sh, status: planned}
+            - {file: site/casts/guides-pin-and-freeze__frozen-offline.sh, status: planned}
+          backed_by: [tests/fixtures/floating_fatal.cmake, examples/frozen_index/CMakeLists.txt, examples/package/CMakeLists.txt, "examples/package/index/**"]
+        - path: site/pages/guides/find-package.md
+          retitle: "Make the build find provisioned content"
+          doc_type: how-to
+          doc_tier: everyday
+          action: expand
+          serves: [T01]
+          casts:
+            - {file: site/casts/guides-find-package__find-program.sh, status: proposed}
+          backed_by: [examples/package/CMakeLists.txt, "new: find_program HINTS block and ctest in examples/package"]
+        - path: site/pages/guides/use-system-ocx.md
+          doc_type: how-to
+          doc_tier: everyday
+          action: write         # split out of guides/find-package.md "Find the ocx CLI"
+          serves: [T09]
+          casts:
+            - {file: site/casts/guides-use-system-ocx__find-package-ocx.sh, status: planned}
+          backed_by: [examples/find_package/CMakeLists.txt, tests/fixtures/bootstrap/CMakeLists.txt, tests/fixtures/bootstrap_off.cmake]
+        - path: site/pages/guides/update-vendored.md
+          doc_type: how-to
+          doc_tier: everyday
+          action: expand
+          serves: [T10]
+          casts: []
+          backed_by: [tests/self_update_check.cmake, tests/fixtures/script_mode.cmake]
+        - path: site/pages/guides/migrate-0.4.md
+          doc_type: how-to
+          doc_tier: everyday
+          action: write
+          blocked_on: "P2 merge (floor, PLATFORM list, ocx exec, new keywords)"
+          serves: [T14]
+          casts: []
+          backed_by: ["new: I4 fixtures for the PLATFORM-list error and the 3.25 floor", CHANGELOG.md]
+    - label: "Integrate"
+      tier: integration
+      pages:
+        - path: site/pages/guides/ci.md
+          doc_type: how-to
+          doc_tier: integration
+          action: expand
+          serves: [T07]
+          casts: []
+          backed_by: [.github/workflows/ci.yml, tests/fixtures/package/CMakeLists.txt, tests/fixtures/bootstrap/CMakeLists.txt]
+        - path: site/pages/guides/mirror.md
+          doc_type: how-to
+          doc_tier: integration
+          action: expand
+          serves: [T03]
+          casts:
+            - {file: site/casts/guides-mirror__bootstrap.sh, status: planned}
+          backed_by: [tests/fixtures/bootstrap/CMakeLists.txt, "new: tests/fixtures/mirror (local static host serving dist.json and the archive)"]
+        - path: site/pages/guides/cross-build.md
+          doc_type: how-to
+          doc_tier: integration
+          action: expand
+          serves: [T04]
+          casts:
+            - {file: site/casts/guides-cross-build__foreign-paths.sh, status: proposed}
+          backed_by: [tests/fixtures/foreign_platform/CMakeLists.txt, "new: tests/fixtures/foreign_toolchain (toolchain file with once-only guard, ocx_project PLATFORM)"]
+        - path: site/pages/guides/policy-and-config.md
+          doc_type: how-to
+          doc_tier: integration
+          action: write
+          blocked_on: "P2 merge (ocx_policy, CONFIG, NO_CONFIG, PATCH_SNAPSHOT)"
+          serves: [T13]
+          casts: []
+          backed_by: ["new: I2/I4 tests for policy and config keywords"]
+    - label: "Concepts"
+      tier: none
+      pages:
+        - path: site/pages/concepts/how-it-works.md
+          doc_type: explanation
+          action: keep
+          serves: [T09]
+          casts: []
+          backed_by: []
+        - path: site/pages/concepts/entry-points.md
+          doc_type: explanation
+          action: expand
+          serves: [T09]
+          casts: []
+          backed_by: [examples/find_package/CMakeLists.txt]
+        - path: site/pages/concepts/reproducible-first.md
+          doc_type: explanation
+          action: expand
+          serves: [T06]
+          casts: []
+          backed_by: []
+        - path: site/pages/concepts/lazy-vs-eager.md
+          doc_type: explanation
+          action: expand
+          serves: [T11]
+          casts: []
+          backed_by: [tests/reconfigure_check.cmake]
+        - path: site/pages/concepts/env-and-config.md
+          doc_type: explanation
+          action: write
+          blocked_on: "P2 merge (env-class table)"
+          serves: [T03, T13]
+          casts: []
+          backed_by: ["new: I2/I4 tests for ambient OCX_QUIET, OCX_GLOBAL, OCX_NO_CONFIG"]
+    - label: "Troubleshooting"
+      tier: none
+      pages:
+        - path: site/pages/troubleshooting/configure-errors.md
+          renamed_from: site/pages/guides/nested-builds.md
+          doc_type: troubleshooting
+          action: expand
+          serves: [T05, T06, T08, T12]
+          casts: []
+          backed_by: [tests/fixtures/stale_lock/CMakeLists.txt, tests/fixtures/floating_fatal.cmake, tests/fixtures/package/subproject/CMakeLists.txt, "new: BINS-typo and duplicate-NAME fixtures asserting the quoted message"]
+        - path: site/pages/troubleshooting/exit-codes.md
+          doc_type: troubleshooting
+          action: write
+          blocked_on: "P2 merge (hint table 64-87)"
+          serves: [T12]
+          casts: []
+          backed_by: ["new: tests/hint_table_check.cmake comparing this table with the module's hint table"]
+    - label: "Reference"
+      tier: none
+      pages:
+        - path: site/pages/reference/commands.md
+          doc_type: reference
+          action: keep
+          serves: [T15]
+          casts: []
+          backed_by: ["ocx.cmake #[=[.rst: blocks"]
+        - path: site/pages/reference/variables.md
+          doc_type: reference
+          action: keep
+          serves: [T15]
+          casts: []
+          backed_by: ["ocx.cmake #[=[.rst: blocks"]
+        - path: site/pages/reference/findocx.md
+          doc_type: reference
+          action: keep
+          serves: [T09, T15]
+          casts: []
+          backed_by: ["Findocx.cmake #[=[.rst: block"]
+  readme:
+    - path: README.md
+      doc_type: readme
+      action: expand            # quick start replaced by a tested snippet that prints output; links to the site
+      serves: [T02]
+      casts: []
+      backed_by: [examples/project/CMakeLists.txt]
+  deletes:
+    - path: site/pages/reference/examples.md
+      unmapped: true            # no task is "browse examples"; T15 is served by commands, variables, findocx
+      stub: true                # 68 prose words; duplicate of the tested files the how-tos embed
+      exempt: false             # body is a one-shot `port:` include from the retired examples.rst, not an API generator (`cmake:` is)
+    - path: site/pages/reference/examples-packages.md
+      unmapped: true
+      stub: true                # 37 prose words
+      exempt: false
+    - path: site/pages/reference/examples-discovery.md
+      unmapped: true
+      stub: true                # 47 prose words
+      exempt: false
+  retired_by_decision:          # not delete-list rows: removed by the owner's decision to retire Sphinx, after the prose is rewritten
+    - docs/index.rst
+    - docs/examples.rst
+    - docs/reference.rst        # generator-directive page, would be exempt; its job moves to the generated reference pages
+    - docs/conf.py
+    - docs/pyproject.toml
+    - docs/uv.lock

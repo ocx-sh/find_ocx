@@ -1,0 +1,4 @@
+# region tools
+[tools]
+jq = "ocx.sh/jqlang/jq:latest"
+# endregion

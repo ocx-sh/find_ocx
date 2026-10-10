@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The OCX Authors
+
+# Example: a GitHub Actions workflow that builds with the same pinned ocx and
+# the same locked tools on Linux, macOS and Windows. Copy it to
+# .github/workflows/build.yml. It is checked with actionlint, not run here.
+
+# region workflow
+name: Build
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      OCX_HOME: ${{ github.workspace }}/.cache/ocx-home
+      OCX_BOOTSTRAP_CACHE: ${{ github.workspace }}/.cache/ocx-bootstrap
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/cache@v4.3.0
+        with:
+          path: .cache
+          key: ocx-${{ runner.os }}-${{ hashFiles('ocx.lock') }}
+      - name: Configure
+        shell: bash
+        run: cmake -Werror=dev -S . -B build -DCMAKE_BUILD_TYPE=Release -DOCX_BOOTSTRAP=ALWAYS -DOCX_PULL=ON
+
+      - name: Build and test
+        shell: bash
+        run: |
+          cmake --build build --config Release
+          ctest --test-dir build -C Release --output-on-failure --no-tests=error --timeout 300
+
+      - name: Configure again, offline
+        shell: bash
+        env:
+          OCX_OFFLINE: "1"
+        run: cmake -Werror=dev -S . -B build/offline -DOCX_BOOTSTRAP=ALWAYS -DOCX_PULL=ON
+# endregion

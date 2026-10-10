@@ -1,84 +1,79 @@
+---
+title: Run jq in a CMake build without installing it
+description: Add find_ocx to an empty CMake project and run a pinned jq from a build target, with nothing installed beyond CMake and the ocx CLI.
+---
 <!-- doc_type: tutorial -->
 <!-- doc_tier: first-steps -->
-<!-- description: Add find_ocx to a CMake project and run a pinned jq from a build target without installing it. -->
-# Run jq in a CMake build without installing it
 
-In this tutorial you add find_ocx to a CMake project and run `jq` from a build target.
-You never install `jq` on your machine.
+In this tutorial you add find_ocx to an empty CMake project and run `jq` from a build target.
+The build prints the `jq` version it ran.
+You never install `jq`, and anyone who clones the project gets the same version.
 
-You need CMake 3.19 or later.
-You also need the `ocx` CLI once, to write the lock file ([install it](https://ocx.sh/install/)).
-find_ocx downloads its own pinned `ocx` for the build.
+You need CMake 3.25 or later and network access to the OCX registry or a mirror.
+You also need an `ocx` CLI of version 0.6 or later ([install it](https://ocx.sh/install/)), once, to write the lock.
+Without one, [write the lock with the CLI that find_ocx downloads](guides/add-a-tool.md#bootstrapped-lock) and then continue here.
 
-## Vendor the two files
+## Vendor the two files {#vendor-the-module}
 
 Download `Findocx.cmake` and `ocx.cmake` from the [release assets](https://github.com/ocx-sh/find_ocx/releases).
 Put both in a `cmake/` directory of an empty project.
 
-Check that `cmake/ocx.cmake` and `cmake/Findocx.cmake` exist next to where your `CMakeLists.txt` will be.
+Run `ls cmake`.
+It lists `Findocx.cmake` and `ocx.cmake`.
+Copying these files into your repository is the whole installation.
 
-## Pin the tool
+## Pin the tool {#pin-the-tool}
 
-Create `ocx.toml` next to the `cmake/` directory.
+Create `ocx.toml` in the project root, next to the `CMakeLists.txt` you write in the next step.
+It names the tools your build runs.
 
---8<-- "examples/project/ocx.toml" from="^\[tools\]" to="^jq =" title="ocx.toml"
+<!-- snippet: examples/tutorial/ocx.toml#tools -->
 
-Write the lock file and keep both files in version control.
+The tag `latest` is a moving target.
+The lock step below freezes it to exact digests.
 
-```console
-ocx lock
-```
+## Declare the project {#declare-the-project}
 
-Check that `ocx.lock` exists. It holds the exact digest of `jq`.
+Create `CMakeLists.txt`.
 
-## Declare the project
+<!-- snippet: examples/tutorial/CMakeLists.txt#full -->
 
-Create `CMakeLists.txt` with the project header.
+The `include(ocx)` line is passive, so it defines commands and fetches nothing.
+The `ocx_project` command reads `ocx.toml` and `ocx.lock`, and it exports `OCX_TOOLS_RUN`.
+That variable is a plain CMake command list that runs a tool from the pinned toolchain.
+The `show_jq` target uses it to run `jq --version` on every build.
 
---8<-- "examples/project/CMakeLists.txt" from="^cmake_minimum_required" to="^project" title="CMakeLists.txt"
+## Lock, configure and build {#lock-configure-build}
 
-Add the vendored directory to the module path and include the module.
+Run three commands.
+The first writes `ocx.lock`, and the second configures the project.
+The third builds it, which runs `jq`.
 
---8<-- "README.md" from="^list\(APPEND CMAKE_MODULE_PATH" to="^include\(ocx\)" title="CMakeLists.txt"
+<!-- snippet: site/casts/tutorial__first-configure.sh#cast -->
 
-The include is passive.
-It defines commands and fetches nothing yet.
+<!-- cast: tutorial/first-configure -->
 
-## Run jq from a target
+The lock step prints a table with the digest of the `jq` build for your platform.
+The build ends with a line like `jq-1.8.2`.
+Your paths, digests and timings differ from the recording.
 
-Add the toolchain and a target that runs `jq` on every build.
-`ocx_project` reads `ocx.toml` and `ocx.lock`, and `OCX_TOOLS_RUN` is the command that runs a tool from that toolchain.
+That `jq` was fetched into the OCX store on first use and never reached your `PATH`.
+The lock file fixes its version, so a rebuild on any machine prints the same line.
+Run the configure command again.
+With unchanged inputs find_ocx prints `find_ocx: TOOLS up to date (memoized)` and does not resolve or pull again.
 
---8<-- "examples/project/CMakeLists.txt" from="^# The ocx.toml next to this file" to="^\)$" title="CMakeLists.txt"
+`ocx lock` also warns about merge conflicts in your lock file.
+Add the line `ocx.lock merge=union` to a `.gitattributes` file, so branches that both change the lock merge cleanly.
 
-## Configure and build
-
-Configure the project.
-
-```console
-cmake -S . -B build
-```
-
-The first configure downloads the pinned `ocx` into a per-machine cache and checks that `ocx.lock` is current.
-It does not download `jq` yet.
-
-Build the project.
-
-```console
-cmake --build build
-```
-
-The build runs the `validate` target, which materializes `jq` on first execution and then runs it.
-The build ends without an error.
-Run the configure command again: with unchanged inputs, no `ocx` process starts at all.
-
-## What you built
+## What you built {#what-you-built}
 
 You have a CMake project that runs a tool nobody installed, at a version the lock file fixes.
-Anyone who clones the project gets the same `jq`.
+Commit `ocx.toml`, `ocx.lock` and the `cmake/` directory.
+A teammate or a CI runner then builds with nothing installed beyond CMake.
 
-Next steps:
+## Next steps {#next-steps}
 
-- [Run workspace tools from ocx.toml](guides/workspace-tools.md) to add more tools and groups.
-- [Pin and freeze tag resolution](guides/pin-and-freeze.md) to use `ocx_package` without a project file.
-- [How find_ocx works](concepts/how-it-works.md) for what ran under the hood.
+- [Add or change a pinned tool](guides/add-a-tool.md) to run more tools and keep rarely used ones in groups.
+- [Pin and freeze tag resolution](guides/pin-and-freeze.md) to make `ocx_package` reproducible without a project file.
+- [Read how find_ocx works](concepts/how-it-works.md) for what ran under the hood.
+- [Fix a failing configure](troubleshooting/configure-errors.md) when a step above does not end as described.

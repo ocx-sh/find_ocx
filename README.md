@@ -2,71 +2,64 @@
 
 # find_ocx
 
-CMake support for [OCX](https://ocx.sh) — the OCI-backed package manager.
-Two copy-and-own files bootstrap a pinned, sha256-verified `ocx` CLI and
-provision development tools through it.
-Tools arrive as command-list launchers, as content roots for `find_package`,
-or as foreign-platform content.
+find_ocx lets a CMake build run pinned, sha256-verified command-line tools such as `jq`, `ninja` or `shellcheck` without installing them.
+It is a pair of CMake files that use the [OCX](https://ocx.sh) package manager to fetch each tool at the digest your `ocx.lock` fixes.
 
-find_ocx deliberately **never re-implements OCX internals in CMake**. All
-resolution goes through the `ocx` binary; the durable contracts are
-`ocx.lock` digests and the OCI manifests.
+A build that needs `jq` usually says "install jq first" or takes whatever `find_program` finds on the host.
+Every machine then runs its own version.
+With find_ocx a teammate or a CI runner builds with nothing installed beyond CMake.
 
 ## Quick start
 
-Vendor `Findocx.cmake` + `ocx.cmake` from the
-[release assets](https://github.com/ocx-sh/find_ocx/releases) into your
-repository (e.g. `cmake/`):
+You need CMake 3.25 or later, network access to the OCX registry or a mirror, and the [`ocx` CLI](https://ocx.sh/install/) once, to write the lock file.
 
-```cmake
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
-include(ocx)
+1. Copy `Findocx.cmake` and `ocx.cmake` from the [release assets](https://github.com/ocx-sh/find_ocx/releases) into a `cmake/` directory of your repository.
+2. List the tool in `ocx.toml` and run `ocx lock` to write `ocx.lock`. Without an installed `ocx`, [write the first lock with the bootstrapped CLI](https://ocx.sh/integrations/cmake/guides/add-a-tool/#bootstrapped-lock).
+3. Add the tool to your `CMakeLists.txt`.
 
-# Flagship: the workspace toolchain from ./ocx.toml + ./ocx.lock (lazy).
-ocx_project(BINS jq)
-add_custom_command(
-  OUTPUT pretty.json
-  COMMAND ${OCX_PROJECT_RUN_JQ} . ${CMAKE_SOURCE_DIR}/data.json > pretty.json
-)
-
-# Ad-hoc: a single package. PULL exports jq_ROOT (CMP0074) so a following
-# find_package/find_library searches the OCX-provisioned content.
-ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
+```toml
+[tools]
+jq = "ocx.sh/jqlang/jq:latest"
 ```
 
-No ocx installation required: the pinned CLI is bootstrapped at first
-configure (per-machine cache, manifest sha256 enforced). The classic find
-module works too — `find_package(ocx REQUIRED)`, with `-DOCX_BOOTSTRAP=ON`
-for the same zero-setup behavior.
+<!-- doc: readme/quick-start -->
+```cmake
+cmake_minimum_required(VERSION 3.25...4.4)
+project(hello_jq LANGUAGES NONE)
 
-Requires CMake **3.19** (`Findocx.cmake` alone works on 3.15). Script mode
-(`cmake -P`) is fully supported.
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(ocx)
+
+ocx_project(NAME TOOLS BINS jq)
+
+add_custom_target(show_jq ALL COMMAND ${OCX_TOOLS_RUN} jq --version VERBATIM)
+```
+
+Then `cmake -S . -B build && cmake --build build` ends with a line like `jq-1.8.2`.
+The [tutorial](https://ocx.sh/integrations/cmake/tutorial/) walks through this project step by step.
 
 ## Documentation
 
-Guides, concepts and the command and variable reference are at
-<https://ocx.sh/integrations/cmake/>.
+Guides, concepts, the troubleshooting pages and the command and variable reference are at <https://ocx.sh/integrations/cmake/>.
 
 ## Examples
 
-- [`examples/project`](examples/project) — workspace toolchain: zero-arg
-  `ocx_project()`, group launchers, genexes in commands, ctest usage
-- [`examples/package`](examples/package) — ad-hoc jq: floating + eager,
-  digest-pinned + lazy, `<name>_ROOT`
-- [`examples/frozen_index`](examples/frozen_index) — a committed `.ocx/`
-  snapshot and a deliberate refresh target
-- [`examples/find_package`](examples/find_package) — classic
-  `find_package(ocx)` discovery
+The tested example projects in [`examples/`](examples) show each entry point.
+
+- [`examples/tutorial`](examples/tutorial): the project above, run by the tutorial recording
+- [`examples/project`](examples/project): a workspace toolchain with groups, generator expressions and ctest
+- [`examples/package`](examples/package): one package without a project file, floating, pinned and frozen
+- [`examples/frozen_index`](examples/frozen_index): a committed index snapshot and a deliberate refresh target
+- [`examples/find_package`](examples/find_package): classic `find_package(ocx)` discovery
 
 ## Testing
 
 The harness dogfoods find_ocx.
-The CMake versions under test are provisioned as OCX packages
-(`ocx.sh/kitware/cmake:<tag>`) through `ocx_package()` itself, and each fixture runs on every version via
-`ctest --build-and-test` — on Linux, macOS, and Windows.
+The CMake versions under test are provisioned as OCX packages (`ocx.sh/kitware/cmake:<tag>`) through `ocx_package()` itself.
+Each fixture runs on every version through `ctest --build-and-test` on Linux, macOS and Windows.
 
 ```sh
-ocx run -- task verify
+ocx exec -- task verify
 ```
 
 ## License

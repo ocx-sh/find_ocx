@@ -3,3 +3,5 @@ allowBuilds:
   sharp: true
 minimumReleaseAgeExclude:
   - '@ocx-sh/theme@0.1.1'
+patchedDependencies:
+  '@ocx-sh/theme': patches/@ocx-sh__theme.patch

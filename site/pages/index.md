@@ -1,42 +1,42 @@
+---
+title: find_ocx
+description: Run pinned, sha256-verified command-line tools from a CMake build without installing them, using the OCX package manager.
+---
 <!-- doc_type: landing -->
 <!-- doc_tier: first-steps -->
-<!-- description: CMake support for OCX, with pinned and sha256-verified tools in a CMake build. -->
-# find_ocx
 
-find_ocx runs pinned, sha256-verified tools such as `jq` or `shellcheck` from your CMake build, using the [OCX](https://ocx.sh) package manager.
+find_ocx runs pinned, sha256-verified tools such as `jq` or `shellcheck` from your CMake build without installing them, using the [OCX](https://ocx.sh) package manager.
 
---8<-- "examples/project/CMakeLists.txt" from="^# The ocx.toml next to this file" to="^\)$" title="examples/project/CMakeLists.txt"
+<!-- snippet: examples/tutorial/CMakeLists.txt#full -->
 
-```console
-cmake -S . -B build && cmake --build build
-```
+## Why not install the tool first {#why}
 
-[Run jq in a CMake build](tutorial.md) walks through this example step by step.
+A build that needs `jq` usually says "install jq first" in its README.
+Or it calls `find_program` and takes whatever the host has.
+Every machine then runs its own version.
 
-You need CMake 3.19 and network access or a mirror.
-You do not need to install `ocx`.
-An `ocx` on `PATH` is used when present, otherwise the pinned CLI is bootstrapped on first configure into a per-machine cache.
-`Findocx.cmake` alone works on CMake 3.15.
+FetchContent and CPM fetch sources to compile.
+The vcpkg and Conan clients must be installed and configured before the build starts.
+With find_ocx, a prebuilt tool runs at the digest your `ocx.lock` fixes, on every machine.
 
-## Pick a goal
+[Run jq in a CMake build](tutorial.md) is the shortest path to a first result.
 
-- [Run workspace tools from ocx.toml](guides/workspace-tools.md): launchers, groups and generator expressions
-- [Pin and freeze tag resolution](guides/pin-and-freeze.md): an index snapshot or per-platform digests
-- [Use find_package with find_ocx](guides/find-package.md): find the CLI, or search a pulled package
-- [Reproduce the build in CI](guides/ci.md): Linux, macOS and Windows with one configuration
-- [Build behind a mirror or offline](guides/mirror.md): mirrors, credentials and no downloads
-- [Cross-build with foreign-platform content](guides/cross-build.md): content for a platform other than the host
-- [Update the vendored files](guides/update-vendored.md): refresh `ocx.cmake` and `Findocx.cmake`
-- [Fix a failing configure](guides/nested-builds.md): nested builds, floating tags and stale locks
+## Pick a goal {#pick-a-goal}
 
-## Understand it
+This documentation is for CMake authors and the platform engineers who run their builds.
+
+- [Everyday guides](guides/index.md): add a tool, freeze a tag, find provisioned content, update the vendored files
+- [Reproduce the build in CI](guides/ci.md): the same tool versions on Linux, macOS and Windows
+- [Build behind a mirror or offline](guides/mirror.md): internal hosts and no downloads
+- [Route package pulls through a mirror](guides/mirror-packages.md): registry hosts, the corporate CA and credentials
+- [Fix a failing configure](troubleshooting/configure-errors.md): the error text, its cause and the fix
+
+## Understand it {#understand-it}
 
 - [How find_ocx works](concepts/how-it-works.md)
-- [Two entry points](concepts/entry-points.md)
 - [Reproducible first](concepts/reproducible-first.md)
-- [Lazy versus eager](concepts/lazy-vs-eager.md)
+- [Environment and config](concepts/env-and-config.md)
 
-## Look it up
+## Look it up {#look-it-up}
 
 - [Commands](reference/commands.md), [variables](reference/variables.md) and [Findocx.cmake](reference/findocx.md)
-- [Examples](reference/examples.md): the four tested projects in `examples/`
