@@ -7,7 +7,7 @@ description: Map the registry hosts of a package to your mirror with OCX_MIRRORS
 
 # Route package pulls through a mirror
 
-The `ocx` binary now comes from your mirror, but the packages still come from `ghcr.io` and `index.ocx.sh`, which your firewall blocks.
+The `ocx` binary comes from your mirror, but the packages still come from `ghcr.io` and `index.ocx.sh`, which your firewall blocks.
 This page maps those hosts to your mirror with `OCX_MIRRORS`, covers the corporate CA, and passes mirror credentials that stay out of `CMakeCache.txt`.
 It continues [Build behind a mirror or offline](mirror.md), which routes the download of `ocx` itself.
 
