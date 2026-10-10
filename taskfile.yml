@@ -12,6 +12,12 @@ vars:
   CMAKE: ocx exec -- cmake
   CTEST: ocx exec -- ctest
   BUILD: build
+  # Ninja is single-config: the configuration is chosen at configure time and
+  # ctest -C repeats it, so a test restricted by CONFIGURATIONS runs.
+  CONFIG: Release
+  # Zero tests is an error, a hung test is cut off.
+  CTEST_ARGS: -C {{.CONFIG}} --output-on-failure --no-tests=error --timeout 900
+  GERSEMI: ocx exec -- uvx gersemi==0.29.2
 
 tasks:
   default:
@@ -27,8 +33,15 @@ tasks:
       - task: site:check
 
   lint:
-    desc: actionlint + license headers + links
+    desc: gersemi + actionlint + license headers + links
     cmds:
+      # Tracked listfiles only: gersemi would descend into build trees.
+      # ocx.cmake and Findocx.cmake are not checked yet and foreign_platform
+      # waits for its rewrite - re-enable all three once they are formatted.
+      - >-
+        git ls-files -z -- '*CMakeLists.txt' '*.cmake'
+        ':!ocx.cmake' ':!Findocx.cmake' ':!tests/fixtures/foreign_platform'
+        | xargs -0 -r {{.GERSEMI}} --check
       - ocx exec -- actionlint
       - ocx exec -- hawkeye check
       # The ocx.sh/integrations/cmake/ link 404s until the site's first deploy and the edge flip;
@@ -38,17 +51,17 @@ tasks:
   test:
     desc: Harness — dogfooded CMake-version matrix via CTest
     cmds:
-      - "{{.CMAKE}} -Werror=dev -S . -B {{.BUILD}}"
-      - "{{.CTEST}} --test-dir {{.BUILD}} --output-on-failure"
+      - "{{.CMAKE}} -Werror=dev -DCMAKE_BUILD_TYPE={{.CONFIG}} -S . -B {{.BUILD}}"
+      - "{{.CTEST}} --test-dir {{.BUILD}} {{.CTEST_ARGS}}"
 
   test:examples:
     desc: Example projects — configure, build, test
     cmds:
       - for: { var: EXAMPLES }
         cmd: >-
-          {{.CMAKE}} -Werror=dev -DOCX_BOOTSTRAP=ON -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
-          {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} &&
-          {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} --output-on-failure
+          {{.CMAKE}} -Werror=dev -DCMAKE_BUILD_TYPE={{.CONFIG}} -DOCX_BOOTSTRAP=ON -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
+          {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} --config {{.CONFIG}} &&
+          {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} {{.CTEST_ARGS}}
     vars:
       # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables the
       # bootstrap fallback for the find_package one.
@@ -110,4 +123,4 @@ tasks:
     desc: Refresh the committed index snapshots (review the diff, commit)
     cmds:
       - "{{.CMAKE}} -Werror=dev -S . -B {{.BUILD}}"
-      - "{{.CMAKE}} --build {{.BUILD}} --target ocx-index-update"
+      - "{{.CMAKE}} --build {{.BUILD}} --config {{.CONFIG}} --target ocx-index-update"
