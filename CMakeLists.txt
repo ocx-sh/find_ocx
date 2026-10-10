@@ -2,12 +2,8 @@
 # Copyright 2026 The OCX Authors
 
 # Repo-internal test harness (not part of the published module). Dogfoods
-# ocx.cmake: the CMake versions under test are provisioned as OCX packages.
-# Three legs cover the declared 3.25 floor and the newest line:
-#   3_25  the PyPI wheel through ocx-provisioned uv (ocx.sh/kitware/cmake
-#         starts at 3.31 and carries no 3.25)
-#   3_31  ocx.sh/kitware/cmake:3.31
-#   4_4   ocx.sh/kitware/cmake:4.4
+# ocx.cmake: the CMake versions under test are provisioned as OCX packages -
+# the declared 3.25 floor, 3.31 and the newest line, 4.4.
 
 cmake_minimum_required(VERSION 3.25...4.4)
 project(find_ocx LANGUAGES NONE)
@@ -24,7 +20,8 @@ ocx_index(FIND REQUIRED)
 ocx_package(NAME UV PACKAGE ocx.sh/astral-sh/uv:latest BINS uv NO_ROOT)
 ocx_package(NAME CMAKE_3_31 PACKAGE ocx.sh/kitware/cmake:3.31 PULL NO_ROOT)
 ocx_package(NAME CMAKE_4_4 PACKAGE ocx.sh/kitware/cmake:4.4 PULL NO_ROOT)
-# Exact pin: the floor leg must not drift. `uv tool run` is uvx.
+# The floor leg is the PyPI wheel (ocx.sh/kitware/cmake starts at 3.31), pinned
+# exactly so it cannot drift. `uv tool run` is uvx.
 set(
   OCX_CMAKE_3_25_RUN
   ${OCX_UV_RUN_UV}

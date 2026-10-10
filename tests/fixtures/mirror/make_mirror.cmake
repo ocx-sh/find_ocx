@@ -1,16 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
-# Writes a static release mirror of one ocx CLI into MIRROR_DIR - the layout
-# a corporate mirror of github.com/ocx-sh/ocx releases serves:
-#   <MIRROR_DIR>/dist.json                          the release manifest
-#   <MIRROR_DIR>/v<version>/ocx-<triple>.tar.gz     the CLI archive
-# The archive is built from the ocx binary at OCX_EXE for the host triple, so
-# no network is involved. Run standalone (cmake -P) or include() it; both set
-#   MIRROR_VERSION    the CLI version the mirror serves
-#   MIRROR_DIST_URL   value for OCX_INSTALL_DIST_URL
-#   MIRROR_URL        value for OCX_INSTALL_MIRROR_URL
-#
+
+# Writes a static release mirror of the ocx binary at OCX_EXE into MIRROR_DIR:
+# dist.json plus v<version>/ocx-<triple>.tar.gz for the host triple, no network.
+# Run with -P or include(); both set MIRROR_VERSION, MIRROR_DIST_URL (for
+# OCX_INSTALL_DIST_URL) and MIRROR_URL (for OCX_INSTALL_MIRROR_URL).
 #   cmake -DOCX_EXE=<ocx> -DMIRROR_DIR=<dir> -P make_mirror.cmake
 
 foreach(var OCX_EXE MIRROR_DIR)

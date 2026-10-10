@@ -1,13 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
-# Script mode (cmake -P): negative-test driver. Runs `cmake ${EXPECT_ARGS}`
-# and passes only when the exit status is EXPECT_EXIT (default 1) AND the
-# output carries a `CMake [Deprecation] Error [(dev)] at ... (message):`
-# header followed by EXPECT_REGEX. Whitespace is flattened first: CMake wraps long messages.
-#
-#   cmake -DEXPECT_ARGS=<;-list> -DEXPECT_REGEX=<regex> [-DEXPECT_EXIT=<n>] \
-#         -P tests/expect_failure.cmake
+
+# Script mode (cmake -P): negative-test driver. Runs `cmake ${EXPECT_ARGS}` and
+# passes only on exit status EXPECT_EXIT (default 1) plus a `CMake Error at ...
+# (message):` header carrying EXPECT_REGEX, matched on whitespace-flattened
+# output because CMake wraps long messages.
+#   -DEXPECT_ARGS=<;-list> -DEXPECT_REGEX=<regex> [-DEXPECT_EXIT=<n>]
 
 foreach(var EXPECT_ARGS EXPECT_REGEX)
   if(NOT DEFINED ${var})

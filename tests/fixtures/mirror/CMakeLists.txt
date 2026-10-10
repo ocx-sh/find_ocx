@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-# Fixture: the CLI is bootstrapped from a mirror - OCX_INSTALL_DIST_URL and
-# OCX_INSTALL_MIRROR_URL point at the static tree make_mirror.cmake wrote -
-# not from the vendored dist snapshot and not from GitHub. Driven by
-# tests/mirror_check.cmake; deliberately gets no OCX_EXECUTABLE.
+# Fixture: the CLI is bootstrapped from the static mirror make_mirror.cmake
+# wrote (OCX_INSTALL_DIST_URL, OCX_INSTALL_MIRROR_URL), not from the vendored
+# snapshot or GitHub. Driven by tests/mirror_check.cmake; gets no OCX_EXECUTABLE.
 #   -DMIRROR_EXPECT_VERSION=<version>  the version the mirror serves
 #   -DMIRROR_EXPECT_CACHE=<dir>        where the bootstrapped binary must land
 

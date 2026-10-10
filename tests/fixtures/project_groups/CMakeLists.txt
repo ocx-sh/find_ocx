@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-# Fixture: ocx_project() with GROUPS default lint - the top-level tools AND
-# the lint group's tools compose into one environment, so both BINS resolve
-# and execute through the exported RUN commands. No host shellcheck is
-# needed: it is provisioned from ocx.lock.
+# Fixture: ocx_project() with GROUPS default lint - the top-level tools and the
+# lint group's tools compose into one environment, so both BINS resolve and run
+# through the exported RUN commands. No host shellcheck: it comes from ocx.lock.
 
 cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_project_groups LANGUAGES NONE)

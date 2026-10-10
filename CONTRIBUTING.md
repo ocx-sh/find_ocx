@@ -10,6 +10,8 @@ Thanks for helping out! Ground rules:
 - `ocx exec -- task verify` must pass locally before requesting review. It
   runs the linters, the dogfooded CMake-version test matrix, the example
   projects, and the Sphinx docs build.
+- CMake files are formatted with gersemi (`.gersemirc`); `task lint` checks
+  the tracked listfiles, `ocx exec -- uvx gersemi==0.29.2 -i <file>` fixes one.
 
 ## Design invariants
 

@@ -1,14 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Script mode (cmake -P): configures a scratch copy of FIXTURE_SRC four times
-# into FIXTURE_BIN and asserts the reconfigure memoization per package:
-#   1. baseline         - nothing memoized
-#   2. repeat           - every package memoized
-#   3. one changed input (the committed index snapshot leaf of the frozen
-#      package) - only that package re-runs, the others still hit
-#   4. repeat           - the changed package was re-stored and hits again
-# Each configure runs under GATE (-Werror=dev, or -Werror=author on 4.4+).
+# and asserts the memoization per package: baseline (no hits), repeat (all
+# hit), one changed input - the frozen package's snapshot leaf - (only that
+# package re-runs), repeat (it hits again). Every configure runs under GATE.
 
 foreach(
   var

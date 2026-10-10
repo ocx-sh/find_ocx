@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
-# Script mode (cmake -P): bootstrap the CLI from a local static mirror
-# (fully offline, file:// URLs). Builds the mirror from OCX_EXE with
-# tests/fixtures/mirror/make_mirror.cmake, then asserts
-#   1. a fresh bootstrap cache is filled from the mirror, and
-#   2. an archive that no longer matches the manifest's sha256 is refused
-#      and nothing lands in the cache - the hash, not the mirror, is the
-#      trust boundary.
-# Each configure runs under GATE (-Werror=dev, or -Werror=author on 4.4+).
+
+# Script mode (cmake -P): bootstrap the CLI from a local file:// mirror built
+# from OCX_EXE (make_mirror.cmake). Asserts a fresh cache is filled from it and
+# an archive that no longer matches the manifest's sha256 is refused with
+# nothing cached: the hash, not the mirror, is the trust boundary. Offline;
+# every configure runs under GATE.
 
 foreach(
   var

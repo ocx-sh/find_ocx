@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-# Toolchain file that provisions foreign-platform content (a sysroot or a
-# cross tool) through ocx. CMake reads a toolchain file more than once per
-# configure, so the ocx_package()/ocx_project() calls below run again with
-# identical arguments: that re-entry has to be a no-op, not a duplicate-NAME
-# error. The file carries no guard of its own on purpose.
+# Toolchain file that provisions foreign-platform content (a sysroot or a cross
+# tool) through ocx. CMake reads it more than once per configure, so the calls
+# below re-run with identical arguments: that re-entry must be a no-op, not a
+# duplicate-NAME error. The file carries no guard of its own on purpose.
 
 include(ocx)
 
