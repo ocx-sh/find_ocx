@@ -150,10 +150,37 @@ Variable                     Effect
                              never snapshotted into CMakeCache.txt.
 ===========================  ====================================================
 
-Also passed through when set: ``OCX_HOME``, ``OCX_OFFLINE``, ``OCX_FROZEN``,
-``OCX_REMOTE``, ``OCX_JOBS``, ``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``.
-Clearing a knob with ``-DVAR=`` actively removes it from the environment
-of every ocx invocation.
+Environment classes
+~~~~~~~~~~~~~~~~~~~
+
+Every ocx call runs under an explicit environment, so an ambient variable
+cannot change what a configure does. Variables fall into four classes:
+
+==============  ================================================================
+Class           Variables and rule
+==============  ================================================================
+Site            ``OCX_HOME``, ``OCX_MIRRORS``, ``OCX_INSECURE_REGISTRIES``,
+                ``OCX_OFFLINE``, ``OCX_FROZEN``, ``OCX_REMOTE``, ``OCX_JOBS``,
+                ``OCX_INDEX``, ``OCX_DEFAULT_REGISTRY``, ``OCX_MANAGED_CONFIG``,
+                ``OCX_PATCHES``, ``OCX_EXTRA_CA_CERTS``. Snapshotted into the
+                cache at first configure and forwarded. Clearing one with
+                ``-DVAR=`` removes it from the environment of every call.
+Translucent     ``OCX_CONFIG``, ``OCX_NO_CONFIG``, ``OCX_PATCH_SNAPSHOT``,
+                ``OCX_SIGSTORE_TRUSTED_ROOT``. The keyword on ``ocx_project`` /
+                ``ocx_package`` (or ``ocx_policy`` for the trusted root)
+                overrides the ambient value; paths must be absolute.
+Explicit        ``OCX_NO_VERIFY``, ``OCX_ALLOW_YANKED``. Never read from the
+                environment; set only through ``ocx_policy``.
+Pinned          ``OCX_PROJECT=``, ``OCX_GLOBAL=0``, ``OCX_QUIET=0``,
+                ``OCX_NO_PROJECT=1``, ``OCX_NO_CONFIG_REFRESH=1``,
+                ``OCX_NO_CONSENT=1``, ``OCX_SELF_UPDATE=manual``. Always set.
+==============  ================================================================
+
+Config files that exist at configure time (``/etc/ocx/config.toml``, the
+user config, ``$OCX_HOME/config.toml``, the managed-config snapshot and the
+file named by ``OCX_CONFIG``) are configure dependencies: editing one
+re-runs the configure. A file created *after* the configure is not seen
+until you reconfigure.
 
 .. warning::
 
