@@ -83,6 +83,19 @@ test('depth moves the headings, scope prefixes the ids, a signature defaults to 
   assert.match(out, /^## Heading \{#heading\}$/m);
 });
 
+test('a signature named like its command adds no heading and keeps the command anchor', () => {
+  const out = md('.. signature:: ocx_index(x)\n  :target: ocx_index\n\n  Text, see `ocx_index`_.');
+  assert.doesNotMatch(out, /^#/m);
+  assert.match(out, /^```cmake\nocx_index\(x\)\n```$/m);
+  assert.match(out, /\[ocx_index\]\(#ocx_index\)/);
+});
+
+test('a shared target map lets one text reference a signature of another, and collect runs the first pass only', () => {
+  const targets = new Map();
+  assert.equal(md('.. signature:: ocx_index(READ <f>)\n  :target: READ\n', { targets, collect: true }), '');
+  assert.match(md('See `READ`_.', { targets, scope: '' }), /\[READ\]\(#ocx_index-read\)/);
+});
+
 test('unknown constructs fail loudly', () => {
   assert.throws(() => md('.. frobnicate:: x\n\n   y'), /unknown directive \.\. frobnicate::/);
   assert.throws(() => md(':ref:`x`'), /unknown role :ref:/);

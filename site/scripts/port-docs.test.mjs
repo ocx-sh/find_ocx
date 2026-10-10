@@ -35,6 +35,13 @@ test('reference pages convert and keep every entry as a heading', () => {
   assert.doesNotMatch(expand('<!-- cmake: findocx -->', 't').text, /^Findocx$/m);
 });
 
+test('the commands page opens with the module synopsis, and a single-form command has no sub-heading', () => {
+  const cmds = expand('<!-- cmake: commands -->', 't').text;
+  assert.ok(cmds.indexOf('## Synopsis {#synopsis}') < cmds.indexOf('## ocx_policy {#ocx_policy}'));
+  assert.match(cmds, /^ocx_project\(\[NAME <name>\]/m);
+  for (const c of src.commands.filter((c) => c.name !== 'ocx_index')) assert.doesNotMatch(cmds, new RegExp(`^### ${c.name} `, 'm'));
+});
+
 test('rst constructs', () => {
   assert.equal(toMarkdown('See :command:`ocx_project` and ``x``.', ctx), 'See [`ocx_project`](/integrations/cmake/reference/commands/#ocx_project) and `x`.');
   assert.match(toMarkdown('.. warning::\n\n   Careful.', ctx), /^:::caution\nCareful\.\n\n:::$/);

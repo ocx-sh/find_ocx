@@ -5,37 +5,67 @@
 Findocx
 -------
 
-Finds the `OCX <https://ocx.sh>`_ CLI::
+Overview
+^^^^^^^^
+
+Finds the `OCX <https://ocx.sh>`_ CLI and provides it as an imported target.
+The module works standalone on CMake 3.15 or later.
+The provisioning commands :command:`ocx_project` and :command:`ocx_package` live in ``ocx.cmake``, which you add with ``include(ocx)``.
+
+.. parsed-literal::
 
   find_package(ocx [<version>] [REQUIRED])
 
-Result variables and targets:
+Both entry points resolve ``OCX_EXECUTABLE``, then ``PATH``, then the pinned bootstrap.
+They differ only in the bootstrap default.
+This module opts in, because find modules discover.
+``ocx.cmake`` opts out, and ``OFF`` forbids the implicit download there.
 
-``ocx_FOUND`` / ``OCX_FOUND``
-  True when the ocx CLI was found (and satisfies the requested version).
-``OCX_EXECUTABLE``
-  Path to the ocx CLI (cache; also the search hint).
-``OCX_VERSION_STRING``
-  Version reported by ``ocx version``.
+Imported targets
+^^^^^^^^^^^^^^^^
+
 ``ocx::ocx``
-  Imported executable target.
+  Imported executable target for ``OCX_EXECUTABLE``.
 
-Hints: set ``OCX_EXECUTABLE`` (e.g. via :command:`ocx_bootstrap` from the
-sibling ``ocx.cmake``) to use a specific binary. With ``OCX_BOOTSTRAP=ON``
-this module bootstraps the pinned ocx itself when none is found, and with
-``OCX_BOOTSTRAP=ALWAYS`` it skips the ``PATH`` search and always uses the
-pin (both require CMake 3.25 and ``ocx.cmake`` next to this file)::
+Result variables
+^^^^^^^^^^^^^^^^
 
-  find_package(ocx REQUIRED)   # -DOCX_BOOTSTRAP=ON => zero-setup corporate UX
+``ocx_FOUND``, ``OCX_FOUND``
+  True when the ocx CLI is found and satisfies the requested version.
 
-Both entry points resolve ``OCX_EXECUTABLE``, then ``PATH``, then the
-pinned bootstrap — they differ only in the bootstrap default: opt-*in*
-here (find modules discover), opt-*out* in ``ocx.cmake`` (``OFF`` forbids
-the implicit download there).
+``OCX_EXECUTABLE``
+  Path of the ocx CLI.
+  It is a cache variable and also the search hint.
 
-This find module works standalone on CMake 3.15+. The provisioning
-commands (:command:`ocx_project`, :command:`ocx_package`) live in
-``ocx.cmake`` — ``include(ocx)``.
+``OCX_VERSION_STRING``
+  Version that ``ocx version`` reports.
+
+Hints
+^^^^^
+
+``OCX_EXECUTABLE``
+  Set it to use a specific binary, for example one that :command:`ocx_bootstrap` provides.
+
+``OCX_BOOTSTRAP``
+  ``ON`` bootstraps the pinned ocx when none is found.
+  ``ALWAYS`` skips the ``PATH`` search and always uses the pin.
+  Both values need CMake 3.25 and an ``ocx.cmake`` next to ``Findocx.cmake``.
+
+  .. versionchanged:: 0.4
+    The bootstrap requires CMake 3.25.
+    Release 0.3 required CMake 3.19.
+
+Example
+^^^^^^^
+
+The tested project ``examples/find_package`` finds the ocx CLI.
+Configure it with ``-DOCX_BOOTSTRAP=ON`` to bootstrap the pin when none is found.
+
+.. code-block:: cmake
+
+  find_package(ocx REQUIRED)
+
+  message(STATUS "example: ocx ${OCX_VERSION_STRING} at ${OCX_EXECUTABLE}")
 #]=]
 
 if(NOT OCX_EXECUTABLE AND NOT "${OCX_BOOTSTRAP}" STREQUAL "ALWAYS")
