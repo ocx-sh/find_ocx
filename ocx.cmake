@@ -39,13 +39,14 @@ the implicit download entirely. An explicit :command:`ocx_bootstrap` call
 always provisions the pin.
 
 **Trust root.** The ``sha256`` column of the dist.json snapshot embedded in
-this file makes a downloaded ocx CLI trustworthy. Every archive is checked
-against it before extraction, whichever URL served the bytes.
-``scripts/update_dist.py`` only ever adds rows to the snapshot.
-
-A manifest fetched from ``OCX_INSTALL_DIST_URL`` is trusted as far as its
-transport. The exception is a file named ``<sha256>.json``: the name carries
-the manifest's own digest, and the fetch is verified against it.
+this file makes a downloaded ocx CLI trustworthy: every archive is checked
+against its row before extraction, whichever URL served the bytes. When
+``DIST_MANIFEST`` or ``OCX_INSTALL_DIST_URL`` replaces the snapshot, that
+manifest's ``sha256`` column is the trust root instead, and it is trusted as
+far as its transport. The exception is a manifest file named
+``<sha256>.json``: the name carries its own digest, and the fetch is verified
+against it. The repository script ``scripts/update_dist.py`` only ever adds
+rows to the embedded snapshot.
 
 The ``SHA256SUMS`` file of a find_ocx release is the trust root of
 :command:`ocx_self_update`. The GitHub releases API only names the latest

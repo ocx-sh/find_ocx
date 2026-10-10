@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 #
-# Script mode (cmake -P): module-level contracts of ocx.cmake.
-#   1. A second copy at another path with another version is a configure
-#      error; the same version at two paths is not.
-#   2. The first load is recorded in GLOBAL properties.
-#   3. The self-update entry is the public ocx_self_update, rejects
-#      arguments, and refuses to run in a project configure.
-#   4. Static: every definition sits inside the policy pin, every
-#      file(DOWNLOAD) verifies TLS and is bounded, the floor is 3.25.
-#
+# Script mode (cmake -P): module-level contracts of ocx.cmake. A second copy
+# with another version is FATAL; the first load is a GLOBAL property;
+# ocx_self_update is public, takes no arguments and refuses a project
+# configure; statically, definitions sit inside the policy pin, every
+# file(DOWNLOAD) verifies TLS and is bounded, and the floor is 3.25.
 #   cmake -DMODULE_DIR=<repo> -DSCRATCH=<dir> -P module_checks.cmake
 
 foreach(var MODULE_DIR SCRATCH)
@@ -108,7 +104,7 @@ if(NOT content MATCHES "VERSION_LESS 3\\.25\\)")
   message(FATAL_ERROR "module_checks: the version floor guard must be 3.25")
 endif()
 
-# CMK-MOD-01/02/03/17: status checked, TLS verified, bounded.
+# Every download checks its status, verifies TLS and is bounded.
 string(REGEX MATCHALL "file\\(DOWNLOAD[ \n][^)]*\\)" downloads "${content}")
 list(LENGTH downloads download_count)
 if(download_count LESS 5)

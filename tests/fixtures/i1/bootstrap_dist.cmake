@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 #
-# Script mode (cmake -P): ocx_bootstrap() of the pinned ocx from a fake
-# file:// distribution. The payload is the real ocx binary OCX_EXE (which must
-# be the pinned version), archived the way a release ships it: a nested
-# ocx-<triple>/ocx in a .tar.gz on unix, a flat ocx.exe in a .zip on Windows.
-# Fully offline: no case reaches the network.
-#
+# Script mode (cmake -P): ocx_bootstrap() of the pin from a fake file://
+# distribution, offline. The payload is OCX_EXE (the pinned version) archived
+# as a release ships it: nested ocx-<triple>/ocx in .tar.gz on unix, flat
+# ocx.exe in .zip on Windows.
 #   cmake -DMODULE_DIR=<repo> -DOCX_EXE=<ocx> -DSCRATCH=<dir> -P bootstrap_dist.cmake
 
 foreach(var MODULE_DIR OCX_EXE SCRATCH)

@@ -2,27 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 
-"""Bump find_ocx to an ocx CLI release: snapshot + pin + CI, in lockstep.
+"""Bump find_ocx to an ocx CLI release: snapshot, pin and CI pins in lockstep.
 
-One command moves three things together, and refuses to move any of them
-unless every guard passes:
-
-- the dist.json snapshot embedded in ocx.cmake between the
-  BEGIN/END OCX DIST SNAPSHOT markers,
-- __OCX_PIN_VERSION in ocx.cmake,
-- every ocx-sh/setup-ocx `version:` pin in .github/workflows/*.yml|*.yaml.
-
-Per-row validation holds every row in the snapshot, not just the pinned
-version's, to channel "stable", a 64-lowercase-hex sha256, an artifact URL
-that is exactly <ocx release path>/<tag>/<filename>, and an archive extension
-ocx.cmake can extract; the pinned version must cover at least 8 targets and
-must not drop a target the outgoing pin covers. --check (= `task dist:check`)
-runs that offline over the committed file and also requires the CI pins to
-equal the module pin. A refresh additionally requires that the incoming
-manifest only adds rows to the committed one and that the pin moves forward.
-
-The sha256 column is the trust root of ocx_bootstrap(): nothing in this script
-or in ocx.cmake lets a row's url or sha256 come from anywhere else.
+Moves the dist.json snapshot in ocx.cmake, __OCX_PIN_VERSION and every
+ocx-sh/setup-ocx `version:` pin in .github/workflows together, or none of them.
+--check (task dist:check) validates the committed files offline.
 """
 
 import argparse
@@ -75,19 +59,10 @@ def ext_of(filename):
 
 
 def on_release_host(u):
-    """True only for a URL that really resolves to the ocx release host.
-
-    The path is checked against an allowlist of the shape a release asset has
-    (ARTIFACT_PATH_RE), because blocklists of separators are an open set: a
-    dot segment, a literal backslash, %5c, an extra segment and %2f each
-    bypassed an earlier generation of this guard, and github.com normalises
-    "/../" and "\\" server-side, so a prefix match alone serves another
-    repository's release asset under the sha256 of the same forged row.
-
-    The checks either side of the pattern are not redundant with it.
-    startswith() runs on the raw path and so refuses ".../download%2fv1/x";
-    the dot-segment check runs after decoding and refuses ".../download/../x".
-    """
+    """True only for a URL that really resolves to the ocx release host."""
+    # An allowlist on the path shape: blocklists of separators are an open
+    # set, and github.com normalises "/../" and "\\" server-side, so a prefix
+    # match alone serves another repository's asset under a forged row's sha256.
     # urlsplit() lstrips WHATWG C0-or-space, so a leading control character
     # would be dropped before any check below sees it and stay in the url.
     if not isinstance(u, str) or not (u.isascii() and u.isprintable()) or " " in u:
@@ -96,6 +71,8 @@ def on_release_host(u):
         p = urlsplit(u)
     except ValueError:  # e.g. a malformed IPv6 literal
         return False
+    # startswith() runs on the raw path (refuses "download%2fv1/x"); the
+    # dot-segment check runs on the decoded one (refuses "download/../x").
     path = unquote(p.path)
     return bool(
         p.scheme == "https"
@@ -208,10 +185,13 @@ def rows_for(manifest, version):
 
 
 def check_row(r, where):
-    """Fails loudly on one release row that would break ocx_bootstrap() or
-    point it at bytes we never vouched for. Every field is read with .get():
-    a malformed row must die() with something the operator can act on, not a
-    KeyError out of this function's internals.
+    """Dies on one row that would break ocx_bootstrap() or point it at bytes
+    nobody vouched for: channel stable, 64-hex sha256, release-host url,
+    single-segment tag and filename, extractable extension.
+
+    The sha256 column is the trust root of ocx_bootstrap(). Fields are read
+    with .get() so a malformed row dies with an actionable message, not a
+    KeyError.
     """
     if r.get("channel") != "stable":
         die(
@@ -253,18 +233,14 @@ def check_row(r, where):
 
 
 def validate(manifest, version, required=frozenset()):
-    """Fails loudly on anything that would break ocx_bootstrap() for this
-    version. The target checks are scoped to `version`: an unconditional one
-    would false-fire while upstream is mid-publish. `required` is the set of
-    targets the outgoing pin already covers, which `version` must cover too.
-    check_row() is not scoped: --check runs it over every committed row and
-    assert_additions_only() over every row a refresh adds, because all of
-    them ship in the same file and any can be selected with
-    ocx_bootstrap(VERSION ...).
+    """Dies on anything that would break ocx_bootstrap() for `version`.
 
-    Not self-sufficient: this counts rows, so a duplicate (version, target)
-    inflates the coverage set. Every caller runs index_rows() first.
+    `required` is the target set the outgoing pin covers, which `version` must
+    cover too. Callers run index_rows() first: duplicate (version, target)
+    rows would inflate the coverage count.
     """
+    # Target checks are scoped to `version` (an unconditional one false-fires
+    # mid-publish); check_row() runs over every row elsewhere.
     rows = rows_for(manifest, version)
     # Coverage, not headcount: 9 rows that skip aarch64-apple-darwin clear any
     # count check. Measured against what the outgoing pin covers rather than a

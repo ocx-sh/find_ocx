@@ -5,16 +5,12 @@
 """Specification tests for the supply-chain guards in update_dist.py.
 
 Run: python3 -I -m unittest discover -s scripts -p update_dist_test.py
-(= `task dist:test`; also registered with CTest as dist_script by tests/i1.cmake).
+(= `task dist:test`; CTest runs it as dist_script).
 
-setup.ocx.sh is the one input this repo cannot verify out of band: it names
-the versions, the artifacts and the sha256 that ocx_bootstrap() will execute. These
-tests pin the four guards that keep that server from choosing what we pin —
-F1 (per-row: stable channel, hex sha256, a url that really resolves to the
-release host, a mapped archive extension — on every row in the committed file
-and on every row a refresh adds; plus all 8 targets for the pinned version),
-F1b (direction), F2 (additions only, no duplicate (version, target)), F3 (no
-write before the guards run). No network, no writes; every fixture is inline.
+setup.ocx.sh names the versions, artifacts and sha256 that ocx_bootstrap()
+will execute. These pin the guards that keep it from choosing what we pin:
+per-row validation, direction, additions only, and no write before the guards.
+No network, no writes; every fixture is inline.
 """
 
 import contextlib
@@ -339,18 +335,13 @@ def test_f1_validate_refuses_a_sha256_that_is_not_lowercase_hex():
 
 
 def test_f1_validate_refuses_an_artifact_url_off_the_release_host():
-    """F1(b): ocx_bootstrap() returns row["url"]
-    verbatim, so a fabricated row names both the host and the hash. Mirrors go
-    through OCX_INSTALL_MIRROR_URL, which rewrites at download time.
+    """F1(b): a fabricated row must not name an off-host url.
 
-    startswith() is not a host check. github.com normalises dot segments
-    server-side, so the traversal below matches the artifact prefix and still
-    returns another repository's release asset (verified live: it 302s to the
-    same asset the direct url does, with and without curl --path-as-is, and
-    through urllib) — anyone can create a repo and a release, so it reaches
-    attacker-chosen bytes under the sha256 from the same row. The separator
-    characters go with it: a prefix match also waves through CRLF, tabs, NUL,
-    a query string and a fragment.
+    ocx_bootstrap() uses row["url"] verbatim; mirrors go through
+    OCX_INSTALL_MIRROR_URL. startswith() is no host check: github.com
+    normalises dot segments server-side, so a traversal under the artifact
+    prefix serves another repository's asset under the row's sha256. CRLF,
+    tabs, NUL, a query and a fragment must fail too.
     """
     good = f"{update_dist.ARTIFACT_PREFIX}v0.5.2/ocx-x86_64-unknown-linux-gnu.tar.gz"
     assert len(update_dist.validate(manifest("0.5.2"), "0.5.2")) == len(TARGETS), "the real URL shape must pass"
@@ -385,23 +376,13 @@ def test_f1_validate_refuses_an_artifact_url_off_the_release_host():
 
 
 def test_f1_url_guard_allowlists_the_asset_shape_instead_of_blocking_separators():
-    """F1(b), the third bypass of this one guard. `startswith` fell to a dot
-    segment; refusing dot segments then fell to a literal backslash — one path
-    segment to urlsplit, four traversals to github.com, which normalises "\\"
-    to "/" server-side (verified live: the payload below 302s to another
-    repository's release asset, byte-identical to fetching it directly). The
-    url and the sha256 come out of the same attacker-authored row, so that is
-    attacker-chosen bytes under a matching hash.
+    """F1(b): separators are refused by allowlisting the asset shape.
 
-    Blocking separators is an open set — that is what has now failed three
-    times. The guard allowlists the shape a release asset actually has
-    instead: `<tag>/<filename>`, one segment each, out of a charset that
-    contains no separator at all. A bare ".." clears that charset, so the dot
-    segment check stays as the second half of the pair.
-
-    The authority half pins `p.netloc == ARTIFACT_HOST`: an exact compare on
-    the raw netloc, not `.hostname`, which lowercases and drops both userinfo
-    and the port and would wave the middle four of these through.
+    The url must be `<tag>/<filename>`, one separator-free segment each;
+    github.com turns "\\" into "/", so blocklisting separators is an open
+    set. A bare ".." clears the charset, so the dot-segment check stays.
+    The authority compare is `p.netloc == ARTIFACT_HOST` on the raw netloc:
+    `.hostname` drops userinfo and the port and would pass them.
     """
     good = f"{update_dist.ARTIFACT_PREFIX}v0.5.2/ocx-x86_64-unknown-linux-gnu.tar.gz"
     for bad in (
@@ -466,16 +447,11 @@ def test_f1_validate_refuses_a_filename_it_cannot_type():
 
 
 def test_f1_validate_refuses_a_tag_or_filename_that_is_not_one_path_segment():
-    """F1(b), the mirror path. ocx_bootstrap()
-    composes the mirror url as <mirror>/<tag>/<filename>, and neither field was
-    reaching a check: `tag` appeared only inside die() message interpolation,
-    `filename` only through ext_of(), which is an endswith. So tag="../../../.."
-    with a filename to match walks out of the release directory inside whatever
-    OCX_INSTALL_MIRROR_URL points at — the scheme and authority are the
-    operator's, but the path below them is not, which matters when the mirror
-    is a shared artifact proxy. The sha256 is in the same row, so nothing else
-    catches it. Same one-segment charset as the url path, because these two
-    fields are literally the two segments of it.
+    """F1(b), the mirror path: tag and filename are single path segments.
+
+    ocx_bootstrap() builds the mirror url as <mirror>/<tag>/<filename>, so
+    tag="../../../.." walks out of the release directory of a shared proxy.
+    Same charset as the url path, since they are its two segments.
     """
     for field, bad in (
         ("tag", "../../../.."),
@@ -762,17 +738,13 @@ def test_wiring_check_on_an_unreadable_snapshot_dies_instead_of_tracebacking():
 
 
 def test_wiring_snapshot_only_writes_the_snapshot_and_leaves_the_pin():
-    """F3: the write lands after the guards, and `task dist:update` relies on
-    --snapshot-only being a refresh rather than a silent bump — of the pin or
-    of the CI pins, which are what CI dogfoods.
+    """F3: the write lands after the guards; --snapshot-only is a refresh.
 
     The pin, the CI pin and the incoming latest are three different versions
-    deliberately: with the CI pin equal to the pin, --snapshot-only writing the
-    CI pins anyway would rewrite "0.5.2" as "0.5.2" and this test would pass
-    over the regression. Incoming 0.5.3 is mid-publish (4 of 8 targets) for the
-    same reason — it is what a refresh legitimately meets on a release day, and
-    it is only tolerable because --snapshot-only validates the version that is
-    *pinned*, not the newest one it happens to fetch.
+    on purpose: with equal values a regression that rewrote the CI pins
+    anyway would be invisible. Incoming 0.5.3 is mid-publish (4 of 8
+    targets), tolerable only because --snapshot-only validates the *pinned*
+    version, not the newest fetched one.
     """
     committed = manifest("0.5.1", "0.5.2")
     mid_publish = manifest("0.5.1", "0.5.2", "0.5.3")

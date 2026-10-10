@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
 #
-# Repo-internal tests of the bootstrap and dist pipeline (never part of the
-# published module files). Included once from CMakeLists.txt after
-# tests/helpers.cmake; needs OCX_TEST_CMAKE_VERSIONS and the per-version
-# OCX_CMAKE_<v>_RUN / OCX_CMAKE_<v>_TEST_LABEL variables it defines.
-#
-#   dist_script         unit tests of the scripts/update_dist.py guards
-#   dist_check          the embedded snapshot and CI pins pass --check
-#   bootstrap_dist/...  ocx_bootstrap of the pin from a fake file:// distribution
-#   module_checks/...   second-copy version FATAL, ocx_self_update name, policy pin
+# Repo-internal bootstrap and dist tests, included once from CMakeLists.txt
+# after tests/helpers.cmake (needs OCX_TEST_CMAKE_VERSIONS and the
+# per-version OCX_CMAKE_<v>_RUN / _TEST_LABEL variables).
+# dist_script / dist_check run scripts/update_dist.py; bootstrap_dist/* and
+# module_checks/* run the fixtures in tests/fixtures/i1.
 
 find_program(OCX_TEST_PYTHON NAMES python3 python)
 if(NOT OCX_TEST_PYTHON)
