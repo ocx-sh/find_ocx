@@ -1,6 +1,6 @@
 // Every `.. command::` / `.. variable::` the module sources document must exist as an id in the built reference
-// pages, and no id may repeat.
-import { readFileSync } from 'node:fs';
+// pages, and no id may repeat. Every <Terminal> cast a built page embeds must exist under dist.
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { entries, rstBlocks, slug } from './rst.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
@@ -18,4 +18,16 @@ const check = (page, wanted) => {
 const all = names('ocx.cmake');
 check('commands', all.filter((e) => e.kind === 'command').map((e) => e.name));
 check('variables', all.filter((e) => e.kind === 'variable').map((e) => e.name));
+
+const BASE = '/integrations/cmake/';
+const dist = new URL('../dist/', import.meta.url);
+const html = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? html(new URL(`${d.name}/`, dir)) : d.name.endsWith('.html') ? [new URL(d.name, dir)] : []));
+let casts = 0;
+for (const page of html(dist)) {
+  for (const m of readFileSync(page, 'utf8').matchAll(/data-src="([^"]+)"/g)) {
+    casts++;
+    if (!m[1].startsWith(BASE) || !existsSync(new URL(m[1].slice(BASE.length), dist))) (bad++, console.error(`${page.pathname}: cast ${m[1]} is not in dist`));
+  }
+}
+console.log(`casts: ${casts} embedded`);
 process.exit(bad ? 1 : 0);

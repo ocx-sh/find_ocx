@@ -1,7 +1,6 @@
-// Converts the reStructuredText that find_ocx documents itself in (docs/*.rst and the `#[=[.rst:`
-// blocks of the CMake modules) to Markdown. Pure: callers pass text and a context, nothing is read here
-// except `literalinclude` targets through ctx.readFile. Anything it does not know throws, so a new
-// directive or role in the sources fails the build instead of rendering wrong.
+// Converts the reStructuredText of the `#[=[.rst:` blocks in the CMake modules to Markdown. Pure: callers pass text
+// and a context, nothing is read here. Anything it does not know throws, so a new directive or role in the
+// sources fails the build instead of rendering wrong.
 
 const ind = (l) => l.match(/^ */)[0].length;
 const dedent = (lines) => {
@@ -20,7 +19,7 @@ const fence = (lang, lines, title) => ['```' + lang + (title ? ` title="${title}
 /** Anchor a heading gets from github-slugger for the names used here (lowercase, `_` kept). */
 export const slug = (s) => s.toLowerCase().replace(/[^\w\- ]/g, '').replace(/ /g, '-');
 
-/** ctx: { commands:Set, variables:Set, urls:{command, variable}, aliases:{name: url}, readFile(path)->string, lang } */
+/** ctx: { commands:Set, variables:Set, urls:{command, variable}, aliases:{name: url}, lang } */
 export function inline(text, ctx) {
   return text
     .split(/(``[^`]+``)/)
@@ -101,10 +100,8 @@ const options = (lines) => {
 };
 
 function directive(name, arg, lines, ctx) {
-  const { opts, rest } = options(lines);
+  const { rest } = options(lines);
   switch (name) {
-    case 'toctree':
-      return [];
     case 'code-block':
       return fence(arg || ctx.lang || 'text', rest);
     case 'parsed-literal':
@@ -113,15 +110,6 @@ function directive(name, arg, lines, ctx) {
     case 'note':
     case 'tip':
       return [`:::${name === 'warning' ? 'caution' : name}`, ...render(rest, ctx), ':::', ''];
-    case 'literalinclude': {
-      let src = ctx.readFile(arg).split('\n');
-      if (opts['start-at']) {
-        const at = src.findIndex((l) => l.includes(opts['start-at']));
-        if (at < 0) throw new Error(`rst: literalinclude ${arg}: start-at "${opts['start-at']}" not found`);
-        src = src.slice(at);
-      }
-      return fence(opts.language || ctx.lang || 'text', trimBlank(src), opts.caption);
-    }
     case 'signature': {
       const sig = rest[0];
       const op = sig.match(/\(([A-Z_]+)/)?.[1];

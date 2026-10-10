@@ -1,11 +1,6 @@
-// Plan for the Pages flip (D6), NOT wired into any workflow yet. The last GitHub Pages build writes one
-// meta-refresh stub per old Sphinx page, then pages.yml is removed:
-//
-//   1. in pages.yml, after `task docs`:  node site/scripts/stubs.mjs docs/_build/html
-//   2. let that build publish, verify the three old URLs forward,
-//   3. delete pages.yml, docs/conf.py, docs/pyproject.toml, docs/uv.lock.
-//
-// Old URLs get no Bunny redirect rule. The Sphinx `objects.inv` is dropped on purpose.
+// The GitHub Pages site (ocx-sh.github.io/find_ocx/) is now only these meta-refresh stubs, one per old Sphinx page,
+// built by .github/workflows/pages.yml: `node site/scripts/stubs.mjs <dir>`. The docs live at
+// https://ocx.sh/integrations/cmake/. Old URLs get no Bunny redirect rule; the Sphinx `objects.inv` is dropped on purpose.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
