@@ -1,5 +1,6 @@
 [tools]
 actionlint = "ocx.sh/actionlint/actionlint:latest"
+asciinema = "ocx.sh/asciinema/asciinema:3.2"
 cmake = "ocx.sh/kitware/cmake:3.31"
 git-cliff = "ocx.sh/git-cliff/git-cliff:latest"
 go-task = "ocx.sh/go-task/task:latest"

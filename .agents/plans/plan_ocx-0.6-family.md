@@ -156,3 +156,17 @@ Reuse: `rules_ocx/scripts/bump_ocx.py`, `rules_ocx/ocx/private/repo_utils.bzl` (
 - Close superseded [#3](https://github.com/ocx-sh/find_ocx/pull/3) (dist refresh).
 - Discard the primary checkout's WIP + `OCX-*-HANDOVER.md` (superseded).
 - Website F-fin: edge flip + Pages stub build, then delete `pages.yml`.
+
+## P1 amendments (2026-10-10, from `.agents/research/ocx-0.6-contract.md` §A/§B, friction logs)
+- Retry on **75 only** (69 non-retryable per ocx docs, 74 local I/O). Cross-repo note: rules_ocx retries 69/74/75.
+- Error text from **stderr** (`error:` lines, dedupe chain segments); envelope only for `error.kind`.
+- Pinned env: drop `OCX_TOOLCHAIN_DIR=`, `OCX_SELF_UPDATE=manual` not empty; `--lazy-mode never` + `--pinned` per call on `env`/`pull`/`exec` instead of pinning `OCX_LAZY_MODE`/`OCX_TOOLCHAIN_PINNED`.
+- Foreign `PLATFORM`: `env --pinned` (link paths flip to host otherwise, A5).
+- Index discovery: `.ocx/` counts only with `config.json` or `<registry>/p/` (collides with `.ocx/toolchain`, A4).
+- `ocx_index(UPDATE_COMMAND)`: unset `OCX_FROZEN` in the refresh command; record only used tags (A9).
+- BINS validation: forward `-g <groups>`; run after `pull`; tolerate 79 under `--offline`.
+- Policy at project tier only via `OCX_NO_VERIFY`/`OCX_ALLOW_YANKED` env on the call.
+- 78 hints: "regenerate with `ocx lock`" (v2), `ocx config update` (managed), bad TOML.
+- Index digest pins all platforms → docs recommend `PACKAGE …@<index digest>`; `PINS` stay.
+- Friction: `jq_ROOT` became a multi-line JSON blob when the 0.6.5 CLI runs (fix parse); `ocx_package` in a toolchain file fails "duplicate NAME" on CMake's double include (make re-entry with identical args idempotent); `BINS` from a non-default group silently needs `GROUPS` (validate); `find_program` ignores `<name>_ROOT` (docs: `HINTS`); v0.3.0 bootstrap 0.3.11 rejects v3 locks (fixed by the bump).
+- Casts: `<Terminal>` needs `.mdx`; port-docs emits `.mdx` for pages with a `<!-- cast: key -->` directive; asciinema has no Windows build → cast ctests `if(NOT WIN32)`.
