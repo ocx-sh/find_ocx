@@ -7,7 +7,7 @@ For a failing `ocx` call, see [Fix a failing configure](configure-errors.md).
 
 ## Error: duplicate NAME {#duplicate-name}
 
-```text
+```log
 find_ocx: duplicate ocx_package NAME 'SYSROOT'
 ```
 
@@ -22,7 +22,7 @@ CMake reads a toolchain file more than once, so an `ocx_package` or `ocx_project
 
 ## Error: a second copy of ocx.cmake at another version {#second-copy}
 
-```text
+```log
 find_ocx: two copies of ocx.cmake with different versions are loaded: 0.3.0 from /src/cmake/ocx.cmake and 0.4.0 from /src/third_party/x/ocx.cmake
 hint: vendor one copy and point CMAKE_MODULE_PATH at it
 ```

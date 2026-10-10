@@ -38,7 +38,7 @@ A mirror cannot answer the releases API, so the version is required.
 Without it the update stops and names `OCX_SELF_UPDATE_VERSION`.
 A mirror that lacks the files fails like this:
 
-```text
+```log
 find_ocx: failed to fetch http://mirror.corp/find_ocx/v0.4.0/SHA256SUMS: "HTTP response code said error"
 hint: a mirror must allow anonymous read
 ```

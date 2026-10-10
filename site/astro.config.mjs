@@ -5,6 +5,7 @@ import { satteri } from '@astrojs/markdown-satteri';
 import starlight from '@astrojs/starlight';
 import ocxTheme from '@ocx-sh/theme/starlight';
 import { defineConfig } from 'astro/config';
+import { LANG_ALIAS } from './fence-langs.mjs';
 import { GROUPS } from './sidebar.mjs';
 
 const DOCS = new URL('./src/content/docs/', import.meta.url);
@@ -31,10 +32,10 @@ export default defineConfig({
       description: 'CMake support for OCX: pinned, sha256-verified tools in a CMake build.',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ocx-sh/find_ocx' }],
       plugins: [ocxTheme()],
-      customCss: ['./src/plain-code.css', './src/mono-after-load.css'],
+      customCss: ['./src/mono-after-load.css'],
       // Releases the mono font a second after the load event (see mono-after-load.css).
       head: [{ tag: 'script', content: "addEventListener('load',()=>setTimeout(()=>document.documentElement.dataset.ocxFonts='',1e3))" }],
-      expressiveCode: { shiki: { langAlias: { 'bash-run': 'bash', 'cmake-run': 'cmake', 'bash-norun': 'bash', 'cmake-norun': 'cmake', 'console-norun': 'console' } } },
+      expressiveCode: { shiki: { langAlias: LANG_ALIAS } },
       sidebar,
     }),
   ],

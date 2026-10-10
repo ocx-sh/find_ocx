@@ -53,7 +53,7 @@ Set all three in the environment of the first configure, like the mirror variabl
 So one corporate bundle covers the whole configure, and the `ocx` installers at setup.ocx.sh read the same variable.
 A value that is not a file stops the download with this message:
 
-```text
+```log
 find_ocx: OCX_INSTALL_CA_BUNDLE='<path>' is not a readable file
 hint: point it at a PEM bundle, or clear it with -DOCX_INSTALL_CA_BUNDLE=
 ```

@@ -1,4 +1,0 @@
-/* Shiki leaves plain `text` fences at its #bbbbbb fallback (contrast 1.8:1 on the light code background); use the theme's code foreground. */
-.expressive-code pre[data-language='text'] .ec-line .code span {
-  color: var(--ocx-color-code-fg);
-}

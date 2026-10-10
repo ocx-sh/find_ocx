@@ -14,7 +14,10 @@ const trimBlank = (lines) => {
   while (b > a && !lines[b - 1].trim()) b--;
   return lines.slice(a, b);
 };
-const fence = (lang, lines, title) => ['```' + lang + (title ? ` title="${title}"` : ''), ...lines, '```', ''];
+const fence = (lang, lines, title) => {
+  if (!lang) throw new Error('rst: a code block needs a language (plain text is not highlighted)');
+  return ['```' + lang + (title ? ` title="${title}"` : ''), ...lines, '```', ''];
+};
 
 /** Anchor a heading gets from github-slugger for the names used here (lowercase, `_` kept). */
 export const slug = (s) => s.toLowerCase().replace(/[^\w\- ]/g, '').replace(/ /g, '-');
@@ -151,10 +154,10 @@ function directive(name, arg, lines, ctx) {
   const { rest } = options(lines);
   switch (name) {
     case 'code-block':
-      return fence(arg || ctx.lang || 'text', rest);
+      return fence(arg || ctx.lang, rest);
     case 'parsed-literal':
       // The fence cannot carry links; every `NAME`_ must still name a target, so a renamed signature breaks the build.
-      return fence(ctx.lang || 'text', rest.map((l) => l.replace(/`([^`]+)`_/g, (_m, ref) => (reference(ref, ctx), ref))));
+      return fence(ctx.lang, rest.map((l) => l.replace(/`([^`]+)`_/g, (_m, ref) => (reference(ref, ctx), ref))));
     case 'warning':
     case 'note':
     case 'tip':
@@ -245,7 +248,7 @@ export function render(lines, ctx) {
     if (literal) {
       const lit = [];
       while (i < lines.length && (!lines[i].trim() || ind(lines[i]) > 0)) lit.push(lines[i++]);
-      out.push(...fence(ctx.lang || 'text', trimBlank(dedent(lit))));
+      out.push(...fence(ctx.lang, trimBlank(dedent(lit))));
     }
   }
   return out;
