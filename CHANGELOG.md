@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Drop a time-relative word from the package mirror guide *(site)*
 - Correct the guides against the module behavior, 3.15 floor wording *(site)*
 - Hold the docs-gate prose and page-type caps on the new text *(site)*
+- Regenerate the unreleased changelog section
+- Keep the ci and variables pages inside the DOM budget *(site)*
 
 ### Fixed
 
