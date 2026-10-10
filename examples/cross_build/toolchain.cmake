@@ -18,4 +18,12 @@ include(ocx)
 ocx_project(NAME TARGET TOML "${CMAKE_CURRENT_LIST_DIR}/ocx.toml" PLATFORM linux/arm64)
 
 list(APPEND CMAKE_FIND_ROOT_PATH ${OCX_TARGET_PATHS})
+
+# Search the target root only: with the default BOTH a find_library() or
+# find_package() would fall back to a host copy that cannot link or run on
+# the target. Programs are the opposite: they run on the host.
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 # endregion
