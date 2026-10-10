@@ -29,7 +29,9 @@ execute_process(COMMAND ${configure} RESULT_VARIABLE rc OUTPUT_VARIABLE out ERRO
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "reconfigure_check: second configure failed:\n${out}\n${err}")
 endif()
+# region memoized
 if(NOT out MATCHES "up to date \\(memoized\\)")
   message(FATAL_ERROR "reconfigure_check: second configure did not memoize:\n${out}")
 endif()
+# endregion memoized
 message(STATUS "reconfigure_check: ok")

@@ -23,14 +23,17 @@ include(ocx)
 # digests below were generated in the first place. Exports jq_ROOT
 # (CMP0074) - a subsequent find_package(jq)/find_program would search the
 # OCX-provisioned content.
+# region eager
 set(OCX_ALLOW_FLOATING ON)
 ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest PULL)
 unset(OCX_ALLOW_FLOATING)
 message(STATUS "example: jq content at ${jq_ROOT}")
+# endregion eager
 
 # Digest-pinned + lazy: per-platform manifest digests (from
 # `ocx package install -p <platform>` or the ocx.lock of a project);
 # nothing is fetched until the first execution.
+# region pinned-lazy
 ocx_package(NAME jq_pinned PACKAGE ocx.sh/jqlang/jq:1.8.2 BINS jq NO_ROOT
   PINS
     "linux/amd64=sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
@@ -39,6 +42,7 @@ ocx_package(NAME jq_pinned PACKAGE ocx.sh/jqlang/jq:1.8.2 BINS jq NO_ROOT
     "darwin/arm64=sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
     "windows/amd64=sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"
 )
+# endregion pinned-lazy
 
 add_custom_target(pretty ALL
   COMMAND ${OCX_JQ_PINNED_RUN_JQ} . "${CMAKE_CURRENT_SOURCE_DIR}/data.json"
