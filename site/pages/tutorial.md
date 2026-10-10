@@ -10,7 +10,8 @@ The build prints the `jq` version it ran.
 You never install `jq`, and anyone who clones the project gets the same version.
 
 You need CMake 3.25 or later and network access to the OCX registry or a mirror.
-You also need the `ocx` CLI 0.6 or later ([install it](https://ocx.sh/install/)), once, to write the lock.
+You also need an `ocx` CLI of version 0.6 or later ([install it](https://ocx.sh/install/)), once, to write the lock.
+Without one, [write the lock with the CLI that find_ocx downloads](guides/add-a-tool.md#bootstrapped-lock) and then continue here.
 
 ## Vendor the two files {#vendor-the-module}
 
@@ -52,14 +53,14 @@ The third builds it, which runs `jq`.
 
 <!-- cast: tutorial/first-configure -->
 
-The lock step prints a table with the index digest that pins `jq`.
+The lock step prints a table with the digest of the `jq` build for your platform.
 The build ends with a line like `jq-1.8.2`.
 Your paths, digests and timings differ from the recording.
 
 That `jq` was fetched into the OCX store on first use and never reached your `PATH`.
 The lock file fixes its version, so a rebuild on any machine prints the same line.
 Run the configure command again.
-With unchanged inputs find_ocx reports that the project is up to date and does not resolve or pull again.
+With unchanged inputs find_ocx prints `find_ocx: TOOLS up to date (memoized)` and does not resolve or pull again.
 
 `ocx lock` also warns about merge conflicts in your lock file.
 Add the line `ocx.lock merge=union` to a `.gitattributes` file, so branches that both change the lock merge cleanly.

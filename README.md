@@ -14,7 +14,7 @@ With find_ocx a teammate or a CI runner builds with nothing installed beyond CMa
 You need CMake 3.25 or later, network access to the OCX registry or a mirror, and the [`ocx` CLI](https://ocx.sh/install/) once, to write the lock file.
 
 1. Copy `Findocx.cmake` and `ocx.cmake` from the [release assets](https://github.com/ocx-sh/find_ocx/releases) into a `cmake/` directory of your repository.
-2. List the tool in `ocx.toml` and run `ocx lock` to write `ocx.lock`.
+2. List the tool in `ocx.toml` and run `ocx lock` to write `ocx.lock`. Without an installed `ocx`, [write the first lock with the bootstrapped CLI](https://ocx.sh/integrations/cmake/guides/add-a-tool/#bootstrapped-lock).
 3. Add the tool to your `CMakeLists.txt`.
 
 ```toml

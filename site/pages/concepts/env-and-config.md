@@ -45,7 +45,7 @@ That second form is how a nested configure opts out of what an outer launcher ex
 A translucent variable has a call keyword that wins over the environment.
 `CONFIG`, `PATCH_SNAPSHOT` and `NO_CONFIG` belong to `ocx_project` and `ocx_package`, and `SIGSTORE_TRUSTED_ROOT` belongs to `ocx_policy`.
 With the keyword set, an exported variable cannot change the build.
-Without it, the exported value is forwarded as a site setting.
+Without it, the exported value passes through unchanged.
 
 ### Explicit {#explicit}
 
@@ -99,7 +99,7 @@ Editing one of them reruns the configure, and a file created later is picked up 
 Two keywords decide how much of the host reaches the build:
 
 - `CONFIG <file>` layers a committed config file on top of the discovered tiers. The file must exist, or the call fails with exit 79.
-- `NO_CONFIG` skips the user, OCX home and managed tiers. The locked sections of the system file and the explicit file still load.
+- `NO_CONFIG` skips the user, OCX home and managed tiers. The locked sections of the system file and the explicit file still load. It also blanks an exported `OCX_PATCHES`, `OCX_CONFIG` and `OCX_PATCH_SNAPSHOT`, unless the call names a `CONFIG` or `PATCH_SNAPSHOT` itself.
 
 Together they give every machine the same configuration: commit a config file, pass it with `CONFIG`, and set `NO_CONFIG`.
 Add `PATCH_SNAPSHOT` when the config declares patches, so the patches stay pinned.

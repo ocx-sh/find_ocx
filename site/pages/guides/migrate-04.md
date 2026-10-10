@@ -63,7 +63,7 @@ A package that does not list all its executables skips the check.
 
 ## Read the new exit-code hints {#hints}
 
-From 0.4, a failed `ocx` call prints a hint for exit codes 64 to 87, and a transient failure with exit code 75 is retried twice.
+From 0.4, a failed `ocx` call prints a hint for exit codes 64 to 87, and a download that fails with exit code 75 is retried twice.
 [Exit codes](../troubleshooting/exit-codes.md) maps each code to its cause and fix.
 
 ## Adopt the new keywords {#new-keywords}

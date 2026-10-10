@@ -58,11 +58,15 @@ By hand, a bare `ocx --index .ocx index update <repo>` records every tag of the 
 
 A frozen configure is the freshness gate.
 Set `OCX_FROZEN=1`, and every `ocx` call resolves only from the lock, the snapshot or a digest.
-A tag the snapshot does not list stops the configure with exit 81:
+A tag the snapshot does not list stops the configure with exit 81 when the call has `BINS` or `PULL`, because those run `ocx` at configure time:
 
 ```text
-error: failed to find package: ocx.sh/jqlang/jq:latest — frozen mode refused to resolve unpinned reference 'ocx.sh/jqlang/jq:latest'; run `ocx index update` or pin a digest
+find_ocx: inspecting ocx_package X (ocx.sh/jqlang/jq:9.9.9) failed (exit 81): ocx --index <dir>/.ocx --frozen --format json package inspect --closure ocx.sh/jqlang/jq:9.9.9
+failed to inspect package: ocx.sh/jqlang/jq:9.9.9 — frozen mode refused to resolve unpinned reference 'ocx.sh/jqlang/jq:9.9.9'; run `ocx index update` or pin a digest
+hint: package not in the committed index snapshot - refresh it with 'ocx --index <dir>/.ocx index update ocx.sh/jqlang/jq:9.9.9'
 ```
+
+A lazy call without `BINS` runs no `ocx` at configure time, so the same refusal comes at the first build step that runs the tool.
 
 `OCX_FROZEN` is a site variable.
 The first configure of a build directory snapshots it into the cache, so use a fresh build directory to try it.

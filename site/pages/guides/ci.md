@@ -47,7 +47,7 @@ A changed lock then produces a fresh cache, and an unchanged one skips every dow
 
 ## Prove that the build works offline {#offline}
 
-Configure a second, empty build directory with `OCX_OFFLINE=1` after the first configure.
+Configure a second, empty build directory with `OCX_OFFLINE=1` and `-DOCX_PULL=ON` after the first configure.
 It succeeds only if the store holds everything the build needs, so a hidden download shows up as a failed job.
 
 ## Put it together {#workflow}
@@ -60,7 +60,7 @@ find_ocx's own lint step checks the file with `actionlint`.
 The same flags work in any CI system, because they are plain CMake and environment settings.
 
 A leg that cannot reach the registry exits with code 69 or 75.
-`ocx.cmake` retries a temporary failure (75) twice before it gives up.
+`ocx.cmake` retries a temporary failure (75) twice on the calls that download, then gives up. [Exit codes](../troubleshooting/exit-codes.md) lists them.
 
 For every variable on this page, see the [variable reference](../reference/variables.md).
 
