@@ -64,7 +64,8 @@ Nothing downloads until the first build-time execution.
 <!-- snippet: examples/package/CMakeLists.txt#pins -->
 
 A project's `ocx.lock` lists these per-platform digests under each tool.
-Without a project, `ocx --format json package install -p <platform> <package>` prints the digest as the `identifier` field.
+Without a project, `ocx --format json package install -p <platform> <package>` prints the digest in the `identifier` field, which reads `<ref>@sha256:<digest>`.
+Take the part after `@`, which is the manifest digest for that platform, and not the whole field.
 The plain table output omits it.
 
 ## Run a frozen configure {#frozen-configure}

@@ -15,8 +15,8 @@ project(ocx_example_find_package LANGUAGES NONE)
 
 enable_testing()
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # region find-ocx
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 find_package(ocx REQUIRED)
 
 message(STATUS "example: ocx ${OCX_VERSION_STRING} at ${OCX_EXECUTABLE}")

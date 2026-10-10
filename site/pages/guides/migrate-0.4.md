@@ -1,6 +1,6 @@
 ---
 title: Move from 0.3 to 0.4
-description: Fix the lines of your build files that find_ocx 0.4 breaks, in order, from the CMake floor to the removed platform list and ocx run.
+description: Fix the lines of your build files that find_ocx 0.4 breaks, in order, from the CMake floor to the ocx run rename.
 ---
 <!-- doc_type: how-to -->
 <!-- doc_tier: everyday -->
@@ -8,7 +8,7 @@ description: Fix the lines of your build files that find_ocx 0.4 breaks, in orde
 # Move from 0.3 to 0.4
 
 Your project builds with find_ocx 0.3, and 0.4 changes several things at once.
-The CMake floor rises, the pinned `ocx` jumps from 0.3.11 to 0.6.5, and a platform list that worked in 0.3 is an error in 0.4.
+The CMake floor rises, the pinned `ocx` jumps from 0.3.11 to 0.6.5, and a `PLATFORM` list from the unreleased main branch is an error.
 This page lists each break in the order to fix it, so the upgrade lands in one change.
 The [changelog](https://github.com/ocx-sh/find_ocx/blob/main/CHANGELOG.md) has the full list of changes.
 
@@ -30,16 +30,19 @@ Your own `cmake_minimum_required` can stay as it is.
 The pinned `ocx` writes lock files with `lock_version = 3`, and it rejects version 2 with exit code 78.
 Run `ocx lock` next to each `ocx.toml` with an `ocx` of version 0.6 or later, and commit the new `ocx.lock`.
 
-## Replace platform lists {#platform-list}
+## Drop platform lists from main {#platform-list}
 
+Release 0.3.0 only ever took one `PLATFORM` value, so this applies only if you tracked the main branch ([#2](https://github.com/ocx-sh/find_ocx/pull/2)) and wrote a list.
 In 0.4, `PLATFORM` takes exactly one platform, because the `ocx` CLI accepts one `-p` value.
 A list, whether written as several arguments or as a `;`-list in `OCX_DEFAULT_PLATFORM`, stops the configure.
 Pick the platform you really need.
 
+<!-- doc-norun: shows a rejected call, bound to the I4 PLATFORM-list fixture after P2 merges -->
 ```diff
 -ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:1.8.2 PLATFORM linux/arm64 linux/amd64)
 +ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:1.8.2 PLATFORM linux/amd64)
 ```
+<!-- /doc-norun -->
 
 `PINS` still takes one digest per platform, so a project that pins digests for five platforms keeps its call.
 

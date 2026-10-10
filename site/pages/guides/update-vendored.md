@@ -1,6 +1,6 @@
 ---
 title: Update the vendored files
-description: Move the vendored ocx.cmake and Findocx.cmake to another find_ocx release in script mode, verified against the release SHA256SUMS.
+description: Move the vendored ocx.cmake and Findocx.cmake to another find_ocx release in script mode, checked against the SHA256SUMS from the same host.
 ---
 <!-- doc_type: how-to -->
 <!-- doc_tier: everyday -->
@@ -8,9 +8,9 @@ description: Move the vendored ocx.cmake and Findocx.cmake to another find_ocx r
 # Update the vendored files
 
 You copied `ocx.cmake` and `Findocx.cmake` into `cmake/`, and a later release has fixes or pins a later `ocx`.
-Copying the files by hand gives you no proof of what arrived.
+Copying the files by hand gives you no check that they arrived whole.
 Fetching them at configure time with no hash trusts the network on every build.
-The module can update itself in script mode and check both files against the release `SHA256SUMS` before it replaces anything.
+The module can update itself in script mode and check both files against the `SHA256SUMS` fetched from the same host before it replaces anything.
 
 You need network access to GitHub, or to a mirror of the release files.
 The commands below run in your project root.
@@ -36,7 +36,8 @@ Then run `cmake -DOCX_SELF_UPDATE_VERSION=v0.4.0 -DOCX_SELF_UPDATE_URL=https://m
 
 A mirror cannot answer the releases API, so the version is required.
 Without it the update stops and names `OCX_SELF_UPDATE_VERSION`.
-The mirrored `SHA256SUMS` stays the trust root, so a mirror can serve the files but cannot change them unnoticed.
+The module fetches `SHA256SUMS` from the same mirror, so the check catches corruption and partial downloads but not a mirror that serves an altered pair.
+If you do not trust the mirror, compare its `SHA256SUMS` against the GitHub release, or verify the signed tag, before you commit.
 
 ## Know what is verified {#verified}
 

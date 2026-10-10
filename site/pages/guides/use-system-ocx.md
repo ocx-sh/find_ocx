@@ -67,9 +67,9 @@ Use it when installed copies are old or unmanaged.
 ## Keep the installed CLI current {#versions}
 
 find_ocx is tested against its pinned CLI version, which `OCX_INSTALL_VERSION` defaults to.
-An `ocx` below the pinned version can reject the lock file or lack a verb the module calls.
-The configure then fails with an exit-code hint.
-An `ocx` above it works while it keeps those verbs, and find_ocx does not call the deprecated `ocx run`.
+The tested version is the pinned 0.6.5.
+An `ocx` older than 0.6.5 can reject lock version 3 or lack a verb the module calls, and the configure then fails with an exit-code hint.
+A newer `ocx` is expected to work until ocx removes a verb the module calls, and find_ocx does not call the deprecated `ocx run`.
 When in doubt, use `ALWAYS`.
 
 ## Next steps {#next-steps}
