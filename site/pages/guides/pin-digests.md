@@ -17,7 +17,7 @@ Run `ocx package inspect` on the tag.
 The first line of the output is the reference with its image index digest, and the tree below it lists the leaf manifests.
 
 <!-- doc-norun: needs network access to the registry, and the digest is the one that ocx 0.6.5 printed for this tag -->
-```console-norun
+```bash-norun
 $ ocx package inspect ocx.sh/jqlang/jq:1.8.2
 ocx.sh/jqlang/jq:1.8.2@sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6
 └── candidates
