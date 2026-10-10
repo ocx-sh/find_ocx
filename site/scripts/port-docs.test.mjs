@@ -21,9 +21,9 @@ function fake(files) {
 
 const CAST = (doc) => `#!/usr/bin/env bash\n# cast: true\n# doc: ${doc}\n# title: First configure\n# region cast\ncmake -S . -B build\n# endregion cast\n`;
 
-test('module blocks yield 6 commands and 14 variables', () => {
+test('module blocks yield 6 commands and 15 variables', () => {
   assert.deepEqual(src.commands.map((c) => c.name), ['ocx_policy', 'ocx_bootstrap', 'ocx_project', 'ocx_package', 'ocx_index', 'ocx_self_update']);
-  assert.equal(src.variables.length, 14);
+  assert.equal(src.variables.length, 15);
 });
 
 test('reference pages convert and keep every entry as a heading', () => {
