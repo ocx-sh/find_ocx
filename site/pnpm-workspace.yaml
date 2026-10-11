@@ -1,7 +1,5 @@
 allowBuilds:
   esbuild: true
   sharp: true
-minimumReleaseAgeExclude:
-  - '@ocx-sh/theme@0.1.1'
-patchedDependencies:
-  '@ocx-sh/theme': patches/@ocx-sh__theme.patch
+  # The theme pinned to a website commit builds its type declarations on install (prepack).
+  '@ocx-sh/theme@https://codeload.github.com/ocx-sh/website/tar.gz/86ecbdd0cc589103a6a22aee1166e806bccc585b#path:/packages/theme': true

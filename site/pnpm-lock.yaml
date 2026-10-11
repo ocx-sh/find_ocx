@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  '@ocx-sh/theme': 80c63737bdff7980296ca34ea52a445710d1050ed8aee22ed8b8fb50d82d96f2
-
 importers:
 
   .:
@@ -18,8 +15,8 @@ importers:
         specifier: 0.42.4
         version: 0.42.4(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))(supports-color@5.5.0)
       '@ocx-sh/theme':
-        specifier: 0.1.1
-        version: 0.1.1(patch_hash=80c63737bdff7980296ca34ea52a445710d1050ed8aee22ed8b8fb50d82d96f2)(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))(supports-color@5.5.0))(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))
+        specifier: github:ocx-sh/website#86ecbdd0cc589103a6a22aee1166e806bccc585b&path:/packages/theme
+        version: https://codeload.github.com/ocx-sh/website/tar.gz/86ecbdd0cc589103a6a22aee1166e806bccc585b#path:/packages/theme(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))(supports-color@5.5.0))(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))
       astro:
         specifier: 7.3.5
         version: 7.3.5(@types/node@24.19.1)(yaml@2.9.1)
@@ -169,8 +166,8 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  '@babel/runtime@7.29.7':
-    resolution: {integrity: sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw==}
+  '@babel/runtime@7.29.10':
+    resolution: {integrity: sha512-NpugTzbKgGrNe45Ui32cN8vCFFMxVtP/9rtfwv0nP5FRDAjvYBxJcLVpYA9mr1jxP6cnIT7x9LUzuDTbWYYNRA==}
     engines: {node: '>=6.9.0'}
 
   '@babel/types@7.29.8':
@@ -649,8 +646,9 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@ocx-sh/theme@0.1.1':
-    resolution: {integrity: sha512-TrB/v+fM3WU50GCCvimkdSSpvHUC5GXJtcphOn3P7OIWIVOj+9nTUiDj49vlCaee0c09N4DqmgJQ0CiRrIOyBw==}
+  '@ocx-sh/theme@https://codeload.github.com/ocx-sh/website/tar.gz/86ecbdd0cc589103a6a22aee1166e806bccc585b#path:/packages/theme':
+    resolution: {gitHosted: true, integrity: sha512-QZv4riCha5Js4lDsWXu9XgCZ7l/8B9Zp/IBOVK1aanYO6HEdQyXd4HK9vjSZ5Cev9s2ErxH7sZcrc9kZojV+Vw==, path: /packages/theme, tarball: https://codeload.github.com/ocx-sh/website/tar.gz/86ecbdd0cc589103a6a22aee1166e806bccc585b}
+    version: 0.1.1
     engines: {node: '>=22'}
     hasBin: true
     peerDependencies:
@@ -2673,14 +2671,14 @@ packages:
     resolution: {integrity: sha512-VMbMxbDeehAxpOtWJXlcUS5E8iXh6QmN+BkRX1GARS3wRaXEEgzCcB10gTQazO42tpNIya8xIyNx8fll1OFPrg==}
     engines: {node: '>= 0.8.0'}
 
-  seroval-plugins@1.6.8:
-    resolution: {integrity: sha512-N7mWAMydj89EnYTHtRpS3LBrAz3J9O6oVrqpuXuvlAHfAUG8WEKqtbAd7SBiJNY5NfCAFhSdyAh7wI4Shjqy4g==}
+  seroval-plugins@1.6.9:
+    resolution: {integrity: sha512-kiDK/Tb8IWZ61WEU8pA2PDmAuw37gKph9Y77OZlD56mg0Y2g0Bg7gZ1HeHhs5d40w+nRoUq/wj08V26ilbez9g==}
     engines: {node: '>=10'}
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.6.8:
-    resolution: {integrity: sha512-HlSgSAkTk4EqHcje1ptJjfZi1YDv5KbhVJ/d3P7T/nAXua2VmDu+AKDX5VTdFfZf48nDkWB2TKYt0DrCSa+3wg==}
+  seroval@1.6.9:
+    resolution: {integrity: sha512-UeEzHwAK+yl0YLbsvROV1t5yMYEwZZ0CfKYxDvUgS2fO9Vxdf8djqVIB+OuVpuawRNPqw68LE1Du/GMsW2ZPqA==}
     engines: {node: '>=10'}
 
   serve-static@1.16.3:
@@ -2753,8 +2751,8 @@ packages:
     resolution: {integrity: sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
 
-  solid-js@1.9.16:
-    resolution: {integrity: sha512-vESESWrNRebA0sQv+Vr9/2wOFOL6NK2QQow7F5/WCBH4c+OVoDyQNEbiVKVL7YqE1M7MPd7z7p27KElLkaD0bw==}
+  solid-js@1.9.17:
+    resolution: {integrity: sha512-4GAmLOWPfNV8H9Jfn2LSFTpNEG6jiOKPiwd5lnLGQtehHaX6l3TOLzJqQ7mqwB/3k1Yy3zyumFVopmc/tm34ow==}
 
   solid-transition-group@0.2.3:
     resolution: {integrity: sha512-iB72c9N5Kz9ykRqIXl0lQohOau4t0dhel9kjwFvx81UZJbVwaChMuBuyhiZmK24b8aKEK0w3uFM96ZxzcyZGdg==}
@@ -3370,7 +3368,7 @@ snapshots:
     dependencies:
       '@babel/types': 7.29.8
 
-  '@babel/runtime@7.29.7': {}
+  '@babel/runtime@7.29.10': {}
 
   '@babel/types@7.29.8':
     dependencies:
@@ -3779,7 +3777,7 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
 
-  '@ocx-sh/theme@0.1.1(patch_hash=80c63737bdff7980296ca34ea52a445710d1050ed8aee22ed8b8fb50d82d96f2)(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))(supports-color@5.5.0))(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))':
+  '@ocx-sh/theme@https://codeload.github.com/ocx-sh/website/tar.gz/86ecbdd0cc589103a6a22aee1166e806bccc585b#path:/packages/theme(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))(supports-color@5.5.0))(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))':
     dependencies:
       '@fontsource/ibm-plex-mono': 5.3.0
       '@fontsource/ibm-plex-sans': 5.3.0
@@ -3811,6 +3809,7 @@ snapshots:
       '@zag-js/vanilla': 1.44.0
       asciinema-player: 3.15.1
       astro: 7.3.5(@types/node@24.19.1)(yaml@2.9.1)
+      unist-util-visit: 5.1.0
     optionalDependencies:
       '@astrojs/starlight': 0.42.4(astro@7.3.5(@types/node@24.19.1)(yaml@2.9.1))(supports-color@5.5.0)
 
@@ -3982,18 +3981,18 @@ snapshots:
 
   '@sindresorhus/merge-streams@2.3.0': {}
 
-  '@solid-primitives/refs@1.1.4(solid-js@1.9.16)':
+  '@solid-primitives/refs@1.1.4(solid-js@1.9.17)':
     dependencies:
-      '@solid-primitives/utils': 6.4.1(solid-js@1.9.16)
-      solid-js: 1.9.16
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
 
-  '@solid-primitives/transition-group@1.1.2(solid-js@1.9.16)':
+  '@solid-primitives/transition-group@1.1.2(solid-js@1.9.17)':
     dependencies:
-      solid-js: 1.9.16
+      solid-js: 1.9.17
 
-  '@solid-primitives/utils@6.4.1(solid-js@1.9.16)':
+  '@solid-primitives/utils@6.4.1(solid-js@1.9.17)':
     dependencies:
-      solid-js: 1.9.16
+      solid-js: 1.9.17
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -4398,9 +4397,9 @@ snapshots:
 
   asciinema-player@3.15.1:
     dependencies:
-      '@babel/runtime': 7.29.7
-      solid-js: 1.9.16
-      solid-transition-group: 0.2.3(solid-js@1.9.16)
+      '@babel/runtime': 7.29.10
+      solid-js: 1.9.17
+      solid-transition-group: 0.2.3(solid-js@1.9.17)
 
   ast-types@0.13.4:
     dependencies:
@@ -6335,11 +6334,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  seroval-plugins@1.6.8(seroval@1.6.8):
+  seroval-plugins@1.6.9(seroval@1.6.9):
     dependencies:
-      seroval: 1.6.8
+      seroval: 1.6.9
 
-  seroval@1.6.8: {}
+  seroval@1.6.9: {}
 
   serve-static@1.16.3(supports-color@5.5.0):
     dependencies:
@@ -6457,17 +6456,17 @@ snapshots:
       ip-address: 10.7.3
       smart-buffer: 4.2.0
 
-  solid-js@1.9.16:
+  solid-js@1.9.17:
     dependencies:
       csstype: 3.2.3
-      seroval: 1.6.8
-      seroval-plugins: 1.6.8(seroval@1.6.8)
+      seroval: 1.6.9
+      seroval-plugins: 1.6.9(seroval@1.6.9)
 
-  solid-transition-group@0.2.3(solid-js@1.9.16):
+  solid-transition-group@0.2.3(solid-js@1.9.17):
     dependencies:
-      '@solid-primitives/refs': 1.1.4(solid-js@1.9.16)
-      '@solid-primitives/transition-group': 1.1.2(solid-js@1.9.16)
-      solid-js: 1.9.16
+      '@solid-primitives/refs': 1.1.4(solid-js@1.9.17)
+      '@solid-primitives/transition-group': 1.1.2(solid-js@1.9.17)
+      solid-js: 1.9.17
 
   source-map-js@1.2.2: {}
 

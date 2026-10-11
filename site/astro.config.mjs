@@ -32,9 +32,6 @@ export default defineConfig({
       description: 'CMake support for OCX: pinned, sha256-verified tools in a CMake build.',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/ocx-sh/find_ocx' }],
       plugins: [ocxTheme()],
-      customCss: ['./src/mono-after-load.css'],
-      // Releases the mono font a second after the load event (see mono-after-load.css).
-      head: [{ tag: 'script', content: "addEventListener('load',()=>setTimeout(()=>document.documentElement.dataset.ocxFonts='',1e3))" }],
       expressiveCode: { shiki: { langAlias: LANG_ALIAS } },
       sidebar,
     }),
