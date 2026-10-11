@@ -3,6 +3,8 @@
 clients = ["claude", "codex"]
 
 [bundles]
+cmake-essentials = "ghcr.io/ocx-sh/lore/cmake-essentials:latest"
+code-docs-essentials = "ghcr.io/ocx-sh/lore/code-docs-essentials:latest"
 docs-essentials = "ghcr.io/ocx-sh/lore/docs-essentials:latest"
 
 [skills]
