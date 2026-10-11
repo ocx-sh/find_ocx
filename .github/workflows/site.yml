@@ -2,6 +2,8 @@ name: Site
 
 on:
   pull_request:
+    # ready_for_review: a draft skips Lighthouse (below), so marking it ready runs it.
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "site/**"
       - ".claude/rules/docs-quality/**"
@@ -45,6 +47,8 @@ jobs:
 
   lighthouse:
     name: Lighthouse
+    # The slowest job (~5 min); drafts skip it.
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     permissions:
       contents: read
