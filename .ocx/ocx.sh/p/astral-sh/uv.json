@@ -1,0 +1,40 @@
+{
+  "name": "ocx.sh/astral-sh/uv",
+  "repository": "oci://ghcr.io/ocx-contrib/astral-sh/uv",
+  "owners": [
+    {
+      "login": "ocx-bot",
+      "id": 309019509
+    }
+  ],
+  "status": "active",
+  "deprecated_message": null,
+  "created": "2026-08-01",
+  "desc": {
+    "digest": "sha256:11483a206e42dea6a0b91820282cfc578e82ce22afee4a3d772f18d19443255e",
+    "title": "uv",
+    "description": "An extremely fast Python package and project manager, written in Rust",
+    "keywords": [
+      "python",
+      "package-manager",
+      "pip",
+      "venv",
+      "resolver",
+      "astral",
+      "uv"
+    ],
+    "readme": "sha256:dfc02fe6d331f84f1b2ba83a908322db4db3375184e8a513a537170e3e17cd14",
+    "logo": "sha256:e93df1c4aa84c478581ac10203b672949a11505e5624cea84be3114efc4c57b6"
+  },
+  "upstream": {
+    "org": "astral-sh",
+    "repository_url": "https://github.com/astral-sh/uv",
+    "disclaimer": "Unaffiliated mirror. uv is a project of Astral Software Inc.; this OCX package republishes upstream release binaries and is not endorsed by them."
+  },
+  "tags": {
+    "latest": {
+      "content": "sha256:c273f3d865e15ada5f0a90176e2c5caa48495425b5ea22a3849fd99009680e4f",
+      "observed": "2026-10-09T23:31:08Z"
+    }
+  }
+}

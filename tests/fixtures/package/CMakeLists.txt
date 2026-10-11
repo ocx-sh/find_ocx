@@ -6,7 +6,7 @@
 # plus the index ladder: .ocx/ discovery, NO_INDEX opt-out, and the
 # UPDATE_COMMAND composition.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_package LANGUAGES NONE)
 
 include(ocx)
@@ -23,10 +23,7 @@ endif()
 ocx_package(NAME JQ_LAZY PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT NO_INDEX)
 unset(OCX_ALLOW_FLOATING)
 
-add_custom_target(jq_lazy_assert ALL
-  COMMAND ${OCX_JQ_LAZY_RUN_JQ} -n -e [[1 == 1]]
-  VERBATIM
-)
+add_custom_target(jq_lazy_assert ALL COMMAND ${OCX_JQ_LAZY_RUN_JQ} -n -e [[1 == 1]] VERBATIM)
 
 # Frozen + lazy via the discovery ladder: no INDEX argument - the tag
 # resolves from the committed ./.ocx snapshot found upward from this
@@ -34,15 +31,14 @@ add_custom_target(jq_lazy_assert ALL
 # execution.
 ocx_package(NAME JQ_FROZEN PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
 if(NOT "${OCX_JQ_FROZEN_RUN}" MATCHES "--index;.*\\.ocx;--frozen")
-  message(FATAL_ERROR
+  message(
+    FATAL_ERROR
     "package fixture: discovered .ocx not composed into the launcher: "
-    "'${OCX_JQ_FROZEN_RUN}'")
+    "'${OCX_JQ_FROZEN_RUN}'"
+  )
 endif()
 
-add_custom_target(jq_frozen_assert ALL
-  COMMAND ${OCX_JQ_FROZEN_RUN_JQ} -n -e [[1 == 1]]
-  VERBATIM
-)
+add_custom_target(jq_frozen_assert ALL COMMAND ${OCX_JQ_FROZEN_RUN_JQ} -n -e [[1 == 1]] VERBATIM)
 
 # Discovery bound: a nested project() scope must not see this .ocx.
 add_subdirectory(subproject)
@@ -50,7 +46,6 @@ add_subdirectory(subproject)
 # Command composition: INDEX defaults to the discovered .ocx, packages
 # collected from the frozen registration above.
 ocx_index(UPDATE_COMMAND index_refresh)
-if(NOT "${index_refresh}" MATCHES "--index;.*\\.ocx;index;update;ocx\\.sh/jqlang/jq$")
-  message(FATAL_ERROR
-    "package fixture: ocx_index(UPDATE_COMMAND) composed '${index_refresh}'")
+if(NOT "${index_refresh}" MATCHES "--index;.*\\.ocx;index;update;ocx\\.sh/jqlang/jq:latest$")
+  message(FATAL_ERROR "package fixture: ocx_index(UPDATE_COMMAND) composed '${index_refresh}'")
 endif()

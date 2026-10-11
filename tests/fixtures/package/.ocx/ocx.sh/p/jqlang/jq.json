@@ -32,39 +32,7 @@
     "disclaimer": "Unaffiliated mirror. jq is a project of the jqlang authors; this OCX package republishes upstream release binaries and is not endorsed by them."
   },
   "tags": {
-    "1.8.0_20260802": {
-      "content": "sha256:78f384a60a23514cf4e87f7cb2258cf9cc1a5da07933d2a0742efe616b791164",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1.8.0": {
-      "content": "sha256:78f384a60a23514cf4e87f7cb2258cf9cc1a5da07933d2a0742efe616b791164",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1.8": {
-      "content": "sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1": {
-      "content": "sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6",
-      "observed": "2026-08-02T10:38:41Z"
-    },
     "latest": {
-      "content": "sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1.8.1_20260802": {
-      "content": "sha256:2695acb88fd1326f1d96fb89700d3e1e90fd8441d3f8024dae86791675a8046e",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1.8.1": {
-      "content": "sha256:2695acb88fd1326f1d96fb89700d3e1e90fd8441d3f8024dae86791675a8046e",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1.8.2_20260802": {
-      "content": "sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6",
-      "observed": "2026-08-02T10:38:41Z"
-    },
-    "1.8.2": {
       "content": "sha256:c295300441831e002c0ba54df8e6126cdd4064c63be2464bdc6b68d0012beec6",
       "observed": "2026-08-02T10:38:41Z"
     }

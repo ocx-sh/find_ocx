@@ -3,9 +3,27 @@ agent = []
 [metadata]
 lock_version = 1
 declaration_hash_version = 1
-declaration_hash = "sha256:390e45b51164e8964682a2adfa7384d9bc2d6a3c3cd18244b28da9b6bae882d5"
+declaration_hash = "sha256:9a3f7860263a5724b2d7f9c96ad26c9f9ec3e5e79d1a88ab06e071c158e9755d"
 generated_by = "grim 0.14.3"
-generated_at = "2026-10-07T20:04:46Z"
+generated_at = "2026-10-10T16:40:58Z"
+
+[[skill]]
+name = "cmake-dependency-triage"
+pinned = "ghcr.io/ocx-sh/lore/cmake-dependency-triage@sha256:0faab208588ff2e267d083d5453e547c6f9ea3c99c9510cc8ed2b9df09d9999a"
+bundle = "ghcr.io/ocx-sh/lore/cmake-essentials"
+bundle_tag = "latest"
+
+[[skill]]
+name = "cmake-modernize"
+pinned = "ghcr.io/ocx-sh/lore/cmake-modernize@sha256:82c8b2241119f41f0372aa2e037198f9ee176666d11f79b37be5ba883cc69496"
+bundle = "ghcr.io/ocx-sh/lore/cmake-essentials"
+bundle_tag = "latest"
+
+[[skill]]
+name = "code-docs-cleanup"
+pinned = "ghcr.io/ocx-sh/lore/code-docs-cleanup@sha256:4b312606567dab8769e98fcf9770072bc425e6f2e9d1b71a3638e9c60bcaed18"
+bundle = "ghcr.io/ocx-sh/lore/code-docs-essentials"
+bundle_tag = "latest"
 
 [[skill]]
 name = "docs-instrument"
@@ -26,10 +44,70 @@ bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
 bundle_tag = "latest"
 
 [[rule]]
+name = "cmake-build"
+pinned = "ghcr.io/ocx-sh/lore/cmake-build@sha256:b89585dee5c527cc296a5d18b5f84a2a219e851c20e7affc691af17d2e3bcbdd"
+bundle = "ghcr.io/ocx-sh/lore/cmake-essentials"
+bundle_tag = "latest"
+
+[[rule]]
+name = "code-docs"
+pinned = "ghcr.io/ocx-sh/lore/code-docs@sha256:9ee9c2e3c6198cfd5926ab48b793bcbc874ecfe751b434d65c0c5bd22d576141"
+bundle = "ghcr.io/ocx-sh/lore/code-docs-essentials"
+bundle_tag = "latest"
+
+[[rule]]
+name = "cpp-packaging"
+pinned = "ghcr.io/ocx-sh/lore/cpp-packaging@sha256:42518c6af5d6771a2f8fe0565f89a196998113bad12516a8b4b8ad96bd4968cd"
+bundle = "ghcr.io/ocx-sh/lore/cmake-essentials"
+bundle_tag = "latest"
+
+[[rule]]
 name = "docs-quality"
 pinned = "ghcr.io/ocx-sh/lore/docs-quality@sha256:d9ab2df9ccff688f98f539ab1f1c3c9cf56fdfefa91b7d190dfca70d0afed09e"
 bundle = "ghcr.io/ocx-sh/lore/docs-essentials"
 bundle_tag = "latest"
+
+[[bundle]]
+name = "cmake-essentials"
+repo = "ghcr.io/ocx-sh/lore/cmake-essentials"
+tag = "latest"
+pinned = "ghcr.io/ocx-sh/lore/cmake-essentials@sha256:2919f1f64eccaf8db781924cde22fcbd621acc24d9b542d7b91ebe96b8d69456"
+
+[[bundle.member]]
+kind = "skill"
+name = "cmake-dependency-triage"
+id = "ghcr.io/ocx-sh/lore/cmake-dependency-triage:latest"
+
+[[bundle.member]]
+kind = "skill"
+name = "cmake-modernize"
+id = "ghcr.io/ocx-sh/lore/cmake-modernize:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "cmake-build"
+id = "ghcr.io/ocx-sh/lore/cmake-build:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "cpp-packaging"
+id = "ghcr.io/ocx-sh/lore/cpp-packaging:latest"
+
+[[bundle]]
+name = "code-docs-essentials"
+repo = "ghcr.io/ocx-sh/lore/code-docs-essentials"
+tag = "latest"
+pinned = "ghcr.io/ocx-sh/lore/code-docs-essentials@sha256:300035d09cfadca25ce5f4c54df877ba86d19f4fdc8be59f2a3979316465e945"
+
+[[bundle.member]]
+kind = "skill"
+name = "code-docs-cleanup"
+id = "ghcr.io/ocx-sh/lore/code-docs-cleanup:latest"
+
+[[bundle.member]]
+kind = "rule"
+name = "code-docs"
+id = "ghcr.io/ocx-sh/lore/code-docs:latest"
 
 [[bundle]]
 name = "docs-essentials"

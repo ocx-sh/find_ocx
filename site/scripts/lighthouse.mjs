@@ -15,7 +15,7 @@ import { createRequire, Module } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { ASSERT_MATRIX, BASE, HTML_GZ_MAX, sitePages } from '../lighthouse.budgets.mjs';
+import { assertMatrix, BASE, castPages, HTML_GZ_MAX, sitePages } from '../lighthouse.budgets.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -53,7 +53,7 @@ async function main() {
   const { getAllAssertionResults } = require(lhci);
   const { computeRepresentativeRuns } = require(lhci.replace('assertions.js', 'representative-runs.js'));
   const judge = (/** @type {{ lhr: object }[]} */ runs) =>
-    getAllAssertionResults({ assertMatrix: ASSERT_MATRIX }, computeRepresentativeRuns([runs.map((r) => [r.lhr, r.lhr])]));
+    getAllAssertionResults({ assertMatrix: assertMatrix(castPages(join(ROOT, 'dist'))) }, computeRepresentativeRuns([runs.map((r) => [r.lhr, r.lhr])]));
 
   const preview = spawn('pnpm', ['exec', 'astro', 'preview', '--ignore-lock', '--port', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: true });
   const reports = join(ROOT, '.lighthouseci');

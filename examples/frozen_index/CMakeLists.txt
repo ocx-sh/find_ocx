@@ -9,7 +9,7 @@
 #   cmake -S . -B build && ctest --test-dir build
 #   cmake --build build --target index-update   # deliberate refresh
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(ocx_example_frozen_index LANGUAGES NONE)
 
 enable_testing()
@@ -17,24 +17,32 @@ enable_testing()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 include(ocx)
 
+# region snapshot
 # Fail-fast when the snapshot is missing, and lock the discovered .ocx/
 # into OCX_INDEX for this directory and below. (Each ocx_package would
 # also discover it on its own - FIND REQUIRED makes the intent explicit.)
+# region frozen-index
 ocx_index(FIND REQUIRED)
 
 # Floating tag, no INDEX argument, no digests: resolves frozen from the
 # committed snapshot (.ocx/ocx.sh/p/jqlang/jq.json).
 ocx_package(NAME jq PACKAGE ocx.sh/jqlang/jq:latest BINS jq NO_ROOT)
+# endregion frozen-index
+# endregion snapshot
 
 add_test(NAME jq_frozen COMMAND ${OCX_JQ_RUN_JQ} -n -e "1 == 1")
 
+# region refresh
 # Deliberate refresh flow: the module composes the command, the caller
 # decides how it runs - here a build target. Never wired up automatically:
 # a refresh that runs on its own would paper over drift instead of
 # surfacing it.
 ocx_index(UPDATE_COMMAND refresh)
-add_custom_target(index-update
+add_custom_target(
+  index-update
   COMMAND ${refresh}
-  COMMAND ${CMAKE_COMMAND} -E echo
-    "index snapshot refreshed - review the diff and commit the result"
-  VERBATIM)
+  COMMAND
+    ${CMAKE_COMMAND} -E echo "index snapshot refreshed - review the diff and commit the result"
+  VERBATIM
+)
+# endregion refresh

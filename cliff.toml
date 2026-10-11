@@ -25,7 +25,7 @@ body = """
 {% for commit in commits %}
 - {{ commit.message | split(pat="\n") | first | upper_first | trim | replace(from="<", to="&lt;") | replace(from=">", to="&gt;") }}\
 {% if commit.scope %} *({{ commit.scope }})*{% endif %}\
-{% if commit.breaking %} **BREAKING**{% endif %}
+{% if commit.breaking %} **BREAKING**{% if commit.breaking_description %}: {{ commit.breaking_description | split(pat="\n") | first | trim | replace(from="<", to="&lt;") | replace(from=">", to="&gt;") }}{% endif %}{% endif %}
 {%- endfor %}
 {% endfor %}
 {%- endif -%}
@@ -60,6 +60,7 @@ commit_parsers = [
     { message = "^refactor", group = "Changed" },
     { message = "^perf", group = "Changed" },
     { message = "^doc", group = "Documentation" },
+    { message = "^merge", skip = true },
     { message = "^chore", skip = true },
     { message = "^release", skip = true },
     { message = "^ci", skip = true },

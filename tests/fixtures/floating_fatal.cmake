@@ -5,5 +5,7 @@
 # in effect and no digest pin must fail the configure - reproducible
 # first. (OCX_ALLOW_FLOATING=ON is the explicit escape hatch.)
 
+# region floating
 include(ocx)
 ocx_package(NAME DRIFTY PACKAGE ocx.sh/jqlang/jq:latest)
+# endregion floating

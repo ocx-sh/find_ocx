@@ -40,6 +40,7 @@ GENERATED_ANCHOR_MARKERS = (
     "{{#include",  # mdBook include
     "<<<",  # VitePress include
     "--8<--",  # MkDocs snippets
+    "<!-- cmake: ",  # find_ocx: the reference pages are generated from the module sources (site/scripts/port-docs.mjs)
 )
 # Targets never resolved on disk.
 EXTERNAL_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//)", re.IGNORECASE)

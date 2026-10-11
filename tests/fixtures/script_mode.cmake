@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Fixture: ocx.cmake in script mode (cmake -P) - no project(), no
 # generator, no persistent cache. Both tiers must provision and execute.
 #
@@ -30,10 +30,16 @@ endif()
 # references (tag/digest stripped) and overrides the (here empty)
 # registration. Composition only - executing would need a writable
 # snapshot.
-ocx_index(UPDATE_COMMAND refresh
-  INDEX "${CMAKE_CURRENT_LIST_DIR}/index"
-  PACKAGES ocx.sh/jqlang/jq:latest ocx.sh/kitware/cmake@sha256:0000000000000000000000000000000000000000000000000000000000000000)
-if(NOT "${refresh}" MATCHES "index;update;ocx\\.sh/jqlang/jq;ocx\\.sh/kitware/cmake$")
+ocx_index(
+  UPDATE_COMMAND
+  refresh
+  INDEX
+  "${CMAKE_CURRENT_LIST_DIR}/index"
+  PACKAGES
+  ocx.sh/jqlang/jq:latest
+  ocx.sh/kitware/cmake@sha256:0000000000000000000000000000000000000000000000000000000000000000
+)
+if(NOT "${refresh}" MATCHES "index;update;ocx\\.sh/jqlang/jq:latest;ocx\\.sh/kitware/cmake$")
   message(FATAL_ERROR "script_mode fixture: ocx_index(UPDATE_COMMAND) composed '${refresh}'")
 endif()
 
