@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The OCX Authors
-#
+
 # Script mode (cmake -P): self-update check against a fake file:// release.
 # Copies the vendored ocx.cmake/Findocx.cmake from MODULE_DIR into a
 # scratch dir, builds a doctored "release" (version stamp 9.9.9) with a
@@ -19,8 +19,7 @@ endforeach()
 file(REMOVE_RECURSE "${SCRATCH}")
 
 # Vendored copy under test.
-file(COPY "${MODULE_DIR}/ocx.cmake" "${MODULE_DIR}/Findocx.cmake"
-  DESTINATION "${SCRATCH}/vendored")
+file(COPY "${MODULE_DIR}/ocx.cmake" "${MODULE_DIR}/Findocx.cmake" DESTINATION "${SCRATCH}/vendored")
 
 # Fake release: the current sources with the version stamp doctored.
 file(READ "${MODULE_DIR}/ocx.cmake" module_content)
@@ -28,18 +27,19 @@ if(NOT module_content MATCHES "set\\(__OCX_MODULE_VERSION \"([^\"]+)\"\\)")
   message(FATAL_ERROR "self_update_check: version stamp not found in ocx.cmake")
 endif()
 set(old_version "${CMAKE_MATCH_1}")
-string(REPLACE
-  "set(__OCX_MODULE_VERSION \"${old_version}\")"
+string(
+  REPLACE "set(__OCX_MODULE_VERSION \"${old_version}\")"
   "set(__OCX_MODULE_VERSION \"9.9.9\")"
-  module_content "${module_content}")
+  module_content
+  "${module_content}"
+)
 set(release "${SCRATCH}/release/v9.9.9")
 file(WRITE "${release}/ocx.cmake" "${module_content}")
 file(COPY "${MODULE_DIR}/Findocx.cmake" DESTINATION "${release}")
 
 file(SHA256 "${release}/ocx.cmake" module_sha)
 file(SHA256 "${release}/Findocx.cmake" find_sha)
-file(WRITE "${release}/SHA256SUMS"
-  "${module_sha}  ocx.cmake\n${find_sha}  Findocx.cmake\n")
+file(WRITE "${release}/SHA256SUMS" "${module_sha}  ocx.cmake\n${find_sha}  Findocx.cmake\n")
 
 # file:// URL: absolute POSIX paths already start with '/'; Windows drive
 # paths (C:/...) need the extra slash after the authority.
@@ -50,11 +50,13 @@ else()
 endif()
 
 execute_process(
-  COMMAND "${CMAKE_COMMAND}"
-    -DOCX_SELF_UPDATE_VERSION=v9.9.9
-    "-DOCX_SELF_UPDATE_URL=${base}"
-    -P "${SCRATCH}/vendored/ocx.cmake"
-  RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+  COMMAND
+    "${CMAKE_COMMAND}" -DOCX_SELF_UPDATE_VERSION=v9.9.9 "-DOCX_SELF_UPDATE_URL=${base}" -P
+    "${SCRATCH}/vendored/ocx.cmake"
+  RESULT_VARIABLE rc
+  OUTPUT_VARIABLE out
+  ERROR_VARIABLE err
+)
 if(NOT rc EQUAL 0)
   message(FATAL_ERROR "self_update_check: self-update failed:\n${out}\n${err}")
 endif()
@@ -73,10 +75,11 @@ endif()
 
 # Mirror without an explicit version must fail actionably.
 execute_process(
-  COMMAND "${CMAKE_COMMAND}"
-    "-DOCX_SELF_UPDATE_URL=${base}"
-    -P "${SCRATCH}/vendored/ocx.cmake"
-  RESULT_VARIABLE rc OUTPUT_VARIABLE out ERROR_VARIABLE err)
+  COMMAND "${CMAKE_COMMAND}" "-DOCX_SELF_UPDATE_URL=${base}" -P "${SCRATCH}/vendored/ocx.cmake"
+  RESULT_VARIABLE rc
+  OUTPUT_VARIABLE out
+  ERROR_VARIABLE err
+)
 if(rc EQUAL 0)
   message(FATAL_ERROR "self_update_check: mirror without version must fail")
 endif()

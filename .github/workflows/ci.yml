@@ -24,88 +24,108 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup OCX
-        uses: ocx-sh/setup-ocx@v1
+        uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
+          version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Lint (actionlint, license headers, links)
-        run: ocx run -- task lint
-
-  docs:
-    name: Docs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-      - name: Setup OCX
-        uses: ocx-sh/setup-ocx@v1
-        with:
-          version: "0.6.2"
-      - name: Sphinx build (warnings are errors)
-        run: ocx run -- task docs
+        run: ocx exec -- task lint
 
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup OCX
-        uses: ocx-sh/setup-ocx@v1
+        uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
-      - name: Dogfooded CMake-version matrix (live ocx.sh registry)
-        run: ocx run -- task test
+          version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
+      - name: Dogfooded CMake-version matrix, 3.25 / 3.31 / 4.4 (live ocx.sh registry)
+        run: ocx exec -- task test
 
+  # Each leg is a pinned CMake: 3.25 is the declared floor (PyPI wheel through
+  # ocx-provisioned uv), 4.4 comes from ocx.sh/kitware/cmake. The 3.31 line runs in the
+  # harness on all three systems, so the examples take the two ends. -Werror=dev serves
+  # 3.25; 4.4 spells the same gate -Werror=author. The list of examples equals
+  # task test:examples; tutorial is not here, the doc/tutorial__first-configure test builds it.
   examples:
-    name: Example ${{ matrix.example }} (${{ matrix.os }})
+    name: Example ${{ matrix.example }} (${{ matrix.os }}, CMake ${{ matrix.cmake.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        example: [project, package, find_package]
+        example: [project, package, frozen_index, find_package, cross_build, policy]
+        cmake:
+          - name: "3.25"
+            launch: "uvx --from cmake==3.25.2"
+            gate: "-Werror=dev"
+          - name: "4.4"
+            launch: "ocx package exec ocx.sh/kitware/cmake:4.4 --"
+            gate: "-Werror=author"
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup OCX
-        uses: ocx-sh/setup-ocx@v1
+        uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
+          version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Configure, build, test
         shell: bash
+        env:
+          LAUNCH: ${{ matrix.cmake.launch }}
+          GATE: ${{ matrix.cmake.gate }}
+          EXAMPLE: ${{ matrix.example }}
         run: |
+          read -ra launch <<< "$LAUNCH"
+          extra=()
+          # cross_build provisions linux/arm64 content through its toolchain file.
+          if [ "$EXAMPLE" = cross_build ]; then extra=(-DCMAKE_TOOLCHAIN_FILE=toolchain.cmake); fi
           # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables
           # the bootstrap fallback for the find_package one.
-          ocx run -- cmake -Werror=dev -DOCX_PULL=ON -DOCX_BOOTSTRAP=ON \
-            -S "examples/${{ matrix.example }}" -B build/example
-          ocx run -- cmake --build build/example
-          ocx run -- ctest --test-dir build/example --output-on-failure
+          ocx exec -- "${launch[@]}" cmake "$GATE" -DCMAKE_BUILD_TYPE=Release \
+            -DOCX_PULL=ON -DOCX_BOOTSTRAP=ON "${extra[@]}" \
+            -S "examples/$EXAMPLE" -B build/example
+          ocx exec -- "${launch[@]}" cmake --build build/example --config Release
+          ocx exec -- "${launch[@]}" ctest --test-dir build/example -C Release \
+            --output-on-failure --no-tests=error --timeout 900
 
   offline:
     name: Offline determinism
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Setup OCX
-        uses: ocx-sh/setup-ocx@v1
+        uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.2"
+          version: "0.6.5"
+          # Default group only: the casts group (asciinema) has no Windows build.
+          groups: default
       - name: Warm configure (pulls everything)
-        run: ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/warm
+        run: ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/warm
       - name: Offline configure in a fresh build dir (must succeed)
         run: |
-          OCX_OFFLINE=1 ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/offline
+          OCX_OFFLINE=1 ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/offline
       - name: Offline configure against an empty store (must fail)
         run: |
           if OCX_HOME="$RUNNER_TEMP/empty-ocx-home" OCX_OFFLINE=1 \
-             ocx run -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/empty; then
+             ocx exec -- cmake -Werror=dev -DOCX_PULL=ON -S . -B build/empty; then
             echo "expected the offline configure against an empty store to fail" >&2
             exit 1
           fi

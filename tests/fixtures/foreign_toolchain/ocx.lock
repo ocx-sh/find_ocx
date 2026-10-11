@@ -1,0 +1,18 @@
+[metadata]
+lock_version = 3
+declaration_hash_version = 1
+declaration_hash = "sha256:e0361206f7a2ebde72dda210f86a838bcd00335fffb2cb77c55bd940b673c4a6"
+generated_by = "ocx 0.6.5"
+generated_at = "2026-10-10T17:07:53Z"
+
+[[tool]]
+name = "jq"
+group = "default"
+repository = "ocx.sh/jqlang/jq"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:f750c91d28769d12298ba9a4c10340152fcbdd48c48102bf275c21d736cc72a2"
+"darwin/arm64" = "sha256:c5cf10597aacad9b7925f937c966ec72145ea6a40f7f7ef4cac11f90c43130b1"
+"linux/amd64" = "sha256:913ff41f5e643a73c17a2e560e349d8eea255f50b293156e58da15b957baacae"
+"linux/arm64" = "sha256:81b771e5c4e9b70cfeb19c825ca2b00a5078c238e7d3175eee9d772cedda006b"
+"windows/amd64" = "sha256:bab93861d95a25d33163cc9499cb17bb109028d6537ca55b8427af21c1fdc989"

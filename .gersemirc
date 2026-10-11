@@ -1,0 +1,6 @@
+# gersemi: https://github.com/BlankSpruce/gersemi - run via `task lint`.
+# definitions lists the files defining the project's own commands, so calls to
+# ocx_package() and friends are formatted with their keywords, not left alone.
+indent: 2
+line_length: 100
+definitions: [ocx.cmake, tests]

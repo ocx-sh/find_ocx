@@ -1,0 +1,7 @@
+/* Plex Mono is held back until the load event (the `head` script in astro.config.mjs sets
+ * data-ocx-fonts): code shows in the metric-matched fallback first. A mono face fetched during
+ * first paint is a race in Lighthouse's simulation (FCP +300 ms on one run in eight, LCP +150 ms
+ * always). Same list as the fallbacks in the theme's fonts, minus the Plex family. */
+:root:not([data-ocx-fonts]) {
+  --ocx-font-mono: 'OCX Mono Fallback', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

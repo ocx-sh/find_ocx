@@ -4,6 +4,7 @@
 # Negative fixture (script mode): with OCX_BOOTSTRAP=OFF, no
 # OCX_EXECUTABLE, and no ocx on PATH the first provisioning call must
 # fail with the actionable policy error instead of downloading.
+# The bootstrap_empty test reuses it with an empty OCX_BOOTSTRAP.
 
 include(ocx)
 # PATH-first resolution would legitimately pick up the harness ocx: scrub

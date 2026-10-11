@@ -9,55 +9,62 @@ env:
   CMAKE_GENERATOR: Ninja
 
 vars:
-  CMAKE: ocx run -- cmake
-  CTEST: ocx run -- ctest
+  CMAKE: ocx exec -- cmake
+  CTEST: ocx exec -- ctest
   BUILD: build
+  # Ninja is single-config: the configuration is chosen at configure time and
+  # ctest -C repeats it, so a test restricted by CONFIGURATIONS runs.
+  CONFIG: Release
+  # Zero tests is an error, a hung test is cut off.
+  CTEST_ARGS: -C {{.CONFIG}} --output-on-failure --no-tests=error --timeout 900
+  GERSEMI: ocx exec -- uvx gersemi==0.29.2
 
 tasks:
   default:
     deps: [verify]
 
   verify:
-    desc: Full gate — lint, module tests, examples, docs
+    desc: Full gate — lint, module tests, examples, site
     cmds:
       - task: lint
       - task: test
       - task: test:examples
-      - task: docs
       - task: site:check
 
   lint:
-    desc: actionlint + license headers + links
+    desc: gersemi + actionlint + license headers + links (repo docs, site pages, changelog)
     cmds:
-      - ocx run -- actionlint
-      - ocx run -- hawkeye check
-      # The ocx.sh/integrations/cmake/ link 404s until the site's first deploy and the edge flip;
-      # drop the exclude then.
-      - ocx run -- lychee --no-progress --exclude '^https://ocx\.sh/integrations/cmake/' README.md CONTRIBUTING.md SECURITY.md
+      # Tracked listfiles only: gersemi would descend into build trees.
+      - >-
+        git ls-files -z -- '*CMakeLists.txt' '*.cmake'
+        | xargs -0 -r {{.GERSEMI}} --check
+      - ocx exec -- actionlint
+      - ocx exec -- actionlint examples/ci/github-actions.yml
+      - ocx exec -- hawkeye check
+      # Config and the not-yet-deployed ocx.sh/integrations/cmake/ exclude: lychee.toml.
+      - ocx exec -- lychee README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md 'site/pages/**/*.md'
 
   test:
     desc: Harness — dogfooded CMake-version matrix via CTest
     cmds:
-      - "{{.CMAKE}} -Werror=dev -S . -B {{.BUILD}}"
-      - "{{.CTEST}} --test-dir {{.BUILD}} --output-on-failure"
+      - "{{.CMAKE}} -Werror=dev -DCMAKE_BUILD_TYPE={{.CONFIG}} -S . -B {{.BUILD}}"
+      - "{{.CTEST}} --test-dir {{.BUILD}} {{.CTEST_ARGS}}"
 
   test:examples:
     desc: Example projects — configure, build, test
     cmds:
       - for: { var: EXAMPLES }
         cmd: >-
-          {{.CMAKE}} -Werror=dev -DOCX_BOOTSTRAP=ON -S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
-          {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} &&
-          {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} --output-on-failure
+          {{.CMAKE}} -Werror=dev -DCMAKE_BUILD_TYPE={{.CONFIG}} -DOCX_BOOTSTRAP=ON {{if eq .ITEM "cross_build"}}-DCMAKE_TOOLCHAIN_FILE=toolchain.cmake {{end}}-S examples/{{.ITEM}} -B {{.BUILD}}/examples/{{.ITEM}} &&
+          {{.CMAKE}} --build {{.BUILD}}/examples/{{.ITEM}} --config {{.CONFIG}} &&
+          {{.CTEST}} --test-dir {{.BUILD}}/examples/{{.ITEM}} {{.CTEST_ARGS}}
     vars:
       # OCX_BOOTSTRAP=ON: no-op for the include(ocx) examples, enables the
       # bootstrap fallback for the find_package one.
-      EXAMPLES: project package frozen_index find_package
-
-  docs:
-    desc: Sphinx (CMake domain) — warnings are errors
-    cmds:
-      - ocx run -- uv run --project docs sphinx-build -W -b html docs docs/_build/html
+      # Every examples/ directory but tutorial, whose project is assembled in an empty
+      # directory and run by the doc/tutorial__first-configure cast test (POSIX only).
+      # A new directory goes here and in the ci.yml example matrix.
+      EXAMPLES: project package frozen_index find_package cross_build policy
 
   site:install:
     desc: Install the site's dependencies from the committed lockfile
@@ -65,15 +72,21 @@ tasks:
     cmds:
       - ocx exec -- pnpm install --frozen-lockfile
 
+  site:casts:
+    desc: Record the docs terminal casts from site/casts/*.sh (real runs, sanitized, gitignored; Linux and macOS)
+    dir: site
+    cmds:
+      - ocx exec -g default -g casts -- node scripts/record-casts.mjs
+
   site:build:
-    desc: Build the Starlight site (ocx.sh/integrations/cmake/) from site/pages, docs/*.rst and the modules
-    deps: [site:install]
+    desc: Build the Starlight site (ocx.sh/integrations/cmake/) from site/pages, the module rst blocks and the casts
+    deps: [site:install, site:casts]
     dir: site
     cmds:
       - ocx exec -- pnpm run build
 
   site:check:
-    desc: Build the site, test the port script and check the layout and reference anchors
+    desc: Build the site, test the scripts, check layout, anchors, sidebar and casts, run the docs-quality gate
     deps: [site:build]
     dir: site
     cmds:
@@ -90,24 +103,29 @@ tasks:
 
   site:dev:
     desc: Live site at http://localhost:4321/integrations/cmake/
-    deps: [site:install]
+    deps: [site:install, site:casts]
     dir: site
     cmds:
       - ocx exec -- pnpm run dev
 
   dist:update:
-    desc: Refresh the dist.json snapshot embedded in ocx.cmake
+    desc: Bump ocx - embedded dist.json snapshot, __OCX_PIN_VERSION and the setup-ocx CI pins, in lockstep
     cmds:
       - python3 scripts/update_dist.py
       - task: dist:check
 
   dist:check:
-    desc: Snapshot sanity — pinned version present for all 8 targets
+    desc: Snapshot sanity - every row guarded, pinned version on all 8 targets, CI pins equal the pin
     cmds:
       - python3 scripts/update_dist.py --check
+
+  dist:test:
+    desc: Unit tests of the dist guards in scripts/update_dist.py
+    cmds:
+      - python3 -I -m unittest discover -s scripts -p update_dist_test.py
 
   index:update:
     desc: Refresh the committed index snapshots (review the diff, commit)
     cmds:
       - "{{.CMAKE}} -Werror=dev -S . -B {{.BUILD}}"
-      - "{{.CMAKE}} --build {{.BUILD}} --target ocx-index-update"
+      - "{{.CMAKE}} --build {{.BUILD}} --config {{.CONFIG}} --target ocx-index-update"

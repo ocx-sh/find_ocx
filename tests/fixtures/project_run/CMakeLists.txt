@@ -6,7 +6,7 @@
 # command lists execute tools (lazily) at build time, with a generator
 # expression in the arguments.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.25...4.4)
 project(fixture_project_run LANGUAGES NONE)
 
 include(ocx)
@@ -19,9 +19,12 @@ endif()
 
 # jq -e sets the exit code from the filter result: a real assertion, run
 # through the composed project environment, with a genex argument.
-add_custom_target(jq_assert ALL
-  COMMAND ${OCX_TOOLS_RUN} jq -n -e --arg config "$<CONFIG>"
-          [[{"greeting":"hello"} | .greeting == "hello"]]
+add_custom_target(
+  jq_assert
+  ALL
+  COMMAND
+    ${OCX_TOOLS_RUN} jq -n -e --arg config "$<CONFIG>"
+    [[{"greeting":"hello"} | .greeting == "hello"]]
   COMMAND ${OCX_TOOLS_RUN_JQ} --version
   VERBATIM
 )

@@ -3,7 +3,7 @@
 version: "3"
 
 vars:
-  GIT_CLIFF: ocx run -- git-cliff
+  GIT_CLIFF: ocx exec -- git-cliff
 
 tasks:
   # Regenerate CHANGELOG.md from the full git history.
@@ -27,7 +27,7 @@ tasks:
     vars:
       # Bumped from the latest tag via conventional commits (feat → minor).
       NEXT_VERSION:
-        sh: ocx run -- git-cliff --bumped-version
+        sh: ocx exec -- git-cliff --bumped-version
     cmds:
       - 'echo "Next version: {{.NEXT_VERSION}}"'
       - sed -i 's/^set(__OCX_MODULE_VERSION "[^"]*")/set(__OCX_MODULE_VERSION "{{.NEXT_VERSION | trimPrefix "v"}}")/' ocx.cmake

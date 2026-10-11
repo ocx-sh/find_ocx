@@ -1,5 +1,4 @@
 <!-- doc_type: reference -->
-<!-- doc_tier: everyday -->
 <!-- description: The Findocx find module, its result variables and the ocx::ocx imported target. -->
 # Findocx.cmake
 

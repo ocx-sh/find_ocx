@@ -1,9 +1,21 @@
 [metadata]
 lock_version = 3
 declaration_hash_version = 1
-declaration_hash = "sha256:a8b42b177b2c2ca2373bcd8ae927a65596acdc434c6887d8570d42e7540c50a1"
+declaration_hash = "sha256:a723b467bc5c773cc3c37cb26f28e22abbeeb5ccd60290d67fba3329c6cddbfe"
 generated_by = "ocx 0.6.5"
-generated_at = "2026-10-07T20:10:52Z"
+generated_at = "2026-10-10T18:57:44Z"
+
+[[tool]]
+name = "asciinema"
+group = "casts"
+repository = "ocx.sh/asciinema/asciinema"
+
+[tool.platforms]
+"darwin/amd64" = "sha256:0e40b36e5d0af70be634fba7ca19f8c40dd04b2b3e6457dc3d77fc717a1eb28b"
+"darwin/arm64" = "sha256:044a90519ea59da626a7a7cea3735f050b9da0527c47b5f1d11ad224ec4e2c2f"
+"linux/amd64" = "sha256:4f7971ed2934cd23ab10dfecd49327d62c6f0604a1ae87a3c6c8b18c1647c3c7"
+"linux/amd64+libc.glibc" = "sha256:342a61c33be043d0888fa5d42c0a8900265c02c2cbcf6f757eaec9a0c2bac797"
+"linux/arm64+libc.glibc" = "sha256:682883a22b1634d0a338b54a01ec9b134162b8a0895dad7b492312eaaefc1b75"
 
 [[tool]]
 name = "actionlint"
