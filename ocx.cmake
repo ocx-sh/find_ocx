@@ -1171,7 +1171,7 @@ function(__ocx_host_info out_triple out_platform out_ext)
     set(${out_platform} "darwin/${parch}" PARENT_SCOPE)
     set(${out_ext} "" PARENT_SCOPE)
   elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
-    set(${out_triple} "${arch}-pc-windows-msvc" PARENT_SCOPE)
+    set(${out_triple} "${arch}-pc-windows-gnullvm" PARENT_SCOPE)
     set(${out_platform} "windows/${parch}" PARENT_SCOPE)
     set(${out_ext} ".exe" PARENT_SCOPE)
   else()
@@ -1179,17 +1179,36 @@ function(__ocx_host_info out_triple out_platform out_ext)
   endif()
 endfunction()
 
-# Finds the manifest row for an exact version and target triple.
-# The manifest is the setup.ocx.sh dist.json (schema 1, flat rows).
+# Target triples to try, in order: an explicit override alone, else the host
+# triple, plus msvc after gnullvm on Windows (releases before the gnullvm
+# rename ship msvc archives only).
+function(__ocx_target_candidates out override)
+  if(NOT "${override}" STREQUAL "")
+    set(${out} "${override}" PARENT_SCOPE)
+    return()
+  endif()
+  __ocx_host_info(host_triple host_platform exe_ext)
+  set(list "${host_triple}")
+  if(host_triple MATCHES "-pc-windows-gnullvm$")
+    string(REGEX REPLACE "gnullvm$" "msvc" msvc "${host_triple}")
+    list(APPEND list "${msvc}")
+  endif()
+  set(${out} "${list}" PARENT_SCOPE)
+endfunction()
+
+# Finds the manifest row for an exact version and the first of the target
+# triples (a list, in preference order) that has one; out_target is the triple
+# of the row taken. The manifest is the setup.ocx.sh dist.json (schema 1, flat rows).
 function(
   __ocx_select_release
   manifest
   version
-  target
+  targets
   out_url
   out_sha
   out_tag
   out_filename
+  out_target
 )
   string(JSON schema ERROR_VARIABLE err GET "${manifest}" schema)
   if(err OR NOT schema EQUAL 1)
@@ -1198,26 +1217,30 @@ function(
   string(JSON count LENGTH "${manifest}" releases)
   if(count GREATER 0)
     math(EXPR last "${count} - 1")
-    foreach(i RANGE 0 ${last})
-      string(JSON row_version GET "${manifest}" releases ${i} version)
-      if(NOT row_version STREQUAL version)
-        continue()
-      endif()
-      string(JSON row_target GET "${manifest}" releases ${i} target)
-      if(NOT row_target STREQUAL target)
-        continue()
-      endif()
-      string(JSON url GET "${manifest}" releases ${i} url)
-      string(JSON sha GET "${manifest}" releases ${i} sha256)
-      string(JSON tag GET "${manifest}" releases ${i} tag)
-      string(JSON filename GET "${manifest}" releases ${i} filename)
-      set(${out_url} "${url}" PARENT_SCOPE)
-      set(${out_sha} "${sha}" PARENT_SCOPE)
-      set(${out_tag} "${tag}" PARENT_SCOPE)
-      set(${out_filename} "${filename}" PARENT_SCOPE)
-      return()
+    foreach(target IN LISTS targets)
+      foreach(i RANGE 0 ${last})
+        string(JSON row_version GET "${manifest}" releases ${i} version)
+        if(NOT row_version STREQUAL version)
+          continue()
+        endif()
+        string(JSON row_target GET "${manifest}" releases ${i} target)
+        if(NOT row_target STREQUAL target)
+          continue()
+        endif()
+        string(JSON url GET "${manifest}" releases ${i} url)
+        string(JSON sha GET "${manifest}" releases ${i} sha256)
+        string(JSON tag GET "${manifest}" releases ${i} tag)
+        string(JSON filename GET "${manifest}" releases ${i} filename)
+        set(${out_url} "${url}" PARENT_SCOPE)
+        set(${out_sha} "${sha}" PARENT_SCOPE)
+        set(${out_tag} "${tag}" PARENT_SCOPE)
+        set(${out_filename} "${filename}" PARENT_SCOPE)
+        set(${out_target} "${target}" PARENT_SCOPE)
+        return()
+      endforeach()
     endforeach()
   endif()
+  string(REPLACE ";" " or " target "${targets}")
   message(
     FATAL_ERROR
     "find_ocx: ocx ${version} for ${target} not found in the dist manifest - "
@@ -1652,10 +1675,9 @@ function(ocx_bootstrap)
   endif()
 
   __ocx_host_info(host_triple host_platform exe_ext)
-  set(triple "${host_triple}")
-  if(NOT "${arg_TRIPLE}" STREQUAL "")
-    set(triple "${arg_TRIPLE}")
-  endif()
+  __ocx_target_candidates(candidates "${arg_TRIPLE}")
+  __ocx_target_candidates(host_candidates "")
+  list(GET candidates 0 triple)
 
   if(DEFINED OCX_BOOTSTRAP_CACHE AND NOT "${OCX_BOOTSTRAP_CACHE}" STREQUAL "")
     set(cache_root "${OCX_BOOTSTRAP_CACHE}")
@@ -1673,6 +1695,13 @@ function(ocx_bootstrap)
   # A relative root would split the binary between the build directory (where
   # file(COPY) writes) and the directory the ocx calls run in.
   cmake_path(ABSOLUTE_PATH cache_root BASE_DIRECTORY "${CMAKE_SOURCE_DIR}" NORMALIZE)
+  # A warm cache under a fallback triple (an old release) is taken as found.
+  foreach(candidate IN LISTS candidates)
+    if(EXISTS "${cache_root}/${version}/${candidate}/ocx${exe_ext}")
+      set(triple "${candidate}")
+      break()
+    endif()
+  endforeach()
   set(binary "${cache_root}/${version}/${triple}/ocx${exe_ext}")
 
   # Warm machine cache: no manifest work, no network - not even the
@@ -1682,7 +1711,7 @@ function(ocx_bootstrap)
   # A cached binary must still run and report the version it is filed under: an
   # interrupted copy or a full disk leaves a file that exists and cannot run.
   # A foreign TRIPLE cannot run here, so it is trusted as it is.
-  if(EXISTS "${binary}" AND triple STREQUAL host_triple)
+  if(EXISTS "${binary}" AND triple IN_LIST host_candidates)
     __ocx_env_entries(probe_env)
     execute_process(
       COMMAND "${CMAKE_COMMAND}" -E env ${probe_env} "${binary}" version
@@ -1763,7 +1792,8 @@ function(ocx_bootstrap)
       get_property(manifest GLOBAL PROPERTY __OCX_DIST_JSON)
     endif()
 
-    __ocx_select_release("${manifest}" "${version}" "${triple}" url sha tag filename)
+    __ocx_select_release("${manifest}" "${version}" "${candidates}" url sha tag filename triple)
+    set(binary "${cache_root}/${version}/${triple}/ocx${exe_ext}")
 
     # tag and filename become path segments (the mirror url, the scratch
     # archive): a custom manifest must not walk out of either directory.
@@ -1856,7 +1886,7 @@ function(ocx_bootstrap)
   # A fresh binary must report the version the manifest row promised: a
   # mirrored manifest can pair a valid hash with the wrong release. A foreign
   # TRIPLE cannot run here, so it is not probed.
-  if(fresh AND triple STREQUAL host_triple)
+  if(fresh AND triple IN_LIST host_candidates)
     __ocx_cli_version(reported)
     if(NOT reported VERSION_EQUAL version)
       file(REMOVE "${binary}")

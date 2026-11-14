@@ -101,7 +101,7 @@ configure(
   version_after_bootstrap
   build
   FAIL
-  REGEX "ocx 0\\.0\\.1 for [^ ]+ not found in the dist manifest"
+  REGEX "ocx 0\\.0\\.1 for [^ ]+( or [^ ]+)* not found in the dist manifest"
   ARGS -DOCX_BOOTSTRAP=ALWAYS -DOCX_INSTALL_VERSION=0.0.1
 )
 # 4. a path that does not exist.
