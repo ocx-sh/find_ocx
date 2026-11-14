@@ -43,6 +43,25 @@ foreach(v IN LISTS OCX_TEST_CMAKE_VERSIONS)
       "-DSCRATCH=${CMAKE_BINARY_DIR}/fixtures/module_checks-cmake${v}" "-DGATE=${gate}" -P
       "${CMAKE_SOURCE_DIR}/tests/fixtures/i1/module_checks.cmake"
   )
+  add_test(
+    NAME select_release/${OCX_CMAKE_${v}_TEST_LABEL}
+    COMMAND
+      ${OCX_CMAKE_${v}_RUN} cmake "-DMODULE_DIR=${CMAKE_SOURCE_DIR}" -P
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/i1/select_release.cmake"
+  )
+  add_test(
+    NAME select_release_neither/${OCX_CMAKE_${v}_TEST_LABEL}
+    COMMAND
+      ${OCX_CMAKE_${v}_RUN} cmake "-DMODULE_DIR=${CMAKE_SOURCE_DIR}" -DCASE=neither -P
+      "${CMAKE_SOURCE_DIR}/tests/fixtures/i1/select_release.cmake"
+  )
+  set_tests_properties(
+    select_release_neither/${OCX_CMAKE_${v}_TEST_LABEL}
+    PROPERTIES PASS_REGULAR_EXPRESSION "not found in the dist manifest"
+  )
+  foreach(test IN ITEMS select_release select_release_neither)
+    __ocx_test_props(${test}/${OCX_CMAKE_${v}_TEST_LABEL} SCRIPT)
+  endforeach()
   foreach(test IN ITEMS bootstrap_dist module_checks)
     __ocx_test_props(${test}/${OCX_CMAKE_${v}_TEST_LABEL} SCRIPT)
     set_tests_properties(${test}/${OCX_CMAKE_${v}_TEST_LABEL} PROPERTIES TIMEOUT 300)
