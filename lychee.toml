@@ -6,4 +6,5 @@ no_progress = true
 cache = true
 max_cache_age = "1d"
 # This repo's own blob/tree URLs answer 503 to bots; the files they name are in the checkout.
-exclude = ['^https://ocx\.sh/integrations/cmake/', '^https://github\.com/ocx-sh/find_ocx/(blob|tree)/']
+# The changelog's compare link for the version being released names a tag that does not exist until the release is pushed.
+exclude = ['^https://ocx\.sh/integrations/cmake/', '^https://github\.com/ocx-sh/find_ocx/(blob|tree)/', '^https://github\.com/ocx-sh/find_ocx/compare/']
