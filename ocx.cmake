@@ -125,7 +125,7 @@ if(POLICY CMP0174)
   cmake_policy(SET CMP0174 NEW)
 endif()
 
-set(__OCX_MODULE_VERSION "0.3.0")
+set(__OCX_MODULE_VERSION "0.4.0")
 
 # include_guard(GLOBAL) is keyed on the file path, so a second vendored copy
 # would run in full and silently win. Record the first copy; a second copy
