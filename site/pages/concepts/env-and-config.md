@@ -8,7 +8,7 @@ It matters because a build should not change with the shell it runs in.
 ## Why the variables are classified {#why}
 
 ocx reads many environment variables.
-Some of them break the module: `OCX_QUIET` empties the JSON that find_ocx parses, and `OCX_GLOBAL` conflicts with the explicit `--project` it passes.
+Some of them break the module: `OCX_QUIET` empties the JSON that find_ocx parses, and `OCX_GLOBAL` conflicts with the explicit `--project` it passes in ocx 0.6.5 and earlier.
 Some weaken a build: `OCX_NO_VERIFY` switches verification off.
 Some are legitimate site settings, such as a mirror.
 
@@ -22,7 +22,7 @@ The classes match those of [rules_ocx](https://github.com/ocx-sh/rules_ocx), so 
 | [Site](#site) | Forwarded to every call. A CMake variable wins, else the environment value of the first configure is kept. | `OCX_MIRRORS`, `OCX_INSECURE_REGISTRIES`, `OCX_OFFLINE`, `OCX_FROZEN`, `OCX_REMOTE`, `OCX_JOBS`, `OCX_INDEX`, `OCX_DEFAULT_REGISTRY`, `OCX_MANAGED_CONFIG`, `OCX_PATCHES`, `OCX_EXTRA_CA_CERTS`, `OCX_HOME` |
 | [Translucent](#translucent) | A call keyword overrides the environment. Without a keyword, the environment value is forwarded. | `OCX_CONFIG`, `OCX_PATCH_SNAPSHOT`, `OCX_SIGSTORE_TRUSTED_ROOT`, `OCX_NO_CONFIG` |
 | [Explicit](#explicit) | Never read from the environment. Only `ocx_policy` sets them. | `OCX_NO_VERIFY`, `OCX_ALLOW_YANKED` |
-| [Pinned](#pinned) | Fixed value on every call. | `OCX_PROJECT`, `OCX_GLOBAL`, `OCX_QUIET`, `OCX_NO_PROJECT`, `OCX_NO_CONFIG_REFRESH`, `OCX_NO_CONSENT`, `OCX_SELF_UPDATE` |
+| [Pinned](#pinned) | Fixed value on every call. | `OCX_PROJECT`, `OCX_GLOBAL`, `__OCX_ENV_STATE`, `OCX_QUIET`, `OCX_NO_PROJECT`, `OCX_NO_CONFIG_REFRESH`, `OCX_NO_CONSENT`, `OCX_SELF_UPDATE` |
 
 `OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}` credentials sit outside the table.
 They are never written into `CMakeCache.txt`.
@@ -38,7 +38,7 @@ Otherwise the environment value at the first configure is copied into the cache 
 Two consequences follow.
 Changing the shell variable later does not change an existing build directory, so pass `-DOCX_FROZEN=1` or use a fresh directory.
 And `-DOCX_FROZEN=` with an empty value removes the variable from every `ocx` call.
-That second form is how a nested configure opts out of what an outer launcher exports, as [Error: a nested configure fails](../troubleshooting/configure-errors.md#nested-configure) shows.
+With ocx 0.6.5 and earlier, that form opts a nested configure out of an outer launcher's exports, as [Error: a nested configure fails](../troubleshooting/configure-errors.md#nested-configure) shows.
 
 A site value cannot contain `;`, because a CMake list would split it into extra arguments.
 The module stops with an error that names the value.
@@ -68,7 +68,8 @@ A pinned variable has one right value for a configure, so find_ocx sets it on ev
 | Variable | Value | Why |
 |---|---|---|
 | `OCX_PROJECT` | empty | The module passes `--project` itself. ocx refuses to combine it with an ambient value. |
-| `OCX_GLOBAL` | `0` | `--global` together with `--project` exits 64. |
+| `OCX_GLOBAL` | removed | `--global` together with `--project` exits 64 in ocx 0.6.5 and earlier, and ocx 0.6.6 warns that it no longer reads the variable. |
+| `__OCX_ENV_STATE` | removed | ocx 0.6.6 passes the root flags of an outer ocx command in it (`--frozen`, `--offline`, `--index`, `--config`), and a child cannot override them. Set the site variable to carry a mode in. |
 | `OCX_QUIET` | `0` | Quiet mode prints nothing, and the module parses the JSON report. |
 | `OCX_NO_PROJECT` | `1` | No directory walk to an `ocx.toml` the module did not choose. An explicit `--project` still loads. |
 | `OCX_NO_CONFIG_REFRESH` | `1` | The managed-config refresh needs a terminal. |

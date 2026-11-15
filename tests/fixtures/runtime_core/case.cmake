@@ -50,7 +50,6 @@ elseif(CASE STREQUAL "prefix_default")
     IN
     ITEMS
       OCX_PROJECT=
-      OCX_GLOBAL=0
       OCX_QUIET=0
       OCX_NO_PROJECT=1
       OCX_NO_CONFIG_REFRESH=1
@@ -58,6 +57,8 @@ elseif(CASE STREQUAL "prefix_default")
       OCX_SELF_UPDATE=manual
       --unset=OCX_NO_VERIFY
       --unset=OCX_ALLOW_YANKED
+      --unset=OCX_GLOBAL
+      --unset=__OCX_ENV_STATE
       --unset=OCX_INDEX
       OCX_JOBS=4
   )
