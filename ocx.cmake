@@ -1424,19 +1424,48 @@ if(OCX_REFRESH AND NOT CMAKE_SCRIPT_MODE_FILE)
   cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL __ocx_clear_refresh)
 endif()
 
-# Parses `ocx --format json env` output ({"entries":[{key,value,type}]},
-# ordered; type "path" = prepend directory, "constant" = replace) into
-# OCX_<name>_PATHS and OCX_<name>_ENV_<KEY> result variables.
+# Reads the package root out of `ocx --format json package which`:
+#   ocx >= 0.6.6: {"schema_version": 1, "paths": {"<ref>": {"path": "<package root>", ...}}}
+#   ocx <= 0.6.5: {"<ref>": {"path": "<package root>", "kind": "package"}}
+function(__ocx_which_root out json)
+  string(JSON paths ERROR_VARIABLE err TYPE "${json}" paths)
+  if(NOT err AND paths STREQUAL "OBJECT")
+    string(JSON json GET "${json}" paths)
+  endif()
+  string(JSON member MEMBER "${json}" 0)
+  string(JSON root GET "${json}" "${member}" path)
+  set(${out} "${root}" PARENT_SCOPE)
+endfunction()
+
+# Parses `ocx --format json env` output into OCX_<name>_PATHS and
+# OCX_<name>_ENV_<KEY> result variables. The rows are ordered; kind "path" =
+# prepend directory, "constant" = replace. ocx >= 0.6.6 names the array
+# "items" and the row field "kind"; ocx <= 0.6.5 named them "entries" and "type".
 function(__ocx_export_env name json)
-  string(JSON count LENGTH "${json}" entries)
+  set(rows items)
+  string(JSON rows_type ERROR_VARIABLE err TYPE "${json}" items)
+  if(err OR NOT rows_type STREQUAL "ARRAY")
+    set(rows entries)
+    string(JSON rows_type ERROR_VARIABLE err TYPE "${json}" entries)
+    if(err OR NOT rows_type STREQUAL "ARRAY")
+      message(
+        FATAL_ERROR
+        "find_ocx: the ocx env document has neither an 'items' nor an 'entries' array"
+      )
+    endif()
+  endif()
+  string(JSON count LENGTH "${json}" ${rows})
   set(paths "")
   set(keys "")
   if(count GREATER 0)
     math(EXPR last "${count} - 1")
     foreach(i RANGE 0 ${last})
-      string(JSON key GET "${json}" entries ${i} key)
-      string(JSON value GET "${json}" entries ${i} value)
-      string(JSON type GET "${json}" entries ${i} type)
+      string(JSON key GET "${json}" ${rows} ${i} key)
+      string(JSON value GET "${json}" ${rows} ${i} value)
+      string(JSON type ERROR_VARIABLE err GET "${json}" ${rows} ${i} kind)
+      if(err)
+        string(JSON type GET "${json}" ${rows} ${i} type)
+      endif()
       if(type STREQUAL "path")
         list(APPEND paths "${value}")
       else()
@@ -3014,9 +3043,7 @@ function(ocx_package)
       OUTPUT_VARIABLE which_json
       HINTS "${index_hint}"
     )
-    # {"<ref>": {"path": "<package root>", "kind": "package"}}
-    string(JSON member MEMBER "${which_json}" 0)
-    string(JSON store_root GET "${which_json}" "${member}" path)
+    __ocx_which_root(store_root "${which_json}")
     # ocx prints native paths: backslashes on Windows. The cache holds CMake paths, as <name>_ROOT does.
     cmake_path(SET content NORMALIZE "${store_root}/content")
     __ocx_set_result(OCX_${name}_CONTENT "${content}")

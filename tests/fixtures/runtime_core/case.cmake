@@ -181,6 +181,52 @@ elseif(CASE STREQUAL "hints")
     message(FATAL_ERROR "case ${CASE}: exit 79 hint is incomplete: ${hint}")
   endif()
 
+elseif(CASE STREQUAL "report_shapes")
+  # ocx 0.6.5 and 0.6.6 print different `package which` and `env` documents; both resolve alike.
+  set(root "/store/pkg")
+  set(leaf [=[{"path": "/store/pkg", "kind": "package"}]=])
+  foreach(
+    doc
+    IN
+    ITEMS
+      "{\"ocx.sh/x:1\": ${leaf}}"
+      "{\"schema_version\": 1, \"paths\": {\"ocx.sh/x:1\": ${leaf}}}"
+  )
+    __ocx_which_root(got "${doc}")
+    if(NOT got STREQUAL root)
+      message(FATAL_ERROR "case ${CASE}: which root '${got}' from ${doc}")
+    endif()
+  endforeach()
+  set(
+    rows
+    [=[{"key":"PATH","value":"/a/bin","@T@":"path"},{"key":"HOME_X","value":"/h","@T@":"constant"}]=]
+  )
+  string(REPLACE "@T@" "type" old_rows "${rows}")
+  string(REPLACE "@T@" "kind" new_rows "${rows}")
+  foreach(
+    doc
+    IN
+    ITEMS
+      "{\"entries\":[${old_rows}],\"binaries\":[]}"
+      "{\"schema_version\":1,\"items\":[${new_rows}],\"binaries\":[]}"
+  )
+    __ocx_export_env(RS "${doc}")
+    if(
+      NOT "${OCX_RS_PATHS}" STREQUAL "/a/bin"
+      OR NOT "${OCX_RS_ENV_HOME_X}" STREQUAL "/h"
+      OR NOT "${OCX_RS_ENV_KEYS}" STREQUAL "HOME_X"
+    )
+      message(FATAL_ERROR "case ${CASE}: env '${OCX_RS_PATHS}' '${OCX_RS_ENV_HOME_X}' from ${doc}")
+    endif()
+    unset(OCX_RS_PATHS CACHE)
+    unset(OCX_RS_ENV_HOME_X CACHE)
+    unset(OCX_RS_ENV_KEYS CACHE)
+  endforeach()
+  message(STATUS "case ${CASE}: ok")
+
+elseif(CASE STREQUAL "report_no_rows")
+  __ocx_export_env(RN "{\"schema_version\":1,\"binaries\":[]}")
+
 elseif(CASE STREQUAL "shim_run")
   # OCX_EXECUTABLE is the fake_ocx shim; failures and counter come from env.
   __ocx_run(WHAT "running the shim" COMMAND package list RETRIES 2 OUTPUT_VARIABLE out)

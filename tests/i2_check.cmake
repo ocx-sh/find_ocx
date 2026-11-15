@@ -69,6 +69,7 @@ run_case(prefix_policy OK)
 run_case(translucent OK)
 run_case(error_message OK)
 run_case(hints OK)
+run_case(report_shapes OK REGEX "report_shapes: ok")
 
 # OCX_INSTALL_CA_BUNDLE -> OCX_EXTRA_CA_CERTS hand-off.
 foreach(ca_case IN ITEMS unset explicit cleared relative)
@@ -76,6 +77,7 @@ foreach(ca_case IN ITEMS unset explicit cleared relative)
 endforeach()
 
 # Negative cases: exit status and diagnostic together.
+run_case(report_no_rows FAIL REGEX "entries.*items|items.*entries")
 run_case(translucent_relative FAIL REGEX "CONFIG must be an absolute path")
 run_case(policy_relative_root FAIL REGEX "SIGSTORE_TRUSTED_ROOT must be an absolute path")
 run_case(policy_conflict FAIL REGEX "conflicting second call")
