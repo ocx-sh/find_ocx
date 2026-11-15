@@ -28,7 +28,7 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.5"
+          version: "0.6.6"
           # Default group only: the casts group (asciinema) has no Windows build.
           groups: default
       - name: Lint (actionlint, license headers, links)
@@ -48,7 +48,7 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.5"
+          version: "0.6.6"
           # Default group only: the casts group (asciinema) has no Windows build.
           groups: default
       - name: Dogfooded CMake-version matrix, 3.25 / 3.31 / 4.4 (live ocx.sh registry)
@@ -81,7 +81,7 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.5"
+          version: "0.6.6"
           # Default group only: the casts group (asciinema) has no Windows build.
           groups: default
       - name: Configure, build, test
@@ -114,7 +114,7 @@ jobs:
       - name: Setup OCX
         uses: ocx-sh/setup-ocx@25fa771f8572572dc64528db89560de68a163a0e # v1.4.0
         with:
-          version: "0.6.5"
+          version: "0.6.6"
           # Default group only: the casts group (asciinema) has no Windows build.
           groups: default
       - name: Warm configure (pulls everything)

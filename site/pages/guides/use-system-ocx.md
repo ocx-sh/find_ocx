@@ -78,10 +78,10 @@ Use it when installed copies are old or unmanaged.
 
 ## Keep the installed CLI current {#versions}
 
-find_ocx is tested against its pinned CLI version 0.6.5, which `OCX_INSTALL_VERSION` defaults to.
+find_ocx is tested against its pinned CLI version 0.6.6, which `OCX_INSTALL_VERSION` defaults to.
 An `ocx` below 0.6.0 lacks verbs the module calls, and the configure then fails with exit code 64 and its hint.
-Versions from 0.6.0 up to 0.6.5 are untested.
-An `ocx` above 0.6.5 is expected to work until ocx removes a verb the module calls.
+Versions from 0.6.0 up to 0.6.5 are untested, though the module reads their report shapes too.
+An `ocx` above 0.6.6 is expected to work until ocx removes a verb the module calls.
 When in doubt, use `ALWAYS`.
 
 ## Next steps {#next-steps}
