@@ -76,12 +76,13 @@ hint: package not in the committed index snapshot - refresh it with 'ocx --index
 ```
 
 This issue occurs when a find_ocx configure runs inside an ocx launcher, such as an `ExternalProject`, `ctest --build-and-test` or a superbuild.
-A launcher that runs with an index or in frozen mode exports `OCX_FROZEN` and `OCX_INDEX` into child processes.
+With ocx 0.6.5 and earlier, a launcher with an index or frozen mode exports `OCX_FROZEN` and `OCX_INDEX` into child processes.
 That covers `ocx package exec --frozen` and every `OCX_<NAME>_RUN` list of an `ocx_package` that has an index snapshot.
 The inner configure stores those values as if you had set them, but the outer index does not list the inner packages.
 A launcher without an index or frozen mode, such as `ocx exec` for a project, exports neither variable.
 
-Pass both variables empty to the nested configure.
+The error does not occur with ocx 0.6.6, which passes root flags in `__OCX_ENV_STATE`, because find_ocx removes it.
+With ocx 0.6.5 and earlier, pass both variables empty to the nested configure.
 An empty `OCX_INDEX` drops the inherited value without hiding a snapshot that the inner project commits itself.
 The repository's own test harness does this for every fixture it configures:
 

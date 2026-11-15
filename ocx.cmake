@@ -637,8 +637,8 @@ translucent  ``OCX_CONFIG``                    The ambient value passes through
 explicit     ``OCX_NO_VERIFY``                 Removed from every call. Only
              ``OCX_ALLOW_YANKED``              :command:`ocx_policy` sets them.
 pinned       ``OCX_PROJECT`` ``OCX_GLOBAL``    Forced to a fixed value on every
-             ``OCX_QUIET`` ``OCX_NO_PROJECT``  call (``OCX_PROJECT`` unset,
-             ``OCX_NO_CONFIG_REFRESH``         ``OCX_QUIET=0``,
+             ``OCX_QUIET`` ``OCX_NO_PROJECT``  call (``OCX_PROJECT`` and ``OCX_GLOBAL``
+             ``OCX_NO_CONFIG_REFRESH``         unset, ``OCX_QUIET=0``,
              ``OCX_NO_CONSENT``                ``OCX_SELF_UPDATE=manual``), so find_ocx
              ``OCX_SELF_UPDATE``               can parse what ocx prints.
 ===========  ================================  =========================================
@@ -647,10 +647,10 @@ The configure-time calls and the exported ``OCX_<NAME>_RUN`` command lists carry
 A value, a path or a site variable must not contain ``;``, and the module stops the configure when one does.
 Changing ``OCX_CONFIG`` or a config file runs ocx again, because their content is part of the reconfigure fingerprint.
 
-ocx launchers export ``OCX_FROZEN`` and ``OCX_INDEX`` into child processes.
-Launchers are ``ocx exec`` and the frozen ``package exec``, including the ``OCX_<NAME>_RUN`` lists.
-A find_ocx configure nested inside one, such as an ExternalProject or a test harness, inherits the outer resolution mode.
-Pass ``-DOCX_FROZEN=`` and ``-DOCX_INDEX=`` to opt out.
+A find_ocx configure nested in an ocx launcher does not inherit its ``--frozen``, ``--offline`` or ``--index`` under ocx 0.6.6.
+Set ``OCX_FROZEN``, ``OCX_OFFLINE`` or ``OCX_INDEX`` in the environment, or pass it with ``-D``.
+A launcher of ocx 0.6.5 or earlier exports ``OCX_FROZEN`` and ``OCX_INDEX``, and the nested configure inherits them.
+``-DOCX_FROZEN=`` and ``-DOCX_INDEX=`` opt out.
 
 ``OCX_AUTH_<REGISTRY>_{TYPE,USER,TOKEN}`` credentials are never snapshotted into the cache.
 Export them in the environment, and reconfigure after changing them.
@@ -695,7 +695,11 @@ set(
   "explicit|OCX_ALLOW_YANKED"
   # pinned: "VAR=value" forced on every call (empty value = unset).
   "pinned|OCX_PROJECT="
-  "pinned|OCX_GLOBAL=0"
+  # Removed: ocx >= 0.6.6 carries a parent launcher's root-flag policy (offline,
+  # frozen, index, config) in __OCX_ENV_STATE, which -DOCX_FROZEN= cannot override, and warns when
+  # OCX_GLOBAL is set (it is no longer read; ocx <= 0.6.5 rejects it with --project).
+  "pinned|--unset=OCX_GLOBAL"
+  "pinned|--unset=__OCX_ENV_STATE"
   "pinned|OCX_QUIET=0"
   "pinned|OCX_NO_PROJECT=1"
   "pinned|OCX_NO_CONFIG_REFRESH=1"
